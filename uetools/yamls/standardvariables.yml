@@ -1,0 +1,101 @@
+# Variables containing information about the case setup
+# ====================================================
+# ======= DO NOT EDIT VARIABLES BELOW ================
+# ====================================================
+
+restore:
+    bbb:
+        - 'tes'
+        - 'tis'
+        - 'nis'
+        - 'ngs'
+        - 'tgs' 
+        - 'ups'
+        - 'phis'
+
+grid:
+    com:
+        - 'nx'
+        - 'ny'
+        - 'ixpt1'
+        - 'ixpt2'
+        - 'iysptrx'
+        - 'nxleg'
+        - 'nxcore'
+        - 'nysol'
+        - 'nycore'
+        - 'rm'
+        - 'zm'
+        - 'bpol'
+        - 'bphi'
+        - 'b'
+        - 'psi'
+        - 'xlim'
+        - 'ylim'
+        - 'rbdry'
+        - 'zbdry'
+    grd:
+        - 'rplate1'
+        - 'zplate1'
+        - 'rplate2'
+        - 'zplate2'
+
+diffusivities:
+    bbb:
+        - 'isbohmcalc'
+        - 'kye_use'
+        - 'kyi_use'
+        - 'dif_use'
+        - 'tray_use'
+        - 'kyev'
+        - 'kyiv'
+        - 'difniv'
+        - 'travisv'
+        - 'kye'
+        - 'kyi'
+        - 'difni'
+        - 'travis'
+# ====================================================
+# ======= DO NOT EDIT VARIABLES ABOVE ================
+# ====================================================
+
+setup:
+    bbb:
+        - 'ncore'
+
+species: 
+    com:
+        - 'ngsp'
+        - 'nhsp'
+        - 'nhgsp'
+        - 'nzsp'
+
+centered:
+    bbb:
+        - 'ne'
+        - 'te'
+        - 'ni'
+        - 'ti'
+        - 'ng'
+        - 'tg'
+        - 'up'
+        - 'phi'
+        - 'ev'
+    com:
+        - 'yyc'
+        - 'xcs'
+
+staggered:
+    bbb:
+        - 'fnix'
+        - 'fniy'
+        - 'fngx'
+        - 'fngy'
+        - 'feex'
+        - 'feey'
+        - 'feix'
+        - 'feiy'
+        - 'up'
+        - 'vy'
+        - 'vex'
+

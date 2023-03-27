@@ -1,0 +1,522 @@
+setup:
+    paths:
+        aph:
+            aphdir: 
+                0: "../../rates/aph"
+        api:
+            apidir: 
+                0: "../../rates/api"
+
+    id:
+        bbb:
+            label:
+                0 : "testcase" 
+            restart: 1
+
+
+    allocate:
+        com:
+            ngsp: 3 # Variable depends on options
+            nhsp: 2 # Variable depends on options
+            nhgsp: 2 # Variable depends on options
+
+
+    grid:
+        bbb:
+            mhdgeo: 1
+            gengrid: 0
+        com:
+            geometry: "snull"
+            isnonog: 1
+
+    # Create group necessary for inital allocation?
+
+    physics:
+        bbb:
+            minu:
+                0: 2
+            ziin:
+                0: 1
+            znuclin:
+                0: 1
+            cngtgx: 0
+            cngtgy: 0
+
+    boundaryconditions:
+        bbb:
+            iflcore: 1
+            pcoree: 5.e+5
+            pcorei: 5.e+5
+            isupcore:
+                0: 1
+            isnicore:
+                0: 1
+            ncore:
+                0: 3.4e19
+            isextrnpf: 0
+            isnwconi:
+                0: 3
+            lyni:
+                0: 0.05
+                1: 0.05
+            nwimin:
+                0: 1.e+16
+            isextrnw: 0
+            isnwcono:
+                0: 3
+            nwomin:
+                0: 1.e+15
+            isextrtpf: 0
+            isextrtw: 0
+            istepfc: 3
+            lyte:
+                0: 0.05
+                1: 0.05
+            istipfc: 3
+            lyti: 
+                0: 0.05
+                1: 0.05
+            istewc: 3
+            istiwc: 3
+            isupss: 1
+            isplflxl: 1
+            isybdryog: 1
+
+    atoms:
+            bbb:
+                ineudif: 2
+                minu:
+                    1: 2
+                ziin:
+                    1: 0
+                znuclin:
+                    1: 1
+                istgcon:
+                    0: 0
+                tgas:
+                    0: 0
+                isnicore:
+                    1: 0
+                isngcore:
+                    0: 1
+                albedoc:
+                    0: 1 # If isngcore=0
+                ngcore:
+                    0: 2.e+13 # If isngore=1
+                isupcore:
+                    1: 1
+                istgcore:
+                    0: 1
+                tgcore:
+                    0: 100 # If istgcore=1
+                tgwall:
+                    0: 4.e-2 
+                isnwconi:
+                    1: 0
+                ifluxni: 1
+                isnwcono:
+                    1: 0
+                cfloxiplt: 1
+                ingb: 2
+                ngbackg:
+                    0: 1.e+10
+                cngfx: 1
+                cngfy: 1
+                cngflox:
+                    0: 1
+                cngfloy:
+                    0: 1
+                xstscal: 0.02
+                ngscal: 1
+                xgscal: 0.01
+                cngmom: 0
+                cmwall: 0
+                cfbgt: 0
+                kxn: 0
+                kyn: 0
+
+    rates:
+        com:
+            istabon: 10
+            isrtndep: 1 # Only used if istabon=16
+        bbb:
+            icnucx: 0
+            cnucx: 0 # Only used if icnucx=1
+            icnuiz: 0
+            cnuiz: 0 # Only used if icnuiz=1
+            isrecmon: 1
+            cfrecom: 1 # Only used if 
+            eion: 5
+            ediss: 10
+
+    molecules:
+        bbb:
+            ishymol: 1
+            istgcon:
+                1: -1
+            isngcore:
+                1: 0
+            albedoc:
+                1: 0.5 # Only used if isngcore=0
+            ngcore:
+                1: 1.e+15 # Only used if isngcore=1
+            istgcore:
+                1: 2
+            tgcore: 100 # Only used if istgcore=1
+            tgwall: 4.e-2
+            n0g:
+                1: 1.e+17
+            ngbackg:
+                1: 1.e+10
+            kelighg:
+                1: 5.e-16
+            kelighi:
+                1: 5.e-16
+            ismolcrm: 1
+            cngfx:
+                1: 1
+            cngfy:
+                1: 1
+            cfcvtg: 1
+            cftgcond: 1
+
+    carbon:
+        com:
+            mcfilename: 
+                0: "C_rates.adas" # Only if ismctab=2
+            isrtndep: 1 # Only if ismctab=2
+            iscxfit: 2
+            nzsp:
+                        0: 6 # Index depends on options, variable depends on options
+        bbb:
+            isimpon: 6
+            ziin:
+                2: 1
+                3: 2 
+                4: 3 
+                5: 4
+                6: 5
+                7: 6
+            minu:
+                2: 12
+                3: 12
+                4: 12
+                5: 12
+                6: 12
+                7: 12
+            znuclin:
+                2: 6
+                3: 6
+                4: 6 
+                5: 6
+                6: 6
+                7: 6
+            isnicore:
+                2: 3
+                3: 3
+                4: 3
+                5: 3
+                6: 3
+                7: 3
+            ncore:
+                2: 7.e+19
+                3: 7.e+19
+                4: 7.e+19
+                5: 7.e+19
+                6: 7.e+19
+                7: 7.e+19 # Only if isnicore=1
+            curcore: 0 # Only if isnicore=1
+            isupcore:
+                2: 1
+                3: 1
+                4: 1
+                5: 1
+                6: 1
+                7: 1
+            isngcore:
+                2: 0
+            ngcore:
+                2: 1.e+15 # Only if isngcore=1
+            isnwcono:
+                2: 3
+                3: 3
+                4: 3
+                5: 3
+                6: 3
+                7: 3
+            nwomin:
+                2: 1.e+7
+                3: 1.e+7
+                4: 1.e+7
+                5: 1.e+7
+                6: 1.e+7
+                7: 1.e+7 # Only if isnwcono=3
+            isnwconi:
+                2: 3
+                3: 3
+                4: 3
+                5: 3
+                6: 3
+                7: 3
+            nwimin:
+                2: 1.e+7
+                3: 1.e+7
+                4: 1.e+7
+                5: 1.e+7
+                6: 1.e+7
+                7: 1.e+7 # Only if isnwconi=3
+            tgwall:
+                2: 4.e-2
+            isbohmms: 0
+            n0:
+                2: 1.e+17
+                3: 1.e+17
+                4: 1.e+17
+                5: 1.e+17
+                6: 1.e+17
+                7: 1.e+17
+            n0g:
+                2: 1.e+18
+            nzbackg: 1.e+10
+            inzb: 2
+            ngbackg:
+                2: 1.e+10
+            ismctab: 2
+            rcxighg:
+                2: 0
+            kelighg:
+                2: 5.e-16
+            kelighg:
+                2: 5.e-16
+            isch_sput:
+                2: 7
+            fchemygwi: 1
+            fchemygwo: 1
+            fchemylb: 1
+            fchemyrb: 1
+            isph_sput:
+                2: 3
+            crmb: 2
+            cizb: 1
+            fphysylb: 1
+            fphysyrb: 1
+            isi_sputw:
+                2: 2
+            isi_sputpf:
+                2: 2
+            t_wall: 300
+            t_plat: 300
+
+
+    diffusivities:
+        bbb:
+            userdifffname: diffusivities.hdf5 # Reads user-defined diffusivities rather than 
+            radialdifffname: False
+            kxe: 1
+            kxi: 1
+            parvis:
+                0: 1
+            fcdif: 0
+            isbohmcalc: 0
+            inbtdif: 0
+            inbpdif: 0
+            kyev: False
+            kyiv: False
+            difniv: False
+            travisv: False
+
+
+    fluxlim:
+        bbb:
+            flalfv: 1
+            flalfe: 0.21
+            flalfi: 0.21
+            flalfgx: 1
+            flalfgy: 1
+            flalfgxy: 1
+            flalftgx: 1
+            flalftgy: 1
+            flalfvgx: 1.e+20
+            flalfvgy: 1.e+20
+            flalfvgxy: 1.e+20
+            lgmax: 0.5
+            lgtmax: 0.1
+            lgvmax: 0.1
+
+    differencing:
+        bbb:
+            methn: 33
+            methu: 83
+            methe: 33
+            methi: 33
+            methg: 66
+            methp: 33 
+
+    drifts:
+        bbb:
+            newbcl: 1
+            newbcr: 1
+            b0: 1
+            rsigpl: 1.e-8
+            cfjhf: 1
+            cfjve: 1
+            cfjpy: 0
+            cfjp2: 0
+            jhswitch: 1
+            isfdiax: 1
+            cfqydbo: 1
+            cfydd: 0
+            cf2dd: 0
+            cftdd: 1
+            cfyef: 1
+            cftef: 1
+            cf2ef: 1
+            cfybf: 1
+            cf2bf: 1
+            cfqybf: 1
+            cfq2bf: 1
+            cfqybbo: 0
+            cfniybbo: 0
+            cfeeybbo: 0
+            cfniydbo: 1
+            cfeeydbo: 1
+            cfeixdbo: 1
+            cfeexdbo: 1
+            cfqym: 1
+
+    potential:
+        bbb:
+            isnewpot: 1
+            rnewpot: 1
+            iphibcc: 3 # Only active is isnewpot=1
+            isutcore: 0 # Onlt if iphibcc not in [1, 2, 3]
+            iphibcwi: 0
+            iphibcwo: 0
+
+    equations:
+        bbb:
+            isnion:
+                0: 1
+                1: 1
+                2: 1
+                3: 1
+                4: 1
+                5: 1
+                6: 1
+                7: 1
+            isngon:
+                0: 0
+                1: 1
+                2: 1
+            cnfx: 1
+            cnfy: 1
+            cnsor: 1
+            cnurn: 1
+            cngsor: 1
+            cnurg: 1
+            isupon:
+                0: 1
+                1: 1
+                2: 1
+                3: 1
+                4: 1
+                5: 1
+                6: 1
+                7: 1
+            isupgon:
+                0: 1
+                1: 0
+                2: 0
+            cmfx: 1
+            cmfy: 1
+            cpgx: 1
+            cnuru: 1
+            isteon: 1
+            istion: 1
+            istgon:
+                1: 1
+            cfvisx: 1
+            cfvisy: 1
+            cvgp: 1
+            cnure: 1
+            cnuri: 1
+            isphion: 1
+            isphiofft: 0
+
+
+    recycling:
+        bbb:
+            bcen: 0
+            bcenw: 0
+            recycp:
+                0: 1.e-10
+                1: 1 # Only if ishymol=1
+                2: 1.e-10
+            recycw:
+                0: 1.e-10
+                1: 1 # Only if ishymol=1
+                2: 1.e-10
+            albedolb:
+                0: 0.99
+                1: 0.99 # Only if ishymol=1
+                2: 1
+            albedorb:
+                0: 0.99
+                1: 0.99 # Only if ishymol=1
+                2: 1
+            recycm: -0.5
+            nwsor: 3
+            issorlb: 
+                0: 1
+                1: 1
+                2: 1
+            igspsoro:  
+                0: 1
+                1: 2
+                2: 3
+            igaso:
+                0: 0 
+                1: 0
+                2: 0
+            xgaso: 
+                0: 0
+                1: 0
+                2: 0
+            wgaso:  
+                0: 1.e+3
+                1: 1.e+3
+                2: 1.e+3
+            albdso:  
+                0: 0.99
+                1: 0.99
+                2: 1
+            matwso:  
+                0: 1
+                1: 1
+                2: 1
+            igspsori:  
+                0: 1
+                1: 2
+                2: 3
+                9: 88
+            igasi:   
+                0: 0 
+                1: 0
+                2: 0
+            xgasi:  
+                0: 0  
+                1: 0
+                2: 0
+            wgasi: 
+                0: 1.e+3
+                1: 1.e+3
+                2: 1.e+3
+            albdsi:
+                0: 0.99  
+                1: 0.99
+                2: 1
+            matwsi:
+                0: 1  
+                1: 1
+                2: 1
+

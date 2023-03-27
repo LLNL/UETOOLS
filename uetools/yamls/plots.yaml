@@ -1,0 +1,56 @@
+2-Ds:
+    Mesh:
+        cmd: 'plotmesh()'
+    Electron density:
+        cmd: 'plotmeshval(bbb.ne,title="Electron density",zlabel="ne(1/m**3)")'
+    Hydrogen Dens:
+        cmd: 'plotmeshval(bbb.ng,title="Hydrogen atom density",zlabel="ng(1/m**3)")'
+    Electron Temp:
+        cmd: 'plotmeshval(bbb.te/bbb.ev,title="Electron temperature",zlabel="Te (eV)")'
+    Ion Temp:
+        cmd: 'plotmeshval(bbb.ti/bbb.ev,title="Ion temperature",zlabel="Ti (eV)")'
+    Electron heat flux:
+        cmd: 'plotmeshval(bbb.feex,title="Electron heat flux",zlabel="feex")'
+    Ion heat flux:
+        cmd: 'plotmeshval(bbb.feix,title="Ion/atom thermal heat flux",zlabel="feix")'
+
+Outer Div:
+    Electron density:
+        cmd: 'profile(com.yyrb,bbb.ne[com.nx,],title="Outer Electron density", xlabel="Distance along outer plate (m)", ylabel="ne(1/m**3)",figsize=(6,6),marker="s")'
+    Hydrogen Dens:    
+        cmd: 'profile(com.yyrb,bbb.ng[com.nx,],title="Outer Hydrogen atom density", xlabel="Distance along outer plate (m)", ylabel="ng(1/m**3)",figsize=(6,6),marker="s")'
+    Electron Temp:
+        cmd: 'profile(com.yyrb,bbb.te[com.nx,]/bbb.ev,title="Outer Electron temperature", xlabel="Distance along outer plate (m)", ylabel="Te (eV)",figsize=(6,6),marker="s")'
+    Ion Temp:
+        cmd: 'profile(com.yyrb,bbb.ti[com.nx,]/bbb.ev,title="Outer Ion temperature", xlabel="Distance along outer plate (m)", ylabel="Ti (eV)",figsize=(6,6),marker="s")'
+    Electron heat flux:
+        cmd: 'profile(com.yyrb,bbb.feex[com.nx,],title="Outer Electron thermal heat flux *area", xlabel="Distance along outer plate (m)", ylabel="feex",figsize=(6,6),marker="s")'
+    Ion heat flux:
+        cmd: 'profile(com.yyrb,bbb.feix[com.nx,],title="Outer Ion/atom thermal heat flux *area", xlabel="Distance along outer plate (m)", ylabel="feix",figsize=(6,6),marker="s")'
+
+Inner Div:
+    Electron density:
+       cmd: 'profile(com.yylb,bbb.ne[0,],title="Inner Electron density", xlabel="Distance along inner plate (m)", ylabel="ne (1/m**3)",figsize=(6,6),marker="s")'
+    Hydrogen Dens:    
+       cmd: 'profile(com.yylb,bbb.ng[0,],title="Inner Hydrogen atom density", xlabel="Distance along inner plate (m)", ylabel="ng(1/m**3)",figsize=(6,6),marker="s")'
+    Electron Temp:
+       cmd: 'profile(com.yylb,bbb.te[0,]/bbb.ev,title="Inner Electron temperature", xlabel="Distance along inner plate (m)", ylabel="Te (eV)",figsize=(6,6),marker="s")'
+    Ion Temp:
+       cmd: 'profile(com.yylb,bbb.ti[0,]/bbb.ev,title="Inner Ion temperature", xlabel="Distance along inner plate (m)", ylabel="Ti (eV)",figsize=(6,6),marker="s")'
+    Electron heat flux:
+       cmd: 'profile(com.yylb,-bbb.feex[0,],title="Inner Electron thermal heat flux *area", xlabel="Distance along inner plate (m)", ylabel="feex",figsize=(6,6),marker="s")'
+    Ion heat flux:
+       cmd: 'profile(com.yylb,-bbb.feix[0,],title="Inner Ion/atom thermal heat flux *area", xlabel="Distance along inner plate (m)", ylabel="feix",figsize=(6,6),marker="s")'
+Midplane:
+    Electron density:
+       cmd: 'profile(com.yylb,bbb.ne[bbb.ixmp,],title="Electron density at midplane", xlabel="Distance from separatrix (m)", ylabel="ne (1/m**3)",figsize=(6,6),marker="s")'
+    Hydrogen Dens:    
+       cmd: 'profile(com.yylb,bbb.ng[bbb.ixmp,],title="Hydrogen atom density at midplane", xlabel="Distance from separatrix (m)", ylabel="ng(1/m**3)",figsize=(6,6),marker="s")'
+    Electron Temp:
+       cmd: 'profile(com.yylb,bbb.te[bbb.ixmp,]/bbb.ev,title="Electron temperature at midplane", xlabel="Distance from separatrix (m)", ylabel="Te (eV)",figsize=(6,6),marker="s")'
+    Ion Temp:
+       cmd: 'profile(com.yylb,bbb.ti[bbb.ixmp,]/bbb.ev,title="Ion temperature at midplane", xlabel="Distance from separatrix (m)", ylabel="Ti (eV)",figsize=(6,6),marker="s")'
+
+Misc:
+    Heat Flux:
+       cmd: 'bbb.plateflux(); profile(com.yylb,1.e-6*(bbb.sdtlb+bbb.sdrlb),title="Particle+radiation heat flux", xlabel="Distance along inner plate (m)", ylabel="Heat flux [MW/m**2]",figsize=(6,6),marker="s")'
