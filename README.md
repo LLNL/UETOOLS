@@ -1,6 +1,13 @@
-# UEDGE toolbox (UEtools) Version: 1.0.0
+# UEDGE toolbox (UEtools) 
+Version: 1.0.0
 
-LLNL-CODE-846751
 
-Author(s) Andreas M. Holm, William H. Meyer
+## Authors
+Andreas M. Holm, William H. Meyer
 
+## Release 
+
+UEDGE is released under an LGPL license.  For more details see the
+NOTICE and LICENSE files.
+
+``LLNL-CODE-846751``
