@@ -3,6 +3,7 @@ from .CasePlot import Caseplot
 from .Solver import Solver
 from .Track import Tracker
 from uetools.UeLookup.Lookup import Lookup
+from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeConfig.Config import Config
 from uedge import bbb, com, aph, api, svr
 
@@ -13,7 +14,7 @@ from uedge import bbb, com, aph, api, svr
 # TODO: implement divergence plotting/calculation
 # TODO: Unify all data to be stored in the same dictionary?
 
-class Case(Caseplot, Solver, Lookup):
+class Case(Caseplot, Solver, Lookup, PostProcessors):
     """ UEDGE Case container object.
 
     Subclasses
