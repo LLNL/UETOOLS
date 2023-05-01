@@ -2,7 +2,8 @@ from Forthon import packageobject
 from .CasePlot import Caseplot
 from .Solver import Solver
 from .Track import Tracker
-from uetools.UeLookup.Lookup import Lookup
+from uetools.UeUtils.Lookup import Lookup
+from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeConfig.Config import Config
 from uedge import bbb, com, aph, api, svr
@@ -14,7 +15,7 @@ from uedge import bbb, com, aph, api, svr
 # TODO: implement divergence plotting/calculation
 # TODO: Unify all data to be stored in the same dictionary?
 
-class Case(Caseplot, Solver, Lookup, PostProcessors):
+class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
     """ UEDGE Case container object.
 
     Subclasses
@@ -136,6 +137,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
             self.assign()
 
         self.casename = casename
+        self.restored_from_hdf5 = False
         self.uetoolsversion = '0.1' # UEtools version
         self.allocate = packageobject('bbb').getpyobject('allocate')
         self.casefname = casefname
@@ -220,7 +222,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
                 [self.packagelist[variable]][variable][()]
         else:
             try:
-                retvar = self.vars[self.packagelist[variable]][variable]
+                retvar = self.vars[variable]
             except:
                 retvar = self.getue(variable)
         # Check the size of the array, and return index if multi-species array
@@ -234,7 +236,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         ''' Assigns the UEDGE session to this object '''
         setattr(packageobject('bbb'), 'session_id', self.session_id)
         try:
-            self.setinput(readyaml=False) 
+            self.setinput(readinput=False) 
         except:
             pass
 
@@ -255,7 +257,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         if self.mutex():
             setattr(packageobject(package), variable, value)
 
-    def getue(self, variable, s=None, **kwargs):
+    def getue(self, variable, s=None, cp=True, **kwargs):
         """ Retireves data from UEDGE variable in package 
 
         Arguments
@@ -274,7 +276,10 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         except:
             package = self.getpackage(variable)
 
-        retvar = deepcopy(packageobject(package).getpyobject(variable))
+        if cp is True:
+            retvar = deepcopy(packageobject(package).getpyobject(variable))
+        else:
+            retvar = packageobject(package).getpyobject(variable)
 
         if isinstance(retvar, (ndarray, list)):
             if len(retvar.shape) == 3:
@@ -285,6 +290,9 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
     def reload(self, group=None, **kwargs):
         """ Reloads variables from UEDGE to UeCase
 
+        (SHOULD) include all variables set in the setup
+        file or defined in the variable YAMLS
+        
         Keyword arguments
         ------------
         group : str (default = None)
@@ -308,22 +316,23 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
             if dictobj is None:
                 dictobj = self.varinput
             if not isinstance(dictobj, dict):
+                # Reached bottom of nested dictionaries: determine format
                 if isinstance(dictobj, list):
-                    for variable in dictobj:
-                        try:
-                            self.vars[group[-1]]
-                        except:
-                            self.vars[group[-1]] = dict()
-                        self.vars[group[-1]][variable] = \
-                            self.getue(variable)
+                    # We have a list: either list of variables to store or
+                    # list defning the variable array
+                    if self.getpackage(group[-1]) != None:
+                        # Request to set array starting from index 0:
+                        # just read the variable into memory
+                        self.vars[group[-1]] = self.getue(group[-1])
+                    elif isinstance(group[-1], int):
+                            # Setting subarray, store variable
+                            self.vars[group[-2]] = self.getue(group[-2])
+                    else:
+                        # List of variables, store each
+                        for variable in dictobj:
+                            self.vars[variable] = self.getue(variable)
                 elif isinstance(group[-1], int):
-                    # Store the whole variable
-                    try:
-                        self.vars[group[-3]]
-                    except:
-                        self.vars[group[-3]] = dict()
-                    self.vars[group[-3]][group[-2]] = \
-                        self.getue(group[-2])
+                    self.vars[group[-2]] = self.getue(group[-2])
             else:
                 for key, value in dictobj.items():
                     dictobj = recursivereload( value, group + [key])
@@ -362,21 +371,12 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
             for group, packages in self.varinput.items():
                 for package, variables in packages.items():
                     for variable in variables:
-                        try:
-                            self.vars[package]
-                        except:
-                            self.vars[package] = dict()
-                        self.vars[package][variable] = \
-                            self.getue(variable)
+                        self.vars[variable] = self.getue(variable)
         else:
             for group, packages in self.varinput.items():
                 for package, variables in packages.items():
                     for variable in variables:
-                        try:
-                            self.vars[package]
-                        except:
-                            self.vars[package] = dict()
-                        self.vars[package][variable] = \
+                        self.vars[variable] = \
                             self.varinput[group][package][variable]
 
     def createvarsdictfromhdf5(self, **kwargs):
@@ -386,11 +386,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         def  recursivecreatevars(dictobj = None, group=[], keylist = None):
             from numpy import ndarray
             if not isinstance(dictobj, dict):
-                try:
-                    self.vars[group[-2]]
-                except:
-                    self.vars[group[-2]] = {}
-                self.vars[group[-2]][group[-1]] = dictobj
+                self.vars[group[-1]] = dictobj
             else:
                 keylist = list(dictobj.keys())
                 for key, value in dictobj.items():
@@ -406,7 +402,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
                 return dictobj 
         recursivecreatevars(self.varinput)
         # Try setting input
-        self.setinput(readyaml=False)
+        self.setinput(readinput=False)
         self.createhelperdicts()
 
     def createhelperdicts(self, **kwargs):
@@ -468,9 +464,34 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
             print('No HDF5 file open')
         
 
+    def read_hdf5_setup(self, fname):
+        from h5py import File, Group
+        savefile = File(fname, 'r')
+        setup = savefile['setup']
+        ret = dict()
+        
+        def recursive_read_hdf5_setup(ret, setup, group=[]):
+            if len(group) > 0:
+                for subgroup in group:
+                    try:
+                        ret = ret[subgroup]
+                    except:
+                        ret[subgroup] = {}
+                        ret = ret[subgroup]
+            for name, content in setup.items():
+                if isinstance(content, Group):
+                    recursive_read_hdf5_setup(ret, content, group + [name])
+                else:
+                    ret[name] = content[()]
+#                    print(name, content, group)
+                    #print(group)
+                
+        recursive_read_hdf5_setup(ret, setup)
+        return ret 
+
             
-    def setinput(self, setupfile=None, restore=True, allocate=True, 
-        savefname=None, readyaml=True, restoresave=False, **kwargs):
+    def setinput(self, setupfile=None, restore=True, savefname=None, 
+        readinput=True, restoresave=False, **kwargs):
         ''' Sets all UEDGE variables from Case input '''
         """ Reads YAML input file
 
@@ -491,22 +512,32 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         None
         """
         from collections import OrderedDict
+        from copy import deepcopy
+        from numpy import array
         if self.mutex() is False:
             return
-        if readyaml is True:
+        if readinput is True:
             if setupfile is None:
                 setupfile = '{}.yaml'.format(self.casename)
-            self.varinput['setup'] = self.readyaml(setupfile)
+            try:
+                self.varinput['setup'] = self.readyaml(setupfile)
+            except:
+                self.varinput['setup'] = self.read_hdf5_setup(setupfile)
+                self.restored_from_hdf5 = True
+                savefname = setupfile
+                self.setue('GridFileName', setupfile)
+                self.setue('isgriduehdf5', 1)
+        setup = deepcopy(self.varinput['setup'])
 
 
         # Pop out groups that cannot be parsed by default
         try:
-            self.commands = self.varinput['setup'].pop('commands')
+            self.commands = setup.pop('commands')
         except:
             pass
         # TODO: tidy up casename definition
         try:
-            self.casename = self.varinput['setup'].pop('casename')
+            self.casename = setup.pop('casename')
         except:
             pass
         if self.casename is None:
@@ -515,7 +546,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         # TODO: Find a way to catch user-specified and radially varying
         #       diffusive coefficients when reading from file: userdifffname
         #       and radialdifffname attributes no available!
-        def setinputrecursive(dictobj, group=[], allocate=True):
+        def setinputrecursive(dictobj, group=[]):
             # NOTE: Something in this function is SLOOOW
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
@@ -527,54 +558,74 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
                     except:
                         pass
                     # Set all other parameters
-                    if isinstance(group[-1], int): # Set index-by-index
+                    if isinstance(group[-1], int) and not \
+                        isinstance(dictobj, list): # Set index-by-index
                         datalist = self.getue(group[-2])
                         datalist[group[-1]] = dictobj
-                        try:
-                            self.setue(group[-2], datalist)
-                        except:
-                            if allocate is True:
-                                self.allocate()
-                            self.setue(group[-2], datalist)
+                        self.setue(group[-2], datalist)
+                    elif not isinstance(dictobj, list):
+                        self.setue(group[-1], dictobj)
                     else: # Set whole array
-                        try:
-                            self.setue(group[-1], dictobj)
-                        except:
-                            if allocate is True:
-                                self.allocate()
-                            self.setue(group[-1], dictobj)
+                        if isinstance(group[-1], int):
+                            var = group[-2]
+                            ind0 = group[-1]
+                        else:
+                            var = group[-1]
+                            ind0 = 0
+                        if len(self.getue(var).shape)>1:
+                            ueshape = self.getue(var).shape
+                            if sum(ueshape) == sum(array(dictobj).shape):
+                                try:
+                                    self.setue(var, array(dictobj))
+                                except:
+                                    self.setue(var, array(dictobj).T)
+                            elif len(ueshape) != len(array(dictobj).shape):
+                                for j in range(ueshape[-1]):
+                                    self.getue(var, cp=False)[:,j].put( \
+                                        range(ind0, len(dictobj)+ind0), 
+                                        dictobj)
+                            else:
+                                print('!!! ERROR !!! Unable to determine ' 
+                                    'shape of {} from input'.format(var))
+                                print(' *** ABORTING ***')
+                        else:
+                            # Edit array without copying == setue
+                            self.getue(var, cp=False).put(range(ind0, 
+                                len(dictobj)+ind0), dictobj)
                 else: # Set calls to restore diffusivities
                     setattr(self, group[-1], dictobj)
             else:
                 for key, value in dictobj.items():
-                    dictobj = setinputrecursive( value, group + [key], 
-                        allocate)
+                    dictobj = setinputrecursive( value, group + [key])
                 return dictobj 
         # Set group order to assure proper allocation and avoid warnings
-        neworder = OrderedDict()
-        setupkeys = list(self.varinput['setup'].keys())
-        for key in ['grid', 'boundaryconditions', 'allocate', 'diffusivities']:
-            setupkeys.remove(key)
-        for key in ['grid', 'boundaryconditions', 'allocate']:
-            setupkeys.insert(0, key)
-        setupkeys.append('diffusivities')
-        for key in setupkeys:
-            neworder[key] = self.varinput['setup'][key]
-        self.varinput['setup'] = neworder 
-        # Set UEDGE parameters to input if restore is True
+        for allokey in ['grid', 'species']:
+            allolist = setup.pop(allokey)
+            setinputrecursive(allolist)
+            self.allocate()
         if restore is True:
-            setinputrecursive(self.varinput['setup'], allocate=allocate)
+            setinputrecursive(setup)
+            self.allocate()
+            if self.restored_from_hdf5 is True:
+                conf = Config(verbose=False)
+                print('=================================================')
+                print('Restoring case from HDF5 file:')
+                print('  Rate dirs read from .uedgerc')
+                print('  Grid read from {}'.format(setupfile))
+                if self.getue('isbohmcalc') in [0, 1]:
+                    print('  User-specified diffusivities read from HDF5 file')
+                    self.userdifffname = setupfile
+                elif self.getue('isbohmcalc') == 2:
+                    print('  Radial diffusivities read from HDF5 file')
+                    self.radialdifffname = setupfile
             # See if diffusivities unset despite being user-defined
             # If yes, try looking for them in the case being restored
-            if (self.varinput['setup']['diffusivities']['isbohmcalc'] in [0, 1]) \
+            if (self.getue('isbohmcalc') in [0, 1]) \
                 and (self.userdifffname is None):
                     self.userdifffname = self.casefname
-            elif (self.varinput['setup']['diffusivities']['isbohmcalc'] == 2) \
+            elif (self.getue('isbohmcalc') == 2) \
                 and (self.radialdifffname is None):
                     self.radialdifffname = self.casefname
-
-            if allocate is True:
-                self.allocate()
             if self.userdifffname: 
                 self.setuserdiff(self.userdifffname)
             if self.radialdifffname: 
@@ -585,15 +636,6 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         self.reload()
         for command in self.commands:
             exec(command)
-        # TODO: don't put this back in, do something else with this?
-        try:
-            self.varinput['setup']['casename'] = self.casename
-        except:
-            pass
-        try:
-            self.varinput['setup']['commands'] = self.commands
-        except:
-            pass
 
     def setuserdiff(self, difffname, **kwargs):
         """ Sets user-defined diffusivities
@@ -756,13 +798,14 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
             for group, variables in savefile['restore'].items():
                 for variable, value in variables.items():
                     self.setue(variable, value[()])
-                    self.vars[group][variable] = value[()]
+                    self.vars[variable] = value[()]
         # If not, try reading old-style save file
         except:
             for group, variables in self.varinput['restore'].items():
                 for variable in variables:
+
                     self.setue(variable, savefile[group][variable][()])
-                    self.vars[group][variable] = savefile[group][variable][()]
+                    self.vars[variable] = savefile[group][variable][()]
         return
 
     def populate(self, silent=False, **kwargs):
@@ -830,13 +873,17 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
             savefile.require_group(group)
             savefile = savefile[group]
             output.append(group)
-        try:
-            savefile.create_dataset(variable, data=data)
-        except:
-            # Catch exception of unset data and store False
-            # TODO: Omit or save False?
-            # TODO: Verbose prompt or not?
-            savefile.create_dataset(variable, data=False)
+        if variable not in savefile.keys():
+            # Check whether variable is allocated or not
+            try:
+                if self.getpackobj(variable).allocated(variable) != 0:
+                    savefile.create_dataset(variable, data=data)
+                else:
+                    savefile.create_dataset(variable, data=0)
+                    # TODO: Omit or save False?
+                    # TODO: Verbose prompt or not?
+            except:
+                savefile.create_dataset(variable, data=data)
         try:
             savefile.attrs[variable] = \
                 packageobject(package).getvarunit(variable)
@@ -867,15 +914,28 @@ class Case(Caseplot, Solver, Lookup, PostProcessors):
         self.savegroup(savename, 'diffusivities')
 
     def recursivesave(self, savefile, saveobj, group = [], **kwargs):
+        # Bottom level of structure
         if not isinstance(saveobj, dict):
-            if isinstance(saveobj, list):
+            # Special setup for saving setup parameters to store
+            # actual set values of any setup parameters defined in input
+            if group[0]=='setup':
+                variable = group.pop(-1)
+                if variable in ['userdifffname', 'radialdifffname', 
+                    'casename']:
+                    value = saveobj
+                else:
+                    value = self.getue(variable)
+                self.savevar(savefile, group, variable, value)
+            # Store requested data 
+            elif isinstance(saveobj, list):
                 for variable in saveobj:
                     self.savevar(savefile, group, variable, 
                         self.getue(variable))
-            elif group[-1] not in ['userdifffname', 'radialdifffname']:
-                variable = group.pop(-1)
-                self.savevar(savefile, group, variable, 
-                    self.getue(variable))
+#            elif group[-1] not in ['userdifffname', 'radialdifffname']:
+#                variable = group.pop(-1)
+#                self.savevar(savefile, group, variable, 
+#                    self.getue(variable))
+        # Recursively go deeper in structure
         else:
             for key, value in saveobj.items():
                 if isinstance(key, int):

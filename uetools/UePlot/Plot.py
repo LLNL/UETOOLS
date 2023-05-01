@@ -26,7 +26,7 @@ class Plot():
             if self.get('rmagx') + self.get('zmagx') == 0:
                 self.disp = -(-zm).min()
             else:
-                self.disp = 2*self.get(zmagx)
+                self.disp = 2*self.get('zmagx')
             self.uppersnvertices = self.createpolycollection(rm, \
                 -zm + self.disp, setparams=False)
         return

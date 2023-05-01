@@ -1,20 +1,23 @@
 # Reads/creates a config environment for UEDGE
-from uetools.UeLookup.Lookup import Lookup
+from uetools.UeUtils.Lookup import Lookup
 
 class Config(Lookup):
-    def __init__(self):
+    def __init__(self, verbose=True):
         from os import path
         from yaml import safe_load
         from pathlib import Path
-        from easygui import diropenbox
-        from tkinter.filedialog import askdirectory
-        from tkinter import Tk
+#        from easygui import diropenbox
+#        from tkinter.filedialog import askdirectory
+#        from tkinter import Tk
         
 
         super().__init__()
         searchpath = path.expanduser('~')
         try:
             config = safe_load(Path('{}/.uedgerc'.format(searchpath)).read_text())
+            if verbose is True:
+                print('UEDGE configuration file {}/.uedgerc found.'.format(\
+                    searchpath))
         except:
             if self.createuedgerc() is False:
                 return
