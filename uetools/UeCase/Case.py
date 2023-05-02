@@ -71,8 +71,6 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         initializes packagelist and grouplist
     closehdf5():
         closes hdf5case File object
-    createvarsdict():
-        initializes vars from varinput
     reinitializeplot():
         updates the plotting-related grid parameters
     reload(group=None):
@@ -136,6 +134,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         if assign is True:
             self.assign()
 
+        # Initialize parameters
         self.casename = casename
         self.restored_from_hdf5 = False
         self.uetoolsversion = '0.1' # UEtools version
@@ -145,22 +144,31 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         for selfdict in ['vars', 'varinput', 'packagelist', 'grouplist',
             'setup', 'commands']:
             setattr(self, selfdict, dict())
-            #setattr(self, selfdict, self.createdict())
         self.userdifffname = None
         self.radialdifffname = None
         self.hdf5case = None
+
         # Read YAML to get variables to be read/stored/used
+        if variableyamlfile is None: # No YAML variable file requested
+            # Use default: find package location and package YAMLs
+            variableyamlpath = '{}/{}'.format(uetools.__path__[0], 
+                'yamls/standardvariables.yml') 
+        else: # YAML specified, use user input
+            variableyamlpath = '{}/{}'.format(path, variableyamlfile)
+        self.varinput = self.readyaml(variableyamlpath) # Read to memory
+        if inplace is False:
+            self.createhelperdicts()
+        if self.casefname is not None:
+            self.restore(self.casefname)
+        else:
+            self.reload()
+            
+#        self.reload()
+
+        '''
         if self.casefname is None: # No saved case restored, read from memory
-            if variableyamlfile is None: # No YAML variable file requested
-                # Use default: find package location and package YAMLs
-                variableyamlpath = '{}/{}'.format(uetools.__path__[0], 
-                    'yamls/standardvariables.yml') 
-            else: # YAML specified, use user input
-                variableyamlpath = '{}/{}'.format(path, variableyamlfile)
-            self.varinput = self.readyaml(variableyamlpath) # Read to memory
             # Create dictionaries based on YAML input
             self.createhelperdicts()
-            self.createvarsdict()
         # Read data from stored file
         else: # Restore data from previous save file
             self.hdf5case = self.openhdf5(self.casefname, 'r')
@@ -169,6 +177,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
             else: # Read HDF5 data into memory
                 self.createvarsdictfromhdf5()
                 self.closehdf5()
+        '''
         # Initialize parent classes
         super(Case, self).__init__()
         return
@@ -290,8 +299,10 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
     def reload(self, group=None, **kwargs):
         """ Reloads variables from UEDGE to UeCase
 
-        (SHOULD) include all variables set in the setup
-        file or defined in the variable YAMLS
+        Omits the setup file to avoid overwriting original
+        setup.
+
+        TODO: Is this desired behavior?
         
         Keyword arguments
         ------------
@@ -300,13 +311,10 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
             variables in vars
         """
         from copy import deepcopy
+        from numpy import ndarray, int64, float64
 
         if self.mutex is False:
             return
-        try:
-            casename = self.varinput['setup'].pop('casename')
-        except:
-            pass
         try:
             commands = self.varinput['setup'].pop('commands')
         except:
@@ -317,13 +325,14 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
                 dictobj = self.varinput
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
-                if isinstance(dictobj, list):
+                if isinstance(dictobj, (list, ndarray)):
                     # We have a list: either list of variables to store or
                     # list defning the variable array
                     if self.getpackage(group[-1]) != None:
                         # Request to set array starting from index 0:
                         # just read the variable into memory
                         self.vars[group[-1]] = self.getue(group[-1])
+                    # TODO: check/verify this
                     elif isinstance(group[-1], int):
                             # Setting subarray, store variable
                             self.vars[group[-2]] = self.getue(group[-2])
@@ -333,6 +342,16 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
                             self.vars[variable] = self.getue(variable)
                 elif isinstance(group[-1], int):
                     self.vars[group[-2]] = self.getue(group[-2])
+                elif isinstance(dictobj, (int, float, int64, float64)):
+                    self.vars[group[-1]] = self.getue(group[-1])
+                elif isinstance(dictobj, (bytes, str)):
+                    try:
+                        self.vars[group[-1]] = self.getue(group[-1])
+                    except:
+                        pass
+                else:
+                    print(dictobj, group)
+                    print(type(dictobj))
             else:
                 for key, value in dictobj.items():
                     dictobj = recursivereload( value, group + [key])
@@ -348,10 +367,6 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         else:
             recursivereload(self.varinput[group], [group])
         try:
-            self.varinput['setup']['casename'] = casename
-        except:
-            pass
-        try:
             self.varinput['setup']['commands'] = self.commands
         except:
             pass
@@ -362,22 +377,6 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         self.vertices = self.createpolycollection(self.getue('rm'), 
             self.getue('zm'))
 
-    def createvarsdict(self, **kwargs):
-        """ Rearranges self.vars into structure [package][variable] """
-        # NOTE: Check before loop - fewer conditionals, more repeated code
-        # NOTE: Check in loop - less code, what kind of slowdown?
-        
-        if self.casefname is None:
-            for group, packages in self.varinput.items():
-                for package, variables in packages.items():
-                    for variable in variables:
-                        self.vars[variable] = self.getue(variable)
-        else:
-            for group, packages in self.varinput.items():
-                for package, variables in packages.items():
-                    for variable in variables:
-                        self.vars[variable] = \
-                            self.varinput[group][package][variable]
 
     def createvarsdictfromhdf5(self, **kwargs):
         ''' Creates a dictionary of variables in YAMLs '''
@@ -803,7 +802,6 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         except:
             for group, variables in self.varinput['restore'].items():
                 for variable in variables:
-
                     self.setue(variable, savefile[group][variable][()])
                     self.vars[variable] = savefile[group][variable][()]
         return
