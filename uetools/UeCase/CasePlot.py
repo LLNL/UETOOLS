@@ -5,8 +5,6 @@ class Caseplot(Plot):
     def __init__(self):
         super(Caseplot, self).__init__()
         # Calculate distances along targets
-#        self.otdistance = self.radialdistance(-2)
-#        self.itdistance = self.radialdistance(1)
         self.otdistance = self.get('yyrb')
         self.itdistance = self.get('yylb')
         return

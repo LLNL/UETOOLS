@@ -5,11 +5,7 @@ class Config(Lookup):
     def __init__(self, verbose=True):
         from os import path
         from yaml import safe_load
-        from pathlib import Path
-#        from easygui import diropenbox
-#        from tkinter.filedialog import askdirectory
-#        from tkinter import Tk
-        
+        from pathlib import Path        
 
         super().__init__()
         searchpath = path.expanduser('~')
