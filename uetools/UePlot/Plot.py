@@ -20,7 +20,7 @@ class Plot():
 
         self.vertices = self.createpolycollection(rm, zm)
         
-        if self.getue('geometry')[0].strip().lower().decode('UTF-8') == \
+        if self.get('geometry')[0].strip().lower().decode('UTF-8') == \
             'uppersn':
             self.disp = 0
             if self.get('rmagx') + self.get('zmagx') == 0:
@@ -59,7 +59,7 @@ class Plot():
     def checkusn(self, array, flip=False):
         if flip is False:
             return array
-        elif (self.getue('geometry')[0].strip().lower().decode('UTF-8') == \
+        elif (self.get('geometry')[0].strip().lower().decode('UTF-8') == \
             'uppersn'):
             return -array + self.disp
 
@@ -115,7 +115,7 @@ class Plot():
             ax = ax.get_axes()[0]
         if (rm is None) or (zm is None):
             # Use stored PolyCollection
-            if (self.getue('geometry')[0].strip().lower().decode('UTF-8') == \
+            if (self.get('geometry')[0].strip().lower().decode('UTF-8') == \
                 'uppersn') and (flip is True): 
                 vertices = deepcopy(self.uppersnvertices)
             else:

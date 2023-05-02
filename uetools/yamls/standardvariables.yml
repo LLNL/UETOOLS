@@ -47,6 +47,8 @@ grid:
         - 'simagxs'
         - 'sibdrys'
         - 'runid'
+        - 'yyrb'
+        - 'yylb'
     grd:
         - 'nplate1'
         - 'rplate1'
