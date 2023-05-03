@@ -65,7 +65,7 @@ class Plot():
 
     def plotprofile(self, x, y, ax=None, xlim=(None, None), ylim=(0, None),
         figsize=(6,5), xlabel=None, ylabel=None, title=None, logx=False, 
-        logy=False, color='k', **kwargs):
+        logy=False, color='k', watermark=True, **kwargs):
         ''' Plots y as function of x '''
         from matplotlib.pyplot import figure, Axes, Figure
 
@@ -91,13 +91,17 @@ class Plot():
         ax.set_ylabel(ylabel)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
+
+        if watermark is True:
+            self.watermark(ax.get_figure())
+
         return ax.get_figure()
 
     def plotmesh(self, z=None, rm=None, zm=None, ax=None, linewidth=0.2,
         linecolor='k', aspect='equal', figsize=(5,7), cmap='magma', units='', 
         xlim=(None, None), ylim=(None, None), zrange=(None, None), 
         log=False, vessel=True, plates=True, lcfs=True, title=None, 
-        grid=False, flip=False):
+        grid=False, flip=False, watermark=True):
         ''' General plotting function
         z - values, if any. If None, plots grid
         rm, zm - radial and horizontal nodes
@@ -158,6 +162,10 @@ class Plot():
         if z is not None:
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va='bottom')
+    
+        if watermark is True:
+            self.watermark(ax.get_figure())
+
         return ax.get_figure()
            
 
@@ -268,3 +276,24 @@ class Plot():
                     'zplate2'), flip), 'r-', linewidth=1.5)
         except:
             pass
+    
+    def watermark(self, figure):
+        from uedge import __version__
+        from time import ctime
+        label = '{}, case "{}"\n'.format(ctime(), self.casename)
+        label += 'UEDGE {} v{}, UETOOLS v{}, user "{}", hostname "{}"\n'\
+            .format(self.uedge_ver.replace('$','\$'), self.pyver, 
+            self.uetoolsversion, self.user, self.hostname)
+        try:
+            label += 'cwd "{}"'.format(self.location)
+        except:
+            label += 'cwd "{}"'.format(self.casefname)
+        # Casefname
+        # Date
+        # Username
+        # UEDGE version
+        # UETOOLS version
+        # 
+        figure.text(0.995, 0.005, label, fontsize=5, horizontalalignment='right')
+        
+        return
