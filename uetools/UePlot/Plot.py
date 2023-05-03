@@ -164,7 +164,8 @@ class Plot():
             cbar.ax.set_ylabel(units, va='bottom')
     
         if watermark is True:
-            self.watermark(ax.get_figure())
+            self.watermark(ax.get_figure(), bottom=0.1, left=0.02, 
+                right=0.95)
 
         return ax.get_figure()
            
@@ -277,7 +278,8 @@ class Plot():
         except:
             pass
     
-    def watermark(self, figure):
+    def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
+        """ Adds metadata to figure """
         from uedge import __version__
         from time import ctime
         label = '{}, case "{}"\n'.format(ctime(), self.casename)
@@ -288,13 +290,9 @@ class Plot():
             label += 'cwd "{}"'.format(self.location)
         except:
             label += 'cwd "{}"'.format(self.casefname)
-        # Casefname
-        # Date
-        # Username
-        # UEDGE version
-        # UETOOLS version
-        # 
-        figure.subplots_adjust(bottom=0.15, top=0.95, left=0.09, right=0.98)
-        figure.text(0.995, 0.005, label, fontsize=4, horizontalalignment='right')
+        figure.subplots_adjust(bottom=bottom, top=top, left=left, 
+            right=right)
+        figure.text(0.995, 0.005, label, fontsize=4, 
+            horizontalalignment='right')
         
         return
