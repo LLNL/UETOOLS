@@ -294,6 +294,7 @@ class Plot():
         # UEDGE version
         # UETOOLS version
         # 
-        figure.text(0.995, 0.005, label, fontsize=5, horizontalalignment='right')
+        figure.subplots_adjust(bottom=0.15, top=0.95, left=0.09, right=0.98)
+        figure.text(0.995, 0.005, label, fontsize=4, horizontalalignment='right')
         
         return
