@@ -1,8 +1,6 @@
 
 
 class ConvergeStep():
-    def __init__(self):
-        return
 
     def conv_step(self, increment, name, var, ivar=None, stop=None, 
             b0=False, **kwargs):
@@ -62,6 +60,10 @@ class ConvergeStep():
             elif (increment < 0) and (currval < stop):
                     break
 
+    def conv_step_igaso(self, increment, name, inwsor, stop=None, **kwargs):
+        self.conv_step(increment, name, 'igaso', ivar=inwsor, stop=None, 
+            **kwargs)
+        
 
     def conv_step_ncore(self, increment, name, iisp=0, stop=None, **kwargs):
         self.conv_step(increment, name, 'ncore', ivar=iisp, stop=None, 

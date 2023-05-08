@@ -1,7 +1,5 @@
 
 class Lookup:
-    def __init__(self):
-        return
 
     def getpackage(self, var, verbose=True, **kwargs):
         """ Returns the package name of variable """

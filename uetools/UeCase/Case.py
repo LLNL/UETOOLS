@@ -2,6 +2,7 @@ from Forthon import packageobject
 from .CasePlot import Caseplot
 from .Solver import Solver
 from .Track import Tracker
+from .Save import Save
 from uetools.UeUtils.Lookup import Lookup
 from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
@@ -15,7 +16,7 @@ from uedge import bbb, com, aph, api, svr, __version__
 # TODO: implement divergence plotting/calculation
 # TODO: Unify all data to be stored in the same dictionary?
 
-class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
+class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
     """ UEDGE Case container object.
 
     Subclasses
@@ -94,7 +95,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
     """
 
     def __init__(self, casefname=None, inplace=False, variableyamlfile = None,
-        casename=None, assign=True, **kwargs):
+        casename=None, assign=True, verbose=True, **kwargs):
         """ Initializes the UeCase object.
 
         Keyword arguments
@@ -117,7 +118,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         from os import getlogin, getcwd
         from socket import gethostname
         
-        conf = Config()
+        conf = Config(verbose=verbose)
         if conf.configured is False:
             return
         # TODO: add label attribute
@@ -128,6 +129,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
 
         # Initialize parameters
         self.casename = casename
+        self.verbose = verbose
         self.restored_from_hdf5 = False
         self.uetoolsversion = '1.0' # UEtools version
         self.allocate = packageobject('bbb').getpyobject('allocate')
@@ -329,10 +331,13 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         except:
             package = self.getpackage(variable, verbose=False)
 
-        if cp is True:
-            retvar = deepcopy(packageobject(package).getpyobject(variable))
-        else:
-            retvar = packageobject(package).getpyobject(variable)
+        try:
+            if cp is True:
+                retvar = deepcopy(packageobject(package).getpyobject(variable))
+            else:
+                retvar = packageobject(package).getpyobject(variable)
+        except:
+            raise KeyError('{} not found'.format(variable))
 
         if isinstance(retvar, (ndarray, list)):
             if len(retvar.shape) == 3:
@@ -386,6 +391,11 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
                             self.vars[variable] = self.getue(variable)
                 elif isinstance(group[-1], int):
                     self.vars[group[-2]] = self.getue(group[-2])
+                elif isinstance(dictobj, bool):
+                    # TODO: Now assumed only Falses set, which do nothing
+                    # In the future, we might include Trues on keywords.
+                    # Such behavior goes here
+                    pass
                 elif isinstance(dictobj, (int, float, int64, float64)):
                     self.vars[group[-1]] = self.getue(group[-1])
                 elif isinstance(dictobj, (bytes, str)):
@@ -782,7 +792,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep):
         self.setue('issfon', issfon)
         self.setue('ftol', ftol)
         self.update()
-        if silent is True:
+        if (silent is True) and (self.verbose is True):
             fnrm = sum(self.getue('yldot')**2)**0.5
             prtstr = '\n*** UEDGE arrays populated: {} ***'
             if fnrm < 10:
