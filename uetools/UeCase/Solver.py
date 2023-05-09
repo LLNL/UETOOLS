@@ -9,5 +9,6 @@ class Solver():
         rundt(**kwargs) 
 
     def exmain(self):
+#        self.exmain_evals = self.get('exmain_evals') + 1
         packageobject('bbb').getpyobject('exmain')()
 

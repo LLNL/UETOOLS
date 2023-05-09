@@ -143,6 +143,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
             [0].strip().decode('UTF-8')
         self.user = getlogin() 
         self.hostname = gethostname()
+        self.unset_variables = []
 
         self.vars = dict()
         self.varinput = dict()
@@ -206,9 +207,9 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         ''' Checks if UEDGE state has changed and updates if needed '''
 
         if self.exmain_evals != self.getue('exmain_evals'):
+            self.exmain_evals = self.getue('exmain_evals')
             if self.mutex() is False:
                 return
-            self.exmain_evals = self.getue('exmain_evals')
             self.reload()
             self.vertices = self.createpolycollection(self.get('rm'), 
                 self.get('zm'))
@@ -310,7 +311,10 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         except:
             package = self.getpackage(variable, verbose=False)
         if self.mutex():
-            setattr(packageobject(package), variable, value)
+            try:
+                setattr(packageobject(package), variable, value)
+            except:
+                raise KeyError('{} could not be set'.format(variable))
 
     def getue_memory(self, variable, s=None, cp=True, **kwargs):
         """ Retireves data from UEDGE variable in package 
@@ -404,8 +408,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
                     except:
                         pass
                 else:
-                    print(dictobj, group)
-                    print(type(dictobj))
+                    self.unset_variables.append([group, dictobj])
             else:
                 for key, value in dictobj.items():
                     dictobj = recursivereload( value, group + [key])
@@ -420,12 +423,20 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
             recursivereload()
         else:
             recursivereload(self.varinput[group], [group])
-        try:
-            self.varinput['setup']['commands'] = commands
-            for command in commands:
-                exec(command)
-        except:
-            pass
+        if 'commands' in locals():
+            try:
+                for command in commands:
+                    exec(command)
+            except:# Exception as e:
+                raise #e
+#        try:
+#            self.varinput['setup']['commands'] = commands
+#            print('B4', bbb.albrb[16:19])
+#            for command in commands:
+#                exec(command)
+#            print('AFTER', bbb.albrb[16:19])
+#        except:
+#            pass
         # TODO: assess time lost here?
         for variable in self.vars.keys():
             try:
@@ -668,11 +679,12 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         if restoresave is True:
             self.restoresave(savefname, **kwargs)
         self.reload()
-        try:
-            for command in commands:
-                exec(command)
-        except:
-            pass
+        # NOTE:  Commands are executed as part of reload: don't repeat here
+#        try:
+#            for command in commands:
+#                exec(command)
+#        except:
+#            pass
 
     def setuserdiff(self, difffname, **kwargs):
         """ Sets user-defined diffusivities
@@ -775,12 +787,15 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
                     self.vars[variable] = savefile[group][variable][()]
         return
 
-    def populate(self, silent=False, **kwargs):
+    def populate(self, silent=True, verbose=None, **kwargs):
         """ Populates all UEDGE arrays by evaluating static 'time-step' """
         from copy import deepcopy
 
         if self.mutex() is False:
             return
+
+        if verbose is None:
+            verbose = self.verbose
 
         if silent is True:
             self.setue('iprint', 0)
@@ -792,7 +807,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         self.setue('issfon', issfon)
         self.setue('ftol', ftol)
         self.update()
-        if (silent is True) and (self.verbose is True):
+        if (verbose is True):
             fnrm = sum(self.getue('yldot')**2)**0.5
             prtstr = '\n*** UEDGE arrays populated: {} ***'
             if fnrm < 10:
@@ -805,15 +820,18 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
             else:
                 print(prtstr.format('WARNING, case NOT converged'))
                 print('fnrm without preconditioning: {:.2e}\n'.format(fnrm))
+        if silent is True:
             self.setue('iprint', 1)
 
-    def restore(self, inputfname=None, savefname=None, **kwargs):
+    def restore(self, inputfname=None, savefname=None, populate=True, 
+            **kwargs):
         """ Restores a full case into memory and object"""
         if self.mutex() is False:
             return
         self.setinput(inputfname, savefname=savefname, restoresave=True,
             **kwargs)
-        self.populate(silent=True, **kwargs)
+        if populate is True:
+            self.populate(silent=True, **kwargs)
 
     def savevar(self, savefile, groups, variable, data, **kwargs):
         """ Saves variable and metadata to HDF5 group and dataset

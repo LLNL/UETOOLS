@@ -53,6 +53,7 @@ class ConvergeStep():
             self.setue('ftol', 1e-5)
             self.exmain()
             self.converge(**kwargs)
+            self.save('{}.hdf5'.format(_label[0].decode('UTF-8').strip().replace('hdf5','')))
             if self.getue('iterm') != 1:
                 break
             if (increment > 0) and (currval > stop):
