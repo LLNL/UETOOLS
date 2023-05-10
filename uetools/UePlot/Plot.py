@@ -15,20 +15,19 @@ class Plot():
                 zm = self.get('zm')
             except:
                 return
-        # TODO: implement handling of USN geometries -> Plot flipped
             
-
-        self.vertices = self.createpolycollection(rm, zm)
-        
-        if self.get('geometry')[0].strip().lower().decode('UTF-8') == \
-            'uppersn':
-            self.disp = 0
-            if self.get('rmagx') + self.get('zmagx') == 0:
-                self.disp = -(-zm).min()
-            else:
-                self.disp = 2*self.get('zmagx')
-            self.uppersnvertices = self.createpolycollection(rm, \
-                -zm + self.disp, setparams=False)
+        # TODO: figure out why createpolycollection bogs down Datbase?
+        if self.database is not True:
+            self.vertices = self.createpolycollection(rm, zm)
+            if self.get('geometry')[0].strip().lower().decode('UTF-8') == \
+                'uppersn':
+                self.disp = 0
+                if self.get('rmagx') + self.get('zmagx') == 0:
+                    self.disp = -(-zm).min()
+                else:
+                    self.disp = 2*self.get('zmagx')
+                self.uppersnvertices = self.createpolycollection(rm, \
+                    -zm + self.disp, setparams=False)
         return
  
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):

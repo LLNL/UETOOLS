@@ -95,7 +95,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
     """
 
     def __init__(self, casefname=None, inplace=False, variableyamlfile = None,
-        casename=None, assign=True, verbose=True, **kwargs):
+        casename=None, assign=True, verbose=True, database=False, **kwargs):
         """ Initializes the UeCase object.
 
         Keyword arguments
@@ -138,6 +138,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         self.userdifffname = None
         self.radialdifffname = None
         self.hdf5case = None
+        self.database = database
         self.pyver = __version__
         self.uedge_ver = packageobject('bbb').getpyobject('uedge_ver')\
             [0].strip().decode('UTF-8')
@@ -179,6 +180,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
             if self.casefname is not None:
                 self.restore(self.casefname)
             else:
+                self.populate(verbose=False)
                 self.reload()
         # Read all data directly from HDF5 file
         else:
@@ -448,10 +450,13 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
 
     def load_inplace(self, fileobj=None, group=[]):
         """ Creates dictionaries necessary for accessing HDF5 data """
-        from h5py import Group
+        from h5pickle import Group, File
 
         if fileobj is None:
             fileobj = self.hdf5case
+        if isinstance(fileobj, File):
+            for subgroup, data in fileobj.items():
+                self.load_inplace(data, group + [subgroup])
         if isinstance(fileobj, Group):
             for subgroup, data in fileobj.items():
                 self.load_inplace(data, group + [subgroup])
@@ -496,7 +501,8 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         ------------
         h5py File object
         """
-        from h5py import File
+        from h5pickle import File
+        return File(fname, operation)
         try:
             return File(fname, operation)
         except:
@@ -511,7 +517,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         
 
     def read_hdf5_setup(self, fname):
-        from h5py import File, Group
+        from h5pickle import File, Group
         savefile = File(fname, 'r')
         setup = savefile['setup']
         ret = dict()
@@ -565,6 +571,8 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
                 setupfile = '{}.yaml'.format(self.casename)
             try:
                 self.varinput['setup'] = self.readyaml(setupfile)
+                if 'savefile' in self.varinput['setup'].keys():
+                    savefname = self.varinput['setup']['savefile']
             except:
                 self.varinput['setup'] = self.read_hdf5_setup(setupfile)
                 self.restored_from_hdf5 = True
@@ -582,6 +590,10 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         # TODO: tidy up casename definition
         try:
             self.casename = setup.pop('casename')
+        except:
+            pass
+        try:
+            self.savefname = setup.pop('savefile')
         except:
             pass
         if self.casename is None:
@@ -694,15 +706,18 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         diffname : str
             HDF5 file from where to read 'diffusivities'/'bbb'/values
          """
+        from h5py import File
         # TODO: replace with save-group function call?
+        # NOTE: not sure why h5pickle throws error here?
+        # No matter, we are only reading: use h5py
 
         if self.mutex() is False:
             return
 
         try:
-            difffile = self.openhdf5(difffname, 'r')
+            difffile = File(difffname, 'r')
         except:
-            difffile = self.openhdf5(self.casefname, 'r')
+            difffile = File(self.casefname, 'r')
             
         for variable in ['dif_use', 'kye_use', 'kyi_use', 'tray_use']:
             self.setue(variable, 
@@ -766,7 +781,10 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
 
         if savefname is None:
             savefname = '{}.hdf5'.format(self.casename)
-        savefile = self.openhdf5(savefname, 'r')
+        from os import getcwd
+        from uedge import bbb
+        from h5py import File
+        savefile = File(savefname, 'r')
         # Try reading new, subdivided save file
         try:
             # Don't override user-specified name for case by reading from file
@@ -785,6 +803,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
                 for variable in variables:
                     self.setue(variable, savefile[group][variable][()])
                     self.vars[variable] = savefile[group][variable][()]
+        from uedge import bbb
         return
 
     def populate(self, silent=True, verbose=None, **kwargs):
@@ -908,7 +927,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
             if group[0]=='setup':
                 variable = group.pop(-1)
                 if variable in ['userdifffname', 'radialdifffname', 
-                    'casename', 'commands']:
+                    'casename', 'commands', 'savefile']:
                     value = saveobj
                 else:
                     value = self.getue(variable)
@@ -935,6 +954,10 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
         from time import time, ctime
         try:
             savefile.attrs['casename'] = self.casename
+        except:
+            pass
+        try:
+            savefile.attrs['savefile'] = self.savefile
         except:
             pass
         savefile.attrs['UETOOLS_version'] = self.uetoolsversion

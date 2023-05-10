@@ -49,6 +49,8 @@ grid:
         - 'runid'
         - 'yyrb'
         - 'yylb'
+        - 'rmagx'
+        - 'zmagx'
     grd:
         - 'nplate1'
         - 'rplate1'
