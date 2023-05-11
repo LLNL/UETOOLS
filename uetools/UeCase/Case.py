@@ -503,23 +503,27 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         h5py File object
         """
         from h5pickle import File
-        return File(fname, operation)
-        try:
+        from os.path import exists
+        if exists(fname):
             return File(fname, operation)
-        except:
-            print('File "{}" not found!'.format(fname))
+        else:
+            raise OSError('File "{}" not found!'.format(fname))
 
     def closehdf5(self, **kwargs):
         """ Closes UeCase file hdf5case  that is being read """
         try:
             self.hdf5case.close()
         except:
-            print('No HDF5 file open')
+            raise OSError('No HDF5 file open')
         
 
     def read_hdf5_setup(self, fname):
         from h5pickle import File, Group
-        savefile = File(fname, 'r')
+        from os.path import exists
+        if exists(fname):
+            savefile = File(fname, 'r')
+        else:
+            raise OSError('File "{}" not found!'.format(fname))
         setup = savefile['setup']
         ret = dict()
         
