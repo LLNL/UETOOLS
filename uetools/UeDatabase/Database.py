@@ -203,14 +203,16 @@ class Database():
             origrange = kwargs['zrange']
 
         c = self.getcase(0)
-        f, cbar = c.plotmesh(vararray[0], ax=ax, watermark=False, 
+        _, cbar = c.plotmesh(vararray[0], ax=ax, watermark=False, 
             retcbar=True, **kwargs)
         slice_position = f.add_axes([0.1, 0.02, 0.65, 0.04])
         slice_slider = Slider(slice_position, self.sortvar, self.scanvar.min(), 
-            self.scanvar.max(), valstep=self.scanvar)
+            self.scanvar.max(), valstep=self.scanvar, dragging=False)
         zrange_position = f.add_axes([0.95, 0.1, 0.04, 0.8])
         zrange_slider = RangeSlider(zrange_position, '', vararray.min(), 
-            vararray.max(), valinit=(origrange), orientation='vertical')  
+            vararray.max(), valinit=(origrange), orientation='vertical',
+            valstep = round((vararray.max()-vararray.min())/100), 
+            dragging=False) 
 
         def update(val):
             from numpy import where
@@ -218,7 +220,7 @@ class Database():
             zrange = zrange_slider.val
             kwargs['zrange'] = zrange
 #            cbar.set_ticks(linspace(zrange[0],zrange[1],10))
-            f = c.plotmesh(vararray[where(self.scanvar==slce)[0][0]], ax=ax, 
+            _ = c.plotmesh(vararray[where(self.scanvar==slce)[0][0]], ax=ax, 
                 watermark=False, colorbar=False, **kwargs)
             try:
                 f.axes[0].collections[0].remove()

@@ -115,3 +115,46 @@ class Caseplot(Plot):
         z = self.get('upi')
 #        return self.masked_CIII_2D(fname, self.get('ne'), maskvalues, **kwargs)
         return self.masked_CIII_2D(fname, z[:,:,4], maskvalues, **kwargs)
+
+    def variablemesh(self, z=None, **kwargs):
+        from matplotlib.pyplot import ion, ioff, subplots
+        from matplotlib.widgets import Slider, RangeSlider
+        ioff()
+        
+        f, ax = subplots(figsize=(5,8))
+        try:
+            kwargs['zrange']
+            origrange = kwargs['zrange']
+        except:
+            kwargs['zrange'] = (z.min(), z.max())
+            origrange = kwargs['zrange']
+        _, cbar = self.plotmesh(z, ax=ax, watermark=False, 
+            retcbar=True, **kwargs)
+        zrange_position = f.add_axes([0.95, 0.1, 0.04, 0.8])
+        zrange_slider = RangeSlider(zrange_position, '', z.min(), z.max(),
+            valinit=(origrange), orientation='vertical',
+            valstep = round((z.max()-z.min())/100)) 
+
+        def update(val):
+            from numpy import where
+            zrange = zrange_slider.val
+            kwargs['zrange'] = zrange
+#            cbar.set_ticks(linspace(zrange[0],zrange[1],10))
+            _ = self.plotmesh(z, ax=ax, watermark=False, colorbar=False, 
+                **kwargs)
+            try:
+                f.axes[0].collections[0].remove()
+            except:
+                pass
+            try:
+                for i in range(len(f.axes.lines)/2):
+                    f.axes[0].lines[0].remove()
+            except:
+                pass
+
+        zrange_slider.on_changed(update)
+        f.show() 
+
+
+        ion()
+
