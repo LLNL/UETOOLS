@@ -18,18 +18,22 @@ class Plot():
             
         # TODO: figure out why createpolycollection bogs down Datbase?
         if self.database is not True:
-            self.vertices = self.createpolycollection(rm, zm)
-            if self.get('geometry')[0].strip().lower().decode('UTF-8') == \
-                'uppersn':
-                self.disp = 0
-                if self.get('rmagx') + self.get('zmagx') == 0:
-                    self.disp = -(-zm).min()
-                else:
-                    self.disp = 2*self.get('zmagx')
-                self.uppersnvertices = self.createpolycollection(rm, \
-                    -zm + self.disp, setparams=False)
+            self.createvertices(rm, zm)
         return
  
+    def createvertices(self, rm, zm):
+        self.vertices = self.createpolycollection(rm, zm)
+        if self.get('geometry')[0].strip().lower().decode('UTF-8') == \
+            'uppersn':
+            self.disp = 0
+            if self.get('rmagx') + self.get('zmagx') == 0:
+                self.disp = -(-zm).min()
+            else:
+                self.disp = 2*self.get('zmagx')
+            self.uppersnvertices = self.createpolycollection(rm, \
+                -zm + self.disp, setparams=False)
+ 
+
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         ''' Creates a poly collection and records boundaries
         ''' 
@@ -111,6 +115,11 @@ class Plot():
         from copy import deepcopy
         from numpy import array
         from uedge import com, bbb, grd        
+
+        try:
+            self.vertices
+        except:
+            self.createvertices(self.get('rm'), self.get('zm'))
 
         if ax is None:
             f = figure(title, figsize=figsize)

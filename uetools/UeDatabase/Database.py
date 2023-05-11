@@ -132,6 +132,12 @@ class Database():
             ret.append(case.get(var, **kwargs))
         return array(ret)
 
+    def getcase(self, index):
+        try:
+            return self.cases[list(self.cases.keys())[index]]
+        except:
+            print('Case #{} does not exist'.format(index))
+            return
 
     def plotIT(self, var, **kwargs):
         return self.plotscan(var, (1, self.iysptrx+1), **kwargs) 
