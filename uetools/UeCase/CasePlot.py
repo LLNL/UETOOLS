@@ -99,4 +99,19 @@ class Caseplot(Plot):
     def tg2D(self, s=None, **kwargs):
         return self.plotmesh(self.get('tg', s)/self.get('ev'), **kwargs)
 
-    
+    def CIII_emission_2D(self, fname, **kwargs):
+        self.emission_CIII(fname)
+        return self.plotmesh(self.CIII_emission, **kwargs)
+
+    def masked_CIII_2D(self, fname, z, maskvalues, **kwargs):
+        self.emission_CIII(fname)
+        mask = self.CIII_emission[1:-1,1:-1].reshape(self.nx*self.ny)
+        mask = [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask]
+        kwargs['mask'] = mask
+        return self.plotmesh(z, **kwargs)
+
+    def CIIImasked_flow(self, fname, maskvalues, **kwargs):
+        z = (self.get('upi')**2 + self.get('vy')**2)**0.5
+        z = self.get('upi')
+#        return self.masked_CIII_2D(fname, self.get('ne'), maskvalues, **kwargs)
+        return self.masked_CIII_2D(fname, z[:,:,4], maskvalues, **kwargs)

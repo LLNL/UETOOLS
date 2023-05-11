@@ -100,13 +100,14 @@ class Plot():
         linecolor='k', aspect='equal', figsize=(5,7), cmap='magma', units='', 
         xlim=(None, None), ylim=(None, None), zrange=(None, None), 
         log=False, vessel=True, plates=True, lcfs=True, title=None, 
-        grid=False, flip=False, watermark=True):
+        grid=False, flip=False, watermark=True, mask=None):
         ''' General plotting function
         z - values, if any. If None, plots grid
         rm, zm - radial and horizontal nodes
         '''
         from matplotlib.pyplot import figure, Figure
         from matplotlib.colors import LogNorm
+        from matplotlib.collections import PolyCollection
         from copy import deepcopy
         from numpy import array
         from uedge import com, bbb, grd        
@@ -141,6 +142,9 @@ class Plot():
             vertices.set_clim(*zrange)
             if log is True:
                 vertices.set_norm(LogNorm())
+                vertices.set_clim(*zrange)
+        if mask is not None:
+            vertices.set_alpha(mask)
             
         ax.add_collection(vertices)
         # TODO: devise scheme to look for variables in memory, from 
@@ -295,3 +299,61 @@ class Plot():
             horizontalalignment='right')
         
         return
+
+
+    def plotmesh_masked(self, z, zmask, maskvalues, **kwargs):
+        from copy import deepcopy
+
+        try:
+            rm = kwargs['rm']
+        except:
+            rm = None
+        try:
+            zm = kwargs['zm']
+        except:
+            zm = None
+        try:
+            grid = kwargs['grid']
+        except:
+            grid = False
+        try:
+            log = kwargs['log']
+        except:
+            log = False
+        try:
+            cmap = kwargs['cmap']
+        except:
+            cmap = 'magma'
+        try:
+            zrange = kwargs['zrange']
+        except:
+            zrange = (None, None)
+        
+        if (rm is None) or (zm is None):
+            # Use stored PolyCollection
+            if (self.get('geometry')[0].strip().lower().decode('UTF-8') == \
+                'uppersn') and (flip is True): 
+                vertices = deepcopy(self.uppersnvertices)
+            else:
+                vertices = deepcopy(self.vertices)
+        else: # Create collection from data
+            vertices = self.createpolycollection(rm, zm)
+        if grid is False:
+            vertices.set_linewidths(1)
+            vertices.set_edgecolors('face')
+        else:
+            vertices.set_edgecolors(linecolor)
+            vertices.set_linewidths(linewidth)
+        vertices.set_cmap(cmap)
+        vertices.set_array(z[1:-1,1:-1].reshape(self.nx*self.ny))
+        mask = z[1:-1,1:-1].reshape(self.nx*self.ny)
+        vertices.set_alpha( [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask])
+        vertices.set_clim(*zrange)
+        if log is True:
+            vertices.set_norm(LogNorm())
+            vertices.set_clim(*zrange)
+            
+
+        self.plotmesh(vertices, **kwargs)
+        return mask
+        

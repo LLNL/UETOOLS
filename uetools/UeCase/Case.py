@@ -6,6 +6,7 @@ from .Save import Save
 from uetools.UeUtils.Lookup import Lookup
 from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
+from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
 from uedge import bbb, com, aph, api, svr, __version__
 
@@ -16,7 +17,7 @@ from uedge import bbb, com, aph, api, svr, __version__
 # TODO: implement divergence plotting/calculation
 # TODO: Unify all data to be stored in the same dictionary?
 
-class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save):
+class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
     """ UEDGE Case container object.
 
     Subclasses
