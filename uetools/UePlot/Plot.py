@@ -104,7 +104,8 @@ class Plot():
         linecolor='k', aspect='equal', figsize=(5,7), cmap='magma', units='', 
         xlim=(None, None), ylim=(None, None), zrange=(None, None), 
         log=False, vessel=True, plates=True, lcfs=True, title=None, 
-        grid=False, flip=False, watermark=True, mask=None):
+        grid=False, flip=False, watermark=True, mask=None, colorbar=True,
+        retcbar = False):
         ''' General plotting function
         z - values, if any. If None, plots grid
         rm, zm - radial and horizontal nodes
@@ -171,7 +172,7 @@ class Plot():
         ax.set_xlabel('R [m]')
         ax.set_ylabel('Z [m]')
         ax.set_aspect(aspect)
-        if z is not None:
+        if (z is not None) and (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va='bottom')
     
@@ -179,7 +180,11 @@ class Plot():
             self.watermark(ax.get_figure(), bottom=0.1, left=0.02, 
                 right=0.95)
 
-        return ax.get_figure()
+        if retcbar is True:
+            return ax.get_figure(), cbar
+        else:
+            return ax.get_figure()
+        
            
 
     def plotlcfs(self, ax, flip=False, color='grey', linewidth=0.5,
