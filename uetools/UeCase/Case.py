@@ -118,6 +118,11 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         from os.path import exists, abspath
         from os import getlogin, getcwd
         from socket import gethostname
+        from matplotlib.pyplot import ioff, ion
+        # NOTE: I have absolutely 0 idea why this switch is needed
+        # However, without it the first plot with sliders is inactive
+        ioff()
+        ion()
         
         conf = Config(verbose=verbose)
         if conf.configured is False:
@@ -181,7 +186,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
             if self.casefname is not None:
                 self.restore(self.casefname)
             else:
-                self.populate(verbose=False)
+#                self.populate(verbose=False)
                 self.reload()
         # Read all data directly from HDF5 file
         else:
@@ -781,14 +786,14 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         **kwargs
             passed to setgroup
         """
+        from os import getcwd
+        from uedge import bbb
+        from h5py import File
         if self.mutex() is False:
             return
 
         if savefname is None:
             savefname = '{}.hdf5'.format(self.casename)
-        from os import getcwd
-        from uedge import bbb
-        from h5py import File
         savefile = File(savefname, 'r')
         # Try reading new, subdivided save file
         try:

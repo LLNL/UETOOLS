@@ -81,22 +81,22 @@ class Caseplot(Plot):
     def heatmap(self, var, s=None, **kwargs):
         return self.plotmesh(self.get(var, s), **kwargs)
 
-    def ne2D(self, s=None, **kwargs):
-        return self.plotmesh(self.get('ne', s), **kwargs)
+    def ne2D(self, **kwargs):
+        return self.variablemesh(self.get('ne'), **kwargs)
 
     def te2D(self, s=None, **kwargs):
-        return self.plotmesh(self.get('te', s)/self.get('ev'), **kwargs)
+        return self.variablemesh(self.get('te', s)/self.get('ev'), **kwargs)
 
-    def ni2D(self, s=None, **kwargs):
-        return self.plotmesh(self.get('ni', s), **kwargs)
+    def ni2D(self, s, **kwargs):
+        return self.variablemesh(self.get('ni', s), **kwargs)
 
-    def ti2D(self, s=None, **kwargs):
-        return self.plotmesh(self.get('te', s)/self.get('ev'), **kwargs)
+    def ti2D(self, **kwargs):
+        return self.variablemesh(self.get('te')/self.get('ev'), **kwargs)
 
-    def ng2D(self, s=None, **kwargs):
-        self.plotmesh(self.get('ng', s), **kwargs)
+    def ng2D(self, s, **kwargs):
+            return self.variablemesh(self.get('ng', s), **kwargs)
 
-    def tg2D(self, s=None, **kwargs):
+    def tg2D(self, s, **kwargs):
         return self.plotmesh(self.get('tg', s)/self.get('ev'), **kwargs)
 
     def CIII_emission_2D(self, fname, **kwargs):
@@ -116,9 +116,11 @@ class Caseplot(Plot):
 #        return self.masked_CIII_2D(fname, self.get('ne'), maskvalues, **kwargs)
         return self.masked_CIII_2D(fname, z[:,:,4], maskvalues, **kwargs)
 
+
     def variablemesh(self, z=None, **kwargs):
         from matplotlib.pyplot import ion, ioff, subplots
         from matplotlib.widgets import Slider, RangeSlider
+        from matplotlib import is_interactive
         ioff()
         
         f, ax = subplots(figsize=(5,8))
@@ -128,29 +130,17 @@ class Caseplot(Plot):
         except:
             kwargs['zrange'] = (z.min(), z.max())
             origrange = kwargs['zrange']
-        _, cbar = self.plotmesh(z, ax=ax, watermark=False, 
-            retcbar=True, **kwargs)
+        cbar, verts = self.plotmesh(z, ax=ax, watermark=False, 
+            interactive=True, **kwargs)
         zrange_position = f.add_axes([0.95, 0.1, 0.04, 0.8])
         zrange_slider = RangeSlider(zrange_position, '', z.min(), z.max(),
             valinit=(origrange), orientation='vertical',
             valstep = round((z.max()-z.min())/100)) 
 
         def update(val):
-            from numpy import where
+            from numpy import floor, ceil, linspace
             zrange = zrange_slider.val
-            kwargs['zrange'] = zrange
-#            cbar.set_ticks(linspace(zrange[0],zrange[1],10))
-            _ = self.plotmesh(z, ax=ax, watermark=False, colorbar=False, 
-                **kwargs)
-            try:
-                f.axes[0].collections[0].remove()
-            except:
-                pass
-            try:
-                for i in range(len(f.axes.lines)/2):
-                    f.axes[0].lines[0].remove()
-            except:
-                pass
+            verts.set_clim(zrange)
 
         zrange_slider.on_changed(update)
         f.show() 

@@ -181,7 +181,7 @@ class Database():
 
 
     def ne_2Dseries(self, **kwargs):
-        self.plot_2Dseries(self.get('ne'), **kwargs)
+        return self.plot_2Dseries(self.get('ne'), **kwargs)
     
     def te_2Dseries(self, **kwargs):
         self.plot_2Dseries(self.get('te')/1.602e-19, **kwargs)
@@ -190,10 +190,9 @@ class Database():
         """ Returns a series of figures to scroll through """
         from matplotlib.pyplot import subplots, ion, ioff
         from matplotlib.widgets import Slider, RangeSlider
-        from numpy import linspace
 
         ioff()
-        f, ax = subplots(figsize=(5,8))
+        f, ax = subplots(figsize=(7,8))
     
         try:
             kwargs['zrange']
@@ -203,54 +202,36 @@ class Database():
             origrange = kwargs['zrange']
 
         c = self.getcase(0)
-        _, cbar = c.plotmesh(vararray[0], ax=ax, watermark=False, 
-            retcbar=True, **kwargs)
+        cbar, verts = c.plotmesh(vararray[0], ax=ax, watermark=False, 
+            interactive=True, **kwargs)
+        f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
+        f.axes[1].set_position([0.7, 0.13, 0.82, 0.85])
         slice_position = f.add_axes([0.1, 0.02, 0.65, 0.04])
         slice_slider = Slider(slice_position, self.sortvar, self.scanvar.min(), 
-            self.scanvar.max(), valstep=self.scanvar, dragging=False)
-        zrange_position = f.add_axes([0.95, 0.1, 0.04, 0.8])
+            self.scanvar.max(), valstep=self.scanvar)
+        zrange_position = f.add_axes([0.85, 0.13, 0.04, 0.85])
         zrange_slider = RangeSlider(zrange_position, '', vararray.min(), 
             vararray.max(), valinit=(origrange), orientation='vertical',
-            valstep = round((vararray.max()-vararray.min())/100), 
-            dragging=False) 
+            valstep = round((vararray.max()-vararray.min())/100)) 
 
         def update(val):
             from numpy import where
             slce = slice_slider.val
-            zrange = zrange_slider.val
-            kwargs['zrange'] = zrange
-#            cbar.set_ticks(linspace(zrange[0],zrange[1],10))
-            _ = c.plotmesh(vararray[where(self.scanvar==slce)[0][0]], ax=ax, 
-                watermark=False, colorbar=False, **kwargs)
-            try:
-                f.axes[0].collections[0].remove()
-            except:
-                pass
-            try:
-                for i in range(len(f.axes.lines)/2):
-                    f.axes[0].lines[0].remove()
-            except:
-                pass
+            index = where(self.scanvar==slce)[0][0]
+            verts.set_array(vararray[index, 1:-1,1:-1].reshape(\
+                self.getcase(index).nx*self.getcase(index).ny))
+            verts.set_clim(zrange_slider.val)
 
         slice_slider.on_changed(update)
         zrange_slider.on_changed(update)
             
         f.show()
         ion()
-        del(f)
+        return f
     
     def animation(self):
         """ Creates an animation from a series of figures """ 
         print('TBD')
-
-
-
-
-
-
-
-
-
 
 
 

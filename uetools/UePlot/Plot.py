@@ -105,7 +105,7 @@ class Plot():
         xlim=(None, None), ylim=(None, None), zrange=(None, None), 
         log=False, vessel=True, plates=True, lcfs=True, title=None, 
         grid=False, flip=False, watermark=True, mask=None, colorbar=True,
-        retcbar = False):
+        interactive = False):
         ''' General plotting function
         z - values, if any. If None, plots grid
         rm, zm - radial and horizontal nodes
@@ -180,8 +180,8 @@ class Plot():
             self.watermark(ax.get_figure(), bottom=0.1, left=0.02, 
                 right=0.95)
 
-        if retcbar is True:
-            return ax.get_figure(), cbar
+        if interactive is True:
+            return cbar, vertices
         else:
             return ax.get_figure()
         
