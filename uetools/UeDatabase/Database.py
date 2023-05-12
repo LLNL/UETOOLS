@@ -198,7 +198,8 @@ class Database():
             kwargs['zrange']
             origrange = kwargs['zrange']
         except:
-            kwargs['zrange'] = (vararray.min(), vararray.max())
+            kwargs['zrange'] = (vararray[1:-1,1:-1,:].min(), 
+                vararray[1:-1,1:-1,:].max())
             origrange = kwargs['zrange']
 
         c = self.getcase(0)
@@ -207,12 +208,12 @@ class Database():
         f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
         f.axes[1].set_position([0.7, 0.13, 0.82, 0.85])
         slice_position = f.add_axes([0.1, 0.02, 0.65, 0.04])
-        slice_slider = Slider(slice_position, self.sortvar, self.scanvar.min(), 
-            self.scanvar.max(), valstep=self.scanvar)
+        slice_slider = Slider(slice_position, self.sortvar, 
+            self.scanvar.min(), self.scanvar.max(), valstep=self.scanvar)
         zrange_position = f.add_axes([0.85, 0.13, 0.04, 0.85])
-        zrange_slider = RangeSlider(zrange_position, '', vararray.min(), 
-            vararray.max(), valinit=(origrange), orientation='vertical',
-            valstep = round((vararray.max()-vararray.min())/100)) 
+        zrange_slider = RangeSlider(zrange_position, '', 
+            vararray[1:-1,1:-1,:].min(), vararray[1:-1,1:-1,:].max(), 
+            valinit=(origrange), orientation='vertical')
 
         def update(val):
             from numpy import where
@@ -227,7 +228,7 @@ class Database():
             
         f.show()
         ion()
-        return f
+        return f, slice_slider, zrange_slider
     
     def animation(self):
         """ Creates an animation from a series of figures """ 

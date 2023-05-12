@@ -119,10 +119,6 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         from os import getlogin, getcwd
         from socket import gethostname
         from matplotlib.pyplot import ioff, ion
-        # NOTE: I have absolutely 0 idea why this switch is needed
-        # However, without it the first plot with sliders is inactive
-        ioff()
-        ion()
         
         conf = Config(verbose=verbose)
         if conf.configured is False:
