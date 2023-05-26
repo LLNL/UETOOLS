@@ -92,13 +92,13 @@ class Caseplot(Plot):
         return self.selector2D(self.get('ne'), interactive, **kwargs)
 
     def te2D(self, interactive=False, **kwargs):
-        return self.selectro2D(self.get('te')/self.get('ev'), interactive, **kwargs)
+        return self.selector2D(self.get('te')/self.get('ev'), interactive, **kwargs)
 
     def ni2D(self, s, interactive=False, **kwargs):
         return self.selector2D(self.get('ni', s), interactive, **kwargs)
 
     def ti2D(self, interactive=False, **kwargs):
-        return self.selector2D(self.get('te')/self.get('ev'), interactive, **kwargs)
+        return self.selector2D(self.get('ti')/self.get('ev'), interactive, **kwargs)
 
     def ng2D(self, s, interactive=False, **kwargs):
             return self.selector2D(self.get('ng', s), interactive, **kwargs)
@@ -204,4 +204,75 @@ class Caseplot(Plot):
 
         ion()
         return f, zrange_slider
+
+    def ionvel(self, s, **kwargs):
+        return self.plot_streamline('upi', 'vy' ,s, surfnorm=False, **kwargs)
+        
+
+    def ionflow(self, s, surfnorm=True, **kwargs):
+        return self.plot_streamline('fngx', 'fngy' ,s, surfnorm, **kwargs)
+
+    def gasflow(self, s, surfnorm=True, **kwargs):
+        return self.plot_streamline('fngx', 'fngy' ,s, surfnorm, **kwargs)
+        
+
+    def plot_streamline(self, varpol, varrad, s=None, surfnorm=True, **kwargs):
+        from numpy import zeros_like
+        pol = self.get(varpol, s) / self.get('sx')**surfnorm
+        rad = self.get(varrad, s) / self.get('sx')**surfnorm
+        pol_use = zeros_like(pol)
+        rad_use = zeros_like(rad)
+
+        return self.streamline(pol, rad, **kwargs)
+
+ 
+    def plot_2Dyldot(self, **kwargs):
+        """ Returns a series of figures to scroll through """
+        from matplotlib.pyplot import subplots, ion, ioff
+        from matplotlib.widgets import Slider
+
+        ioff()
+        f, ax = subplots(figsize=(7,8))
+    
+        vararray = self.numvararr((self.get('yldot')*self.get('sfscal'))[:-2])
+        
+        try:
+            kwargs['zrange']
+            origrange = max([abs(x) for x in kwargs['zrange']])
+        except:
+            kwargs['zrange'] = (vararray[1:-1,1:-1,:].min(), 
+                vararray[1:-1,1:-1,:].max())
+            origrange = max([abs(x) for x in kwargs['zrange']])
+        kwargs['zrange'] = (-origrange, origrange)
+        try:
+            kwargs['cmap']
+        except:
+            kwargs['cmap'] = 'bwr'
+
+        cbar, verts = self.plotmesh(vararray[:,:,0], ax=ax, watermark=False, 
+            interactive=True, **kwargs)
+        f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
+        f.axes[1].set_position([0.7, 0.13, 0.82, 0.85])
+        slice_position = f.add_axes([0.1, 0.02, 0.65, 0.04])
+        slice_slider = Slider(slice_position, '', 
+            0, vararray.shape[-1], valstep=1)
+        zrange_position = f.add_axes([0.85, 0.13, 0.04, 0.85])
+        zrange_slider = Slider(zrange_position, '', 
+            0., vararray[1:-1,1:-1,:].max(), 
+            valinit=origrange, orientation='vertical')
+
+        def update(val):
+            from numpy import where
+            slce = slice_slider.val
+            verts.set_array(vararray[1:-1,1:-1, slce-1].reshape((\
+                self.get('nx')*self.get('ny'))))
+            verts.set_clim((-zrange_slider.val, zrange_slider.val))
+
+        slice_slider.on_changed(update)
+        zrange_slider.on_changed(update)
+            
+        f.show()
+        ion()
+        return f, (slice_slider, zrange_slider)
+    
 

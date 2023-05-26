@@ -53,8 +53,9 @@ class Save():
 
     def savegroup(self, savename, group, append=True, **kwargs):
         # TODO: Do we want to always rewrite or try to append?
-        savefile = self.openhdf5(savename, 'a'*(append is True) + \
-            'w'*(append is False))
+        from h5pickle import File
+        savefile = File(savename, 'w'*(append is False) \
+            + 'a'*(append is True)) 
         if append is False:
             self.savemetadata(savefile)
         self.recursivesave(savefile, self.varinput[group], [group])
@@ -77,7 +78,7 @@ class Save():
             if group[0]=='setup':
                 variable = group.pop(-1)
                 if variable in ['userdifffname', 'radialdifffname', 
-                    'casename', 'commands']:
+                    'casename', 'commands', 'savefile']:
                     value = saveobj
                 else:
                     value = self.getue(variable)
@@ -133,10 +134,12 @@ class Save():
             group identifier of group to be written to file. If None,
             all data stored in UeCase is written
         """
+        from h5pickle import File
+    
         if self.inplace:
             print('Data read from file, no data to save. Aborting.')
             return
-        savefile = self.openhdf5(savefname, 'w'*(append is False) \
+        savefile = File(savefname, 'w'*(append is False) \
             + 'a'*(append is True)) 
         self.savemetadata(savefile)
         if group is None:

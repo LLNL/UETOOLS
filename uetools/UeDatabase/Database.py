@@ -14,22 +14,12 @@ class Database():
         self.dbidentifier = dbidentifier
         self.datbasename = database
         self.rerun = rerun
-        self.sortvar = sortvar
-        self.sortlocation = sortlocation
         self.create_database(database, not meshplot_setup)
         # TODO: Store commonly used grid locations
         # TODO: Account for different grids
-        self.ixmp = self.get('ixmp')[0]
-        self.iysptrx = self.get('iysptrx')[0]
 
-        # Make sort location more advanced
-        if self.sortlocation == 'midplane':
-            self.sortlocation = (self.ixmp, self.iysptrx+1)
-        elif isinstance(self.sortlocation, str):
-            print('Sort location option "{}" not recognized. Aborting'.format(\
-                self.sortlocation))
         # Sort here
-        self.sort(sortvar, self.sortlocation)
+        self.sort(sortvar, sortlocation)
 
         # Save if requested
         if savedbname is not None:
@@ -67,14 +57,23 @@ class Database():
     def sort(self, variable, location, increasing = True):
         """ Sorts cases according to variable at location """
         from numpy import argsort, where
-        order = argsort(self.get(self.sortvar)[:, location[0], location[1]])
+        self.sortvar = variable
+        self.sortlocation = location
+        self.ixmp = self.get('ixmp')[0]
+        self.iysptrx = self.get('iysptrx')[0]
+
+        # Make sort location more advanced
+        if self.sortlocation == 'midplane':
+            self.sortlocation = (self.ixmp, self.iysptrx+1)
+        elif isinstance(self.sortlocation, str):
+            print('Sort location option "{}" not recognized. Aborting'.format(\
+                self.sortlocation))
+        order = argsort(self.get(self.sortvar)[:, self.sortlocation[0], self.sortlocation[1]])
         neworder = {}
         for i in order:
             key = list(self.cases.keys())[i]
             neworder[key] = self.cases[key]
         self.cases = neworder
-        self.sortvar = sortvar
-        self.sortlocation = sortlocation
 
         self.scanvar = self.get(self.sortvar)[:, self.sortlocation[0], 
             self.sortlocation[1]]
@@ -142,10 +141,16 @@ class Database():
             print('Case #{} does not exist'.format(index))
             return
 
-    def plotIT(self, var, **kwargs):
+    def teITsep(self, **kwargs):
+        return self.plotITsep(self.get('te')/1.602e-19, **kwargs)
+
+    def teOTsep(self, **kwargs):
+        return self.plotOTsep(self.get('te')/1.602e-19, **kwargs)
+
+    def plotITsep(self, var, **kwargs):
         return self.plotscan(var, (1, self.iysptrx+1), **kwargs) 
 
-    def plotOT(self, var, **kwargs):
+    def plotOTsep(self, var, **kwargs):
         return self.plotscan(var, (-2, self.iysptrx+1), **kwargs) 
 
     def plotOMP(self, var, **kwargs):
@@ -220,7 +225,7 @@ class Database():
             slce = slice_slider.val
             index = where(self.scanvar==slce)[0][0]
             verts.set_array(vararray[index, 1:-1,1:-1].reshape(\
-                self.getcase(index).nx*self.getcase(index).ny))
+                self.getcase(index).get('nx')*self.getcase(index).get('ny')))
             verts.set_clim(zrange_slider.val)
 
         slice_slider.on_changed(update)

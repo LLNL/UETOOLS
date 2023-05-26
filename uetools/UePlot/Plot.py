@@ -100,7 +100,7 @@ class Plot():
 
         return ax.get_figure()
 
-    def plotmesh(self, z=None, rm=None, zm=None, ax=None, linewidth=0.2,
+    def plotmesh(self, z=None, rm=None, zm=None, ax=None, linewidth=0.05,
         linecolor='k', aspect='equal', figsize=(5,7), cmap='magma', units='', 
         xlim=(None, None), ylim=(None, None), zrange=(None, None), 
         log=False, vessel=True, plates=True, lcfs=True, title=None, 
@@ -366,8 +366,103 @@ class Plot():
         if log is True:
             vertices.set_norm(LogNorm())
             vertices.set_clim(*zrange)
-            
-
         self.plotmesh(vertices, **kwargs)
         return mask
         
+    def streamline(self, pol, rad, resolution=(500j,800j), linewidth=0.5,  
+        broken_streamlines=False, color='k', maxlength=0.4, mask=True, 
+        **kwargs):
+        from numpy import zeros, sum, transpose, mgrid, nan, array
+        from scipy.interpolate import griddata, bisplrep
+        from matplotlib.patches import Polygon
+        rm = self.get('rm')
+        zm = self.get('zm')
+        nx = self.get('nx')
+        ny = self.get('ny')
+        nodes = zeros((nx+2, ny+2, 5, 2))
+        nodes[:, :, :, 0] = rm
+        nodes[:, :, :, 1] = zm
+        nodes = transpose(nodes, (2, 3, 0, 1))
+        # Create polygons for masking
+        outerx = []
+        outerx = outerx + list(rm[::-1][-self.get('ixpt1')[0]:,0,2])
+        outerx = outerx + list(rm[0,:,1])
+        outerx = outerx + list(rm[:,-1,3])
+        outerx = outerx + list(rm[:,::-1][-1,:,4])
+        outerx = outerx + list(rm[::-1][:nx-self.get('ixpt2')[0],0,1])
+        outery = []
+        outery = outery + list(zm[::-1][-self.get('ixpt1')[0]:,0,2])
+        outery = outery + list(zm[0,:,1])
+        outery = outery + list(zm[:,-1,3])
+        outery = outery + list(zm[:,::-1][-1,:,4])
+        outery = outery + list(zm[::-1][:nx-self.get('ixpt2')[0],0,1])
+
+        innerx = rm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1,0,1]
+        innery = zm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1,0,1]
+
+        outer = Polygon(array([outerx, outery]).transpose(), closed=True,
+            facecolor='white', edgecolor='none')
+        inner = Polygon(array([innerx, innery]).transpose(), closed=True,
+            facecolor='white', edgecolor='none')
+
+        # Find midpoints of y-faces
+        symid = zeros((2, 2, nx+2, ny+2))
+        symid[0] = (nodes[2] + nodes[1])/2 # Lower face center
+        symid[1] = (nodes[4] + nodes[3])/2 # Upper face center
+        # Find midpoints of x-faces
+        sxmid = zeros((2, 2,  nx+2, ny+2))
+        sxmid[0] = (nodes[3] + nodes[1])/2 # Left face center
+        sxmid[1] = (nodes[4] + nodes[2])/2 # Right face center
+        # Get normal vectors in y-direction of each cell
+        ynormal = zeros((2, nx+2, ny+2))
+        ynormal = symid[1] - symid[0]
+        # Get normal vectors in x-direction of each cell
+        xnormal = zeros((2, nx+2, ny+2))
+        xnormal = sxmid[1] - sxmid[0]
+        # Get radial unit vectors
+        ynormalhat = zeros((2, nx+2, ny+2))
+        for i in range(2):
+            ynormalhat[i] = ynormal[i]/sum(ynormal**2, axis=0)**0.5
+        # Get poloidal unit vectors
+        xnormalhat = zeros((2, nx+2, ny+2))
+        for i in range(2):
+            xnormalhat[i] = xnormal[i]/sum(xnormal**2, axis=0)**0.5
+
+        x = pol * xnormalhat[0] + rad * ynormalhat[0]
+        y = pol * xnormalhat[1] + rad * ynormalhat[1]
+
+        gx, gy = mgrid[rm.min():rm.max():resolution[0], 
+            zm.min():zm.max():resolution[1]]
+    
+        # Previous implementation, which (incorrectly) assumed values to 
+        # be given for cell-centers
+#        xinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()), 
+#            x[1:-1,1:-1].ravel(), (gx, gy)) 
+#        yinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()), 
+#            y[1:-1,1:-1].ravel(), (gx, gy)) 
+        xinterp = griddata( (sxmid[1,0,1:-1,1:-1].ravel(), sxmid[1, 1, 1:-1, 1:-1].ravel()),
+            x[1:-1,1:-1].ravel(), (gx, gy)) 
+        yinterp = griddata( (symid[1,0,1:-1,1:-1].ravel(), symid[1, 1, 1:-1, 1:-1].ravel()),
+            y[1:-1,1:-1].ravel(), (gx, gy)) 
+
+        if mask is True:
+            for i in range(gx.shape[0]):
+                for j in range(gx.shape[1]):
+                    p = (gx[i,j], gy[i,j])
+                    if (inner.contains_point(p)) or (not outer.contains_point(p)):
+                        xinterp[i,j] = nan
+                        yinterp[i,j] = nan
+
+        f=self.plotmesh()
+        if linewidth == 'magnitude':
+            linewidth = (xinterp**2 + yinterp**2)**0.5
+            linewidth /= liewidth.max()
+        
+        f.get_axes()[0].streamplot(gx.transpose(), gy.transpose(), 
+            xinterp.transpose(), yinterp.transpose(), linewidth=linewidth,
+            broken_streamlines=broken_streamlines, color=color, 
+            maxlength=maxlength, **kwargs)
+
+
+        return f
+

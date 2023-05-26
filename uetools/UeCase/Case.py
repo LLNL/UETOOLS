@@ -3,6 +3,7 @@ from .CasePlot import Caseplot
 from .Solver import Solver
 from .Track import Tracker
 from .Save import Save
+from uetools.UeDashboard import Dashboard
 from uetools.UeUtils.Lookup import Lookup
 from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
@@ -17,7 +18,8 @@ from uedge import bbb, com, aph, api, svr, __version__
 # TODO: implement divergence plotting/calculation
 # TODO: Unify all data to be stored in the same dictionary?
 
-class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
+class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, 
+    ADAS, Dashboard):
     """ UEDGE Case container object.
 
     Subclasses
@@ -147,6 +149,8 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         self.user = getlogin() 
         self.hostname = gethostname()
         self.unset_variables = []
+        self.omitvars = ['userdifffname', 'radialdifffname', 'casename', 
+            'commands', 'savefile']
 
         self.vars = dict()
         self.varinput = dict()
@@ -160,6 +164,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         if self.inplace is False:
             self.get = self.get_memory
             self.getue = self.getue_memory
+            self.set = self.set_memory
             self.setue = self.setue_memory
             try:
                 self.location = abspath(self.casefname)
@@ -187,6 +192,7 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         # Read all data directly from HDF5 file
         else:
             self.get = self.get_inplace
+            self.set = self.getsetue_inplace
             self.getue = self.getsetue_inplace
             self.setue = self.getsetue_inplace
             if self.casefname is None:
@@ -234,6 +240,9 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
                     retvar = retvar[:, :, s]
         return retvar
 
+    def set_memory(self, variable, **kwargs):
+        """ Returns pointer to variable that can be modified """
+        return self.getue_memory(variable, cp=False, **kwargs)
 
     def get_memory(self, variable, s=None, **kwargs):
         """ Returns variable 
@@ -770,7 +779,13 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
             difffile.close()
         return
 
+    def numvararr(self, variable):
+        from numpy import array, transpose
+        return transpose(array(variable).reshape((self.get('ny')+2, 
+            self.get('nx')+2, self.get('numvar'))).T, (1,2,0))
+    
 
+    # TODO: Move to Save.py
     def restoresave(self, savefname=None, **kwargs):
         """ Restores a saved solution 
         
@@ -858,6 +873,8 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         if populate is True:
             self.populate(silent=True, **kwargs)
 
+
+    '''
     def savevar(self, savefile, groups, variable, data, **kwargs):
         """ Saves variable and metadata to HDF5 group and dataset
 
@@ -1004,3 +1021,4 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS):
         else:
             self.recursivesave(savefile, self.varinput[group], [group])
         savefile.close()
+    '''
