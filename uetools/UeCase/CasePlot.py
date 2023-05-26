@@ -210,7 +210,7 @@ class Caseplot(Plot):
         
 
     def ionflow(self, s, surfnorm=True, **kwargs):
-        return self.plot_streamline('fngx', 'fngy' ,s, surfnorm, **kwargs)
+        return self.plot_streamline('fnix', 'fniy' ,s, surfnorm, **kwargs)
 
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline('fngx', 'fngy' ,s, surfnorm, **kwargs)

@@ -147,3 +147,46 @@ class Save():
         else:
             self.recursivesave(savefile, self.varinput[group], [group])
         savefile.close()
+
+    def restoresave(self, savefname=None, **kwargs):
+        """ Restores a saved solution 
+        
+        Keyword arguments
+        ------------
+        savefname : str (default = None)
+            HDF5 file to read stored solution from. If None, solution
+            is read from UeCase object
+        **kwargs
+            passed to setgroup
+        """
+        from os import getcwd
+        from uedge import bbb
+        from h5py import File
+        if self.mutex() is False:
+            return
+
+        if savefname is None:
+            savefname = '{}.hdf5'.format(self.casename)
+        savefile = File(savefname, 'r')
+        # Try reading new, subdivided save file
+        try:
+            # Don't override user-specified name for case by reading from file
+            if casefname is None:
+                self.casename = savefile.attrs['casename']
+        except:
+            pass
+        try:
+            for group, variables in savefile['restore'].items():
+                for variable, value in variables.items():
+                    self.setue(variable, value[()])
+                    self.vars[variable] = value[()]
+        # If not, try reading old-style save file
+        except:
+            for group, variables in self.varinput['restore'].items():
+                for variable in variables:
+                    self.setue(variable, savefile[group][variable][()])
+                    self.vars[variable] = savefile[group][variable][()]
+        from uedge import bbb
+        print('Saved solution uccessfully estored from {}'.format(savefname))
+        return
+

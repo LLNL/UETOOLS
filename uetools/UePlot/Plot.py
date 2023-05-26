@@ -372,7 +372,7 @@ class Plot():
     def streamline(self, pol, rad, resolution=(500j,800j), linewidth=0.5,  
         broken_streamlines=False, color='k', maxlength=0.4, mask=True, 
         **kwargs):
-        from numpy import zeros, sum, transpose, mgrid, nan, array
+        from numpy import zeros, sum, transpose, mgrid, nan, array, cross
         from scipy.interpolate import griddata, bisplrep
         from matplotlib.patches import Polygon
         rm = self.get('rm')
@@ -405,6 +405,8 @@ class Plot():
         inner = Polygon(array([innerx, innery]).transpose(), closed=True,
             facecolor='white', edgecolor='none')
 
+        # TODO: rather than align poloidal/radial in direction of cell,
+        # evaluate face normal locally at cell face?
         # Find midpoints of y-faces
         symid = zeros((2, 2, nx+2, ny+2))
         symid[0] = (nodes[2] + nodes[1])/2 # Lower face center
@@ -413,23 +415,28 @@ class Plot():
         sxmid = zeros((2, 2,  nx+2, ny+2))
         sxmid[0] = (nodes[3] + nodes[1])/2 # Left face center
         sxmid[1] = (nodes[4] + nodes[2])/2 # Right face center
-        # Get normal vectors in y-direction of each cell
-        ynormal = zeros((2, nx+2, ny+2))
-        ynormal = symid[1] - symid[0]
-        # Get normal vectors in x-direction of each cell
-        xnormal = zeros((2, nx+2, ny+2))
-        xnormal = sxmid[1] - sxmid[0]
-        # Get radial unit vectors
-        ynormalhat = zeros((2, nx+2, ny+2))
-        for i in range(2):
-            ynormalhat[i] = ynormal[i]/sum(ynormal**2, axis=0)**0.5
-        # Get poloidal unit vectors
-        xnormalhat = zeros((2, nx+2, ny+2))
-        for i in range(2):
-            xnormalhat[i] = xnormal[i]/sum(xnormal**2, axis=0)**0.5
 
-        x = pol * xnormalhat[0] + rad * ynormalhat[0]
-        y = pol * xnormalhat[1] + rad * ynormalhat[1]
+        # Find vectors of east faces
+        eastface = zeros((3, nx+2, ny+2))
+        eastface[:-1] = nodes[4] - nodes[2]
+        # Find vectors of north faces
+        northface = zeros((3, nx+2, ny+2))
+        northface[:-1] = nodes[4] - nodes[3]
+        # Find normals to faces
+        toroidal = zeros((3, nx+2, ny+2))
+        toroidal[-1] = 1 
+        eastnormal = cross(eastface, toroidal, axis=0)
+        northnormal = cross(toroidal, northface, axis=0)
+
+        northnormaln = zeros((2, nx+2, ny+2))
+        for i in range(2):
+            northnormaln[i] = northnormal[i]/sum(northnormal**2, axis=0)**0.5
+        eastnormaln = zeros((2, nx+2, ny+2))
+        for i in range(2):
+            eastnormaln[i] = eastnormal[i]/sum(eastnormal**2, axis=0)**0.5
+
+        x = pol * eastnormaln[0] + rad * northnormaln[0]
+        y = pol * eastnormaln[1] + rad * northnormaln[1]
 
         gx, gy = mgrid[rm.min():rm.max():resolution[0], 
             zm.min():zm.max():resolution[1]]
