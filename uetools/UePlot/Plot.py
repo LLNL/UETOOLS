@@ -15,11 +15,14 @@ class Plot():
                 zm = self.get('zm')
             except:
                 return
-        # TODO: implement handling of USN geometries -> Plot flipped
             
-
+        # TODO: figure out why createpolycollection bogs down Datbase?
+        if self.database is not True:
+            self.createvertices(rm, zm)
+        return
+ 
+    def createvertices(self, rm, zm):
         self.vertices = self.createpolycollection(rm, zm)
-        
         if self.get('geometry')[0].strip().lower().decode('UTF-8') == \
             'uppersn':
             self.disp = 0
@@ -29,8 +32,8 @@ class Plot():
                 self.disp = 2*self.get('zmagx')
             self.uppersnvertices = self.createpolycollection(rm, \
                 -zm + self.disp, setparams=False)
-        return
  
+
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         ''' Creates a poly collection and records boundaries
         ''' 
@@ -65,7 +68,7 @@ class Plot():
 
     def plotprofile(self, x, y, ax=None, xlim=(None, None), ylim=(0, None),
         figsize=(6,5), xlabel=None, ylabel=None, title=None, logx=False, 
-        logy=False, color='k', **kwargs):
+        logy=False, color='k', watermark=True, **kwargs):
         ''' Plots y as function of x '''
         from matplotlib.pyplot import figure, Axes, Figure
 
@@ -91,22 +94,33 @@ class Plot():
         ax.set_ylabel(ylabel)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
+
+        if watermark is True:
+            self.watermark(ax.get_figure())
+
         return ax.get_figure()
 
-    def plotmesh(self, z=None, rm=None, zm=None, ax=None, linewidth=0.2,
+    def plotmesh(self, z=None, rm=None, zm=None, ax=None, linewidth=0.05,
         linecolor='k', aspect='equal', figsize=(5,7), cmap='magma', units='', 
         xlim=(None, None), ylim=(None, None), zrange=(None, None), 
         log=False, vessel=True, plates=True, lcfs=True, title=None, 
-        grid=False, flip=False):
+        grid=False, flip=False, watermark=True, mask=None, colorbar=True,
+        interactive = False):
         ''' General plotting function
         z - values, if any. If None, plots grid
         rm, zm - radial and horizontal nodes
         '''
         from matplotlib.pyplot import figure, Figure
         from matplotlib.colors import LogNorm
+        from matplotlib.collections import PolyCollection
         from copy import deepcopy
         from numpy import array
         from uedge import com, bbb, grd        
+
+        try:
+            self.vertices
+        except:
+            self.createvertices(self.get('rm'), self.get('zm'))
 
         if ax is None:
             f = figure(title, figsize=figsize)
@@ -138,6 +152,9 @@ class Plot():
             vertices.set_clim(*zrange)
             if log is True:
                 vertices.set_norm(LogNorm())
+                vertices.set_clim(*zrange)
+        if mask is not None:
+            vertices.set_alpha(mask)
             
         ax.add_collection(vertices)
         # TODO: devise scheme to look for variables in memory, from 
@@ -155,10 +172,19 @@ class Plot():
         ax.set_xlabel('R [m]')
         ax.set_ylabel('Z [m]')
         ax.set_aspect(aspect)
-        if z is not None:
+        if (z is not None) and (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va='bottom')
-        return ax.get_figure()
+    
+        if watermark is True:
+            self.watermark(ax.get_figure(), bottom=0.1, left=0.02, 
+                right=0.95)
+
+        if interactive is True:
+            return cbar, vertices
+        else:
+            return ax.get_figure()
+        
            
 
     def plotlcfs(self, ax, flip=False, color='grey', linewidth=0.5,
@@ -268,3 +294,185 @@ class Plot():
                     'zplate2'), flip), 'r-', linewidth=1.5)
         except:
             pass
+    
+    def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
+        """ Adds metadata to figure """
+        from uedge import __version__
+        from time import ctime
+        label = '{}, case "{}"\n'.format(ctime(), self.casename)
+        label += 'UEDGE {} v{}, UETOOLS v{}, user "{}", hostname "{}"\n'\
+            .format(self.uedge_ver.replace('$','\$'), self.pyver, 
+            self.uetoolsversion, self.user, self.hostname)
+        try:
+            label += 'cwd "{}"'.format(self.location)
+        except:
+            label += 'cwd "{}"'.format(self.casefname)
+        figure.subplots_adjust(bottom=bottom, top=top, left=left, 
+            right=right)
+        figure.text(0.995, 0.005, label, fontsize=4, 
+            horizontalalignment='right')
+        
+        return
+
+
+    def plotmesh_masked(self, z, zmask, maskvalues, **kwargs):
+        from copy import deepcopy
+
+        try:
+            rm = kwargs['rm']
+        except:
+            rm = None
+        try:
+            zm = kwargs['zm']
+        except:
+            zm = None
+        try:
+            grid = kwargs['grid']
+        except:
+            grid = False
+        try:
+            log = kwargs['log']
+        except:
+            log = False
+        try:
+            cmap = kwargs['cmap']
+        except:
+            cmap = 'magma'
+        try:
+            zrange = kwargs['zrange']
+        except:
+            zrange = (None, None)
+        
+        if (rm is None) or (zm is None):
+            # Use stored PolyCollection
+            if (self.get('geometry')[0].strip().lower().decode('UTF-8') == \
+                'uppersn') and (flip is True): 
+                vertices = deepcopy(self.uppersnvertices)
+            else:
+                vertices = deepcopy(self.vertices)
+        else: # Create collection from data
+            vertices = self.createpolycollection(rm, zm)
+        if grid is False:
+            vertices.set_linewidths(1)
+            vertices.set_edgecolors('face')
+        else:
+            vertices.set_edgecolors(linecolor)
+            vertices.set_linewidths(linewidth)
+        vertices.set_cmap(cmap)
+        vertices.set_array(z[1:-1,1:-1].reshape(self.nx*self.ny))
+        mask = z[1:-1,1:-1].reshape(self.nx*self.ny)
+        vertices.set_alpha( [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask])
+        vertices.set_clim(*zrange)
+        if log is True:
+            vertices.set_norm(LogNorm())
+            vertices.set_clim(*zrange)
+        self.plotmesh(vertices, **kwargs)
+        return mask
+        
+    def streamline(self, pol, rad, resolution=(500j,800j), linewidth='magnitude',  
+        broken_streamlines=False, color='k', maxlength=0.4, mask=True, density=2, 
+        **kwargs):
+        from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
+        from scipy.interpolate import griddata, bisplrep
+        from matplotlib.patches import Polygon
+        from copy import deepcopy
+        rm = self.get('rm')
+        zm = self.get('zm')
+        nx = self.get('nx')
+        ny = self.get('ny')
+        nodes = zeros((nx+2, ny+2, 5, 2))
+        nodes[:, :, :, 0] = rm
+        nodes[:, :, :, 1] = zm
+        nodes = transpose(nodes, (2, 3, 0, 1))
+        # Create polygons for masking
+        outerx = []
+        outerx = outerx + list(rm[::-1][-self.get('ixpt1')[0]:,0,2])
+        outerx = outerx + list(rm[0,:,1])
+        outerx = outerx + list(rm[:,-1,3])
+        outerx = outerx + list(rm[:,::-1][-1,:,4])
+        outerx = outerx + list(rm[::-1][:nx-self.get('ixpt2')[0],0,1])
+        outery = []
+        outery = outery + list(zm[::-1][-self.get('ixpt1')[0]:,0,2])
+        outery = outery + list(zm[0,:,1])
+        outery = outery + list(zm[:,-1,3])
+        outery = outery + list(zm[:,::-1][-1,:,4])
+        outery = outery + list(zm[::-1][:nx-self.get('ixpt2')[0],0,1])
+
+        innerx = rm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1,0,1]
+        innery = zm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1,0,1]
+
+        outer = Polygon(array([outerx, outery]).transpose(), closed=True,
+            facecolor='white', edgecolor='none')
+        inner = Polygon(array([innerx, innery]).transpose(), closed=True,
+            facecolor='white', edgecolor='none')
+
+        # TODO: rather than align poloidal/radial in direction of cell,
+        # evaluate face normal locally at cell face?
+        # Find midpoints of y-faces
+        symid = zeros((2, 2, nx+2, ny+2))
+        symid[0] = (nodes[2] + nodes[1])/2 # Lower face center
+        symid[1] = (nodes[4] + nodes[3])/2 # Upper face center
+        # Find midpoints of x-faces
+        sxmid = zeros((2, 2,  nx+2, ny+2))
+        sxmid[0] = (nodes[3] + nodes[1])/2 # Left face center
+        sxmid[1] = (nodes[4] + nodes[2])/2 # Right face center
+
+        # Find vectors of east faces
+        eastface = zeros((3, nx+2, ny+2))
+        eastface[:-1] = nodes[4] - nodes[2]
+        # Find vectors of north faces
+        northface = zeros((3, nx+2, ny+2))
+        northface[:-1] = nodes[4] - nodes[3]
+        # Find normals to faces
+        toroidal = zeros((3, nx+2, ny+2))
+        toroidal[-1] = 1 
+        eastnormal = cross(eastface, toroidal, axis=0)
+        northnormal = cross(toroidal, northface, axis=0)
+
+        northnormaln = zeros((2, nx+2, ny+2))
+        for i in range(2):
+            northnormaln[i] = northnormal[i]/sum(northnormal**2, axis=0)**0.5
+        eastnormaln = zeros((2, nx+2, ny+2))
+        for i in range(2):
+            eastnormaln[i] = eastnormal[i]/sum(eastnormal**2, axis=0)**0.5
+
+        x = pol * eastnormaln[0] + rad * northnormaln[0]
+        y = pol * eastnormaln[1] + rad * northnormaln[1]
+
+        gx, gy = mgrid[rm.min():rm.max():resolution[0], 
+            zm.min():zm.max():resolution[1]]
+    
+        # Previous implementation, which (incorrectly) assumed values to 
+        # be given for cell-centers
+#        xinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()), 
+#            x[1:-1,1:-1].ravel(), (gx, gy)) 
+#        yinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()), 
+#            y[1:-1,1:-1].ravel(), (gx, gy)) 
+        xinterp = griddata( (sxmid[1,0,1:-1,1:-1].ravel(), sxmid[1, 1, 1:-1, 1:-1].ravel()),
+            x[1:-1,1:-1].ravel(), (gx, gy)) 
+        yinterp = griddata( (symid[1,0,1:-1,1:-1].ravel(), symid[1, 1, 1:-1, 1:-1].ravel()),
+            y[1:-1,1:-1].ravel(), (gx, gy)) 
+
+        if mask is True:
+            for i in range(gx.shape[0]):
+                for j in range(gx.shape[1]):
+                    p = (gx[i,j], gy[i,j])
+                    if (inner.contains_point(p)) or (not outer.contains_point(p)):
+                        xinterp[i,j] = nan
+                        yinterp[i,j] = nan
+
+        f=self.plotmesh()
+        if linewidth == 'magnitude':
+            linewidth = (xinterp**2 + yinterp**2)**0.5
+            linewidth = linewidth.transpose()
+            maxwidth = nan_to_num(deepcopy(linewidth)).max()
+            linewidth /= maxwidth
+        
+        f.get_axes()[0].streamplot(gx.transpose(), gy.transpose(), 
+            xinterp.transpose(), yinterp.transpose(), linewidth=linewidth,
+            broken_streamlines=broken_streamlines, color=color, 
+            maxlength=maxlength, density=density,**kwargs)
+
+
+        return f
+

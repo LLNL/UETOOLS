@@ -49,6 +49,8 @@ grid:
         - 'runid'
         - 'yyrb'
         - 'yylb'
+        - 'rmagx'
+        - 'zmagx'
     grd:
         - 'nplate1'
         - 'rplate1'
@@ -56,6 +58,8 @@ grid:
         - 'nplate2'
         - 'rplate2'
         - 'zplate2'
+    bbb:
+        - 'ixmp'
 
 diffusivities:
     bbb:
@@ -72,13 +76,16 @@ diffusivities:
         - 'kyi'
         - 'difni'
         - 'travis'
-# ====================================================
-# ======= DO NOT EDIT VARIABLES ABOVE ================
-# ====================================================
 
 setup:
     bbb:
         - 'ncore'
+        - 'b0'
+        - 'numvar'
+
+# ====================================================
+# ======= DO NOT EDIT VARIABLES ABOVE ================
+# ====================================================
 
 species: 
     com:
