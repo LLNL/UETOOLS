@@ -40,8 +40,7 @@ class ConvergeStep():
                     _var += increment
                     currval = self.getue(var)
                 
-            _label = self.getue('label', cp=False)
-            _label[0] = '{}_{}={:.3e}'.format(name, var, currval)
+            casename = '{}_{}={:.3e}'.format(name, var, currval)
             print('======================================')
             print('Solving for {}={:.2E}'.format(varstr, currval))
             print('======================================')
@@ -52,8 +51,7 @@ class ConvergeStep():
             self.setue('issfon', 1)
             self.setue('ftol', 1e-5)
             self.exmain()
-            self.converge(**kwargs)
-#            self.save('{}.hdf5'.format(_label[0].decode('UTF-8').strip().replace('hdf5','')))
+            self.converge(casename=casename, **kwargs)
             if self.getue('iterm') != 1:
                 break
             if (increment > 0) and (currval > stop):

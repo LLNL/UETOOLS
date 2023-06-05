@@ -208,9 +208,20 @@ class Caseplot(Plot):
     def ionvel(self, s, **kwargs):
         return self.plot_streamline('upi', 'vy' ,s, surfnorm=False, **kwargs)
         
+    def gasvel(self, s, **kwargs):
+        return self.plot_streamline('uug', 'vyg' ,s, surfnorm=False, **kwargs)
 
     def ionflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline('fnix', 'fniy' ,s, surfnorm, **kwargs)
+
+    def gaseneflow(self, s, surfnorm=True, **kwargs):
+        return self.plot_streamline('fegx', 'fegy' ,s, surfnorm, **kwargs)
+ 
+    def eleceneflow(self, s, surfnorm=True, **kwargs):
+        return self.plot_streamline('feex', 'feey' ,s, surfnorm, **kwargs)
+
+    def ioneneflow(self, s, surfnorm=True, **kwargs):
+        return self.plot_streamline('feix', 'feiy' ,s, surfnorm, **kwargs)
 
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline('fngx', 'fngy' ,s, surfnorm, **kwargs)

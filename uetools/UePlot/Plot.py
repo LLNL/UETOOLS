@@ -369,12 +369,13 @@ class Plot():
         self.plotmesh(vertices, **kwargs)
         return mask
         
-    def streamline(self, pol, rad, resolution=(500j,800j), linewidth=0.5,  
-        broken_streamlines=False, color='k', maxlength=0.4, mask=True, 
+    def streamline(self, pol, rad, resolution=(500j,800j), linewidth='magnitude',  
+        broken_streamlines=False, color='k', maxlength=0.4, mask=True, density=2, 
         **kwargs):
-        from numpy import zeros, sum, transpose, mgrid, nan, array, cross
+        from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
         from scipy.interpolate import griddata, bisplrep
         from matplotlib.patches import Polygon
+        from copy import deepcopy
         rm = self.get('rm')
         zm = self.get('zm')
         nx = self.get('nx')
@@ -463,12 +464,14 @@ class Plot():
         f=self.plotmesh()
         if linewidth == 'magnitude':
             linewidth = (xinterp**2 + yinterp**2)**0.5
-            linewidth /= liewidth.max()
+            linewidth = linewidth.transpose()
+            maxwidth = nan_to_num(deepcopy(linewidth)).max()
+            linewidth /= maxwidth
         
         f.get_axes()[0].streamplot(gx.transpose(), gy.transpose(), 
             xinterp.transpose(), yinterp.transpose(), linewidth=linewidth,
             broken_streamlines=broken_streamlines, color=color, 
-            maxlength=maxlength, **kwargs)
+            maxlength=maxlength, density=density,**kwargs)
 
 
         return f
