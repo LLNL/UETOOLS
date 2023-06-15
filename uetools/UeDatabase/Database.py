@@ -153,6 +153,11 @@ class Database():
     def plotOTsep(self, var, **kwargs):
         return self.plotscan(var, (-2, self.iysptrx+1), **kwargs) 
 
+    def plotOTmax(self, var, inds=(None,None), **kwargs):
+        from numpy import max
+        return self.plotvar(self.scanvar, max(var[:,-2,slice(*inds)], axis=1),
+            **kwargs)
+
     def plotOMP(self, var, **kwargs):
         return self.plotscan(var, (self.ixmp, self.iysptrx+1), **kwargs) 
 

@@ -193,6 +193,7 @@ class Save():
                     self.setue(variable, savefile[group][variable][()])
                     self.vars[variable] = savefile[group][variable][()]
         from uedge import bbb
-        print('Saved solution uccessfully restored from {}'.format(savefname))
+        if self.verbose:
+            print('Saved solution uccessfully restored from {}'.format(savefname))
         return
 
