@@ -118,7 +118,7 @@ class Save:
         except:
             pass
 
-    def save(self, savefname, group=None, append=False, **kwargs):
+    def save(self, savefname, group=None, append=False, pickle=False, **kwargs):
         """Saves HDF5 file containing UeCase data
 
         Arguments
@@ -132,8 +132,11 @@ class Save:
             group identifier of group to be written to file. If None,
             all data stored in UeCase is written
         """
-        from h5pickle import File
-
+        from h5pickle import File as pickleFile
+        from h5py import File
+        from os.path import exists
+        from os import remove
+    
         if self.inplace:
             print("Data read from file, no data to save. Aborting.")
             return
@@ -144,6 +147,7 @@ class Save:
         else:
             self.recursivesave(savefile, self.varinput[group], [group])
         savefile.close()
+        del(savefile)
 
     def restoresave(self, savefname=None, **kwargs):
         """Restores a saved solution
@@ -185,6 +189,6 @@ class Save:
                     self.setue(variable, savefile[group][variable][()])
                     self.vars[variable] = savefile[group][variable][()]
         from uedge import bbb
-
-        print("Saved solution uccessfully estored from {}".format(savefname))
+        if self.verbose:
+            print("Saved solution successfully restored from {}".format(savefname))
         return
