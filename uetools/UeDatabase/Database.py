@@ -14,6 +14,7 @@ class Database:
         sortlocation="midplane",
         rerun=False,
         meshplot_setup=False,
+        readinput=False,
     ):
         from os import getcwd
         from os.path import isfile, isdir
@@ -23,6 +24,7 @@ class Database:
         self.dbidentifier = dbidentifier
         self.datbasename = database
         self.rerun = rerun
+        self.readinput = readinput
         self.create_database(database, not meshplot_setup)
         # TODO: Store commonly used grid locations
         # TODO: Account for different grids
@@ -77,23 +79,23 @@ class Database:
         if self.sortlocation == "midplane":
             self.sortlocation = (self.ixmp, self.iysptrx + 1)
         elif isinstance(self.sortlocation, str):
-            print(
-                'Sort location option "{}" not recognized. Aborting'.format(
-                    self.sortlocation
-                )
-            )
-        order = argsort(
-            self.get(self.sortvar)[:, self.sortlocation[0], self.sortlocation[1]]
-        )
+            print('Sort location option "{}" not recognized. Aborting'.format(\
+                self.sortlocation))
+        order = self.get(self.sortvar)
+        for ind in self.sortlocation:
+            order = order[:, ind]
+        order = argsort(order)
+        if increasing is False:
+            order = order[::-1]
         neworder = {}
         for i in order:
             key = list(self.cases.keys())[i]
             neworder[key] = self.cases[key]
         self.cases = neworder
 
-        self.scanvar = self.get(self.sortvar)[
-            :, self.sortlocation[0], self.sortlocation[1]
-        ]
+        self.scanvar = self.get(self.sortvar)
+        for ind in self.sortlocation:
+            self.scanvar = self.scanvar[:, ind]
 
     def create_database(self, path, database):
         from os import walk
@@ -103,9 +105,12 @@ class Database:
         path = abspath(path)
         self.chdir(path)
         createdb = []
-        for parent, dirs, files in walk("."):
-            subdir = parent.split("/")[-1]
-            databases = [db for db in files if self.is_case("{}/{}".format(parent, db))]
+        for parent, dirs, files in walk('.'):
+            if 'ignore' in parent:
+                continue
+            subdir = parent.split('/')[-1]
+            databases = [db for db in files if self.is_case('{}/{}'.format(\
+                parent, db))]
             if self.rerun is False:
                 # HDF5s identified
                 if len(databases) == 1:
@@ -127,7 +132,7 @@ class Database:
                         )
                 # No database found, store location where input is
                 # Changing dirs while executing walk breaks the call
-                elif "input.yaml" in files:
+                elif ('input.yaml' in files) and self.readinput:
                     createdb.append(parent)
             else:
                 if "input.yaml" in files:
@@ -180,6 +185,11 @@ class Database:
 
     def plotOTsep(self, var, **kwargs):
         return self.plotscan(var, (-2, self.iysptrx + 1), **kwargs)
+
+    def plotOTmax(self, var, inds=(None,None), **kwargs):
+        from numpy import max
+        return self.plotvar(self.scanvar, max(var[:,-2,slice(*inds)], axis=1),
+            **kwargs)
 
     def plotOMP(self, var, **kwargs):
         return self.plotscan(var, (self.ixmp, self.iysptrx + 1), **kwargs)
