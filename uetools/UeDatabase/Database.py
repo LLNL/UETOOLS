@@ -6,7 +6,7 @@ class Database():
     # 26M, no reason for the long runtime...
     def __init__(self, database, savedbname=None, dbidentifier='_UeDB', 
         sortvar='ne', sortlocation='midplane', rerun=False, 
-        meshplot_setup=False):
+        meshplot_setup=False, readinput=False):
         from os import getcwd
         from os.path import isfile, isdir
         self.cwd = getcwd()
@@ -14,6 +14,7 @@ class Database():
         self.dbidentifier = dbidentifier
         self.datbasename = database
         self.rerun = rerun
+        self.readinput = readinput
         self.create_database(database, not meshplot_setup)
         # TODO: Store commonly used grid locations
         # TODO: Account for different grids
@@ -68,15 +69,21 @@ class Database():
         elif isinstance(self.sortlocation, str):
             print('Sort location option "{}" not recognized. Aborting'.format(\
                 self.sortlocation))
-        order = argsort(self.get(self.sortvar)[:, self.sortlocation[0], self.sortlocation[1]])
+        order = self.get(self.sortvar)
+        for ind in self.sortlocation:
+            order = order[:, ind]
+        order = argsort(order)
+        if increasing is False:
+            order = order[::-1]
         neworder = {}
         for i in order:
             key = list(self.cases.keys())[i]
             neworder[key] = self.cases[key]
         self.cases = neworder
 
-        self.scanvar = self.get(self.sortvar)[:, self.sortlocation[0], 
-            self.sortlocation[1]]
+        self.scanvar = self.get(self.sortvar)
+        for ind in self.sortlocation:
+            self.scanvar = self.scanvar[:, ind]
         
 
     def create_database(self, path, database):
@@ -87,6 +94,8 @@ class Database():
         self.chdir(path)
         createdb = []
         for parent, dirs, files in walk('.'):
+            if 'ignore' in parent:
+                continue
             subdir = parent.split('/')[-1]
             databases = [db for db in files if self.is_case('{}/{}'.format(\
                 parent, db))]
@@ -105,7 +114,7 @@ class Database():
                         database=database)
                 # No database found, store location where input is
                 # Changing dirs while executing walk breaks the call
-                elif 'input.yaml' in files:
+                elif ('input.yaml' in files) and self.readinput:
                     createdb.append(parent)
             else:
                 if 'input.yaml' in files:

@@ -63,16 +63,28 @@ class Caseplot(Plot):
         return
 
     def neOT(self, s=None, **kwargs):
-        return self.ot(self.get('ne', s), **kwargs)
+        f = self.ot(self.get('ne', s), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm n_e^{LFS-t}~[m^{-3}]$')
+        f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
+        return f
 
     def teOT(self, s=None, **kwargs):
-        return self.ot(self.get('te', s)/self.get('ev'), **kwargs)
+        f = self.ot(self.get('te', s)/self.get('ev'), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm T_e^{LFS-t}~[eV]$')
+        f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
+        return f
 
     def niOT(self, s=None, **kwargs):
-        return self.ot(self.get('ni', s), **kwargs)
+        f = self.ot(self.get('ni', s), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm n_i^{LFS-t}~[m^{-3}]$')
+        f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
+        return f
 
     def tiOT(self, s=None, **kwargs):
-        return self.ot(self.get('ti', s)/self.get('ev'), **kwargs)
+        f = self.ot(self.get('ti', s)/self.get('ev'), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm T_i^{LFS-t}~[eV]$')
+        f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
+        return f
 
     # Expand the 2D plot list
     def grid(self, **kwargs):
@@ -230,7 +242,7 @@ class Caseplot(Plot):
     def plot_streamline(self, varpol, varrad, s=None, surfnorm=True, **kwargs):
         from numpy import zeros_like
         pol = self.get(varpol, s) / self.get('sx')**surfnorm
-        rad = self.get(varrad, s) / self.get('sx')**surfnorm
+        rad = self.get(varrad, s) / self.get('sy')**surfnorm
         pol_use = zeros_like(pol)
         rad_use = zeros_like(rad)
 
