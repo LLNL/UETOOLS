@@ -27,7 +27,7 @@ class Case(
     Subclasses
     ------------
     Caseplot -- contains plotting routines and widgets
-    Solver -- contains time-stepping and concergence routines
+    Solver -- contains time-stepping and convergence routines
 
     Attributes
     ------------
@@ -124,8 +124,12 @@ class Case(
             Path to YAML file containing definitions of data and
             variables to be read. If None, accesses the module defaults
             # TODO: Use .uedgerc to define the file in question?
-        assign : boolean (default = True)
+        assign : bool (default = True)
             Switch whether to assign the current run to the caseobject
+        verbose : bool
+
+        database : bool
+
         """
         import uetools
         from os.path import exists, abspath
@@ -230,7 +234,7 @@ class Case(
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
-        """Checks if UEDGE state has changed and updates if needed"""
+        """Checks if UEDGE state has changed and updates if needed."""
 
         if self.exmain_evals != self.getue("exmain_evals"):
             self.exmain_evals = self.getue("exmain_evals")
@@ -304,7 +308,7 @@ class Case(
         return retvar
 
     def assign(self, **kwargs):
-        """Assigns the UEDGE session to this object"""
+        """Assigns the UEDGE session to this object."""
         setattr(packageobject("bbb"), "session_id", self.session_id)
         try:
             # Restore input to UEDGE
@@ -322,7 +326,7 @@ class Case(
             pass
 
     def getsetue_inplace(self, *args, **kwargs):
-        """Placeholder to avoid getting/setting when reading inplace"""
+        """Placeholder to avoid getting/setting when reading inplace."""
         print("Cannot set/get UEDGE values when reading from HDF5 file")
         return
 
@@ -347,7 +351,7 @@ class Case(
                 raise KeyError("{} could not be set".format(variable))
 
     def getue_memory(self, variable, s=None, cp=True, **kwargs):
-        """Retireves data from UEDGE variable in package
+        """Retireves data from UEDGE variable in package.
 
         Arguments
         ------------
@@ -578,7 +582,6 @@ class Case(
         restoresave=False,
         **kwargs
     ):
-        """Sets all UEDGE variables from Case input"""
         """ Reads YAML input file
 
         Reads data from file to attribute setup.
@@ -766,7 +769,7 @@ class Case(
         return
 
     def mutex(self, silent=False, **kwargs):
-        """Returns bool whether case assigned to current UEDGE session
+        """Returns bool whether case assigned to current UEDGE session.
 
         Keyword parameters
         ------------------
@@ -850,7 +853,7 @@ class Case(
             self.setue("iprint", 1)
 
     def restore(self, inputfname=None, savefname=None, populate=True, **kwargs):
-        """Restores a full case into memory and object"""
+        """Restores a full case into memory and object."""
         if self.mutex() is False:
             return
         self.setinput(inputfname, savefname=savefname, restoresave=True, **kwargs)
