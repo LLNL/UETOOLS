@@ -30,15 +30,15 @@ class Caseplot(Plot):
         drplatecenter -= dr0
         dzplatecenter -= dz0
         # Calculate cumulative distance along target
-        dist = cumsum((drplatecenter**2 + dzplatecenter**2) ** 0.5)
+        dist = cumsum((drplatecenter ** 2 + dzplatecenter ** 2) ** 0.5)
         # Calculate distance along plate to strike point
-        dsep = dist[iysptrx] + (rsp**2 + zsp**2) ** 0.5
+        dsep = dist[iysptrx] + (rsp ** 2 + zsp ** 2) ** 0.5
         return dist - dsep
 
     def it(self, variable, marksep=True, staggered=False, **kwargs):
         # Exchange YYC for working radialdistance
         fig = self.plotprofile(
-            self.itdistance[1:-1], variable[0**staggered, 1:-1], **kwargs
+            self.itdistance[1:-1], variable[0 ** staggered, 1:-1], **kwargs
         )
         # Add Sep location if requested
         if marksep is True:
