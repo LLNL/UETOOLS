@@ -176,7 +176,7 @@ class Case(
         self.packagelist = dict()
         # TODO: add hostname, aphdir, apidir, mcfilename, aphfname
 
-        """ Set up structure for reading/writing data """
+        # Set up structure for reading/writing data
         # Load all data to object in memory
         if self.inplace is False:
             self.get = self.get_memory
@@ -206,7 +206,6 @@ class Case(
             if self.casefname is not None:
                 self.restore(self.casefname)
             else:
-                #                self.populate(verbose=False)
                 self.reload()
         # Read all data directly from HDF5 file
         else:
@@ -236,7 +235,7 @@ class Case(
         if self.exmain_evals != self.getue("exmain_evals"):
             self.exmain_evals = self.getue("exmain_evals")
             if self.mutex() is False:
-                return
+                raise ValueError("Case doesn't own UEDGE memory")
             self.reload()
             self.vertices = self.createpolycollection(self.get("rm"), self.get("zm"))
 
@@ -399,15 +398,13 @@ class Case(
         from numpy import ndarray, int64, float64
 
         if self.mutex is False:
-            return
+            raise ValueError("Case doesn't own UEDGE memory")
         try:
             commands = self.varinput["setup"].pop("commands")
         except:
             pass
 
-        def recursivereload(dictobj=None, group=[]):
-            if dictobj is None:
-                dictobj = self.varinput
+        def recursivereload(dictobj, group=[]):
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
                 if isinstance(dictobj, (list, ndarray)):
@@ -452,7 +449,7 @@ class Case(
             print("Aborting")
             return
         if group is None:
-            recursivereload()
+            recursivereload(self.varinput)
         else:
             recursivereload(self.varinput[group], [group])
         if "commands" in locals():
@@ -517,14 +514,14 @@ class Case(
         """Opens HDF5 file and returns File object
 
         Arguments
-        ------------
+        ---------
         fname : str
             path to/name of file to be opened
         operation : str
             operation to open the file for ('r'/'w'/'r+')
 
         Returns
-        ------------
+        -------
         h5py File object
         """
         from h5pickle import File
@@ -584,17 +581,17 @@ class Case(
         Reads data from file to attribute setup.
 
         Arguments
-        ------------
+        ---------
         setupfile : str
             path to/name of input file to be read
 
         Keyword arguments
-        ------------
+        -----------------
         restore : bool (default = True)
             switch whether to set UEDGE parameters to the read data 
 
         Returns
-        ------------
+        -------
         None
         """
         from collections import OrderedDict
@@ -602,7 +599,7 @@ class Case(
         from numpy import array
 
         if self.mutex() is False:
-            return
+            raise ValueError("Case doesn't own UEDGE memory")
         if readinput is True:
             if setupfile is None:
                 setupfile = "{}.yaml".format(self.casename)
@@ -753,7 +750,7 @@ class Case(
         # No matter, we are only reading: use h5py
 
         if self.mutex() is False:
-            return
+            raise ValueError("Case doesn't own UEDGE memory")
 
         try:
             difffile = File(difffname, "r")
@@ -763,7 +760,6 @@ class Case(
         for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
             self.setue(variable, difffile["diffusivities"]["bbb"][variable][()])
         difffile.close()
-        return
 
     def mutex(self, silent=False, **kwargs):
         """Returns bool whether case assigned to current UEDGE session.
@@ -793,7 +789,7 @@ class Case(
         """
 
         if self.mutex() is False:
-            return
+            raise ValueError("Case doesn't own UEDGE memory")
 
         try:
             difffile = self.openhdf5(difffname, "r")
@@ -819,7 +815,7 @@ class Case(
         from copy import deepcopy
 
         if self.mutex() is False:
-            return
+            raise ValueError("Case doesn't own UEDGE memory")
 
         if verbose is None:
             verbose = self.verbose
@@ -852,7 +848,8 @@ class Case(
     def restore(self, inputfname=None, savefname=None, populate=True, **kwargs):
         """Restores a full case into memory and object."""
         if self.mutex() is False:
-            return
+            raise ValueError("Case doesn't own UEDGE memory")
+
         self.setinput(inputfname, savefname=savefname, restoresave=True, **kwargs)
         if populate is True:
             self.populate(silent=True, **kwargs)
