@@ -7,7 +7,7 @@ from glob import glob
 
 
 install_requires = [
-     'requests',
+     'requests', 'h5pickle'
 ]
 if sys.version_info < (3,):
     install_requires.append('tk')
