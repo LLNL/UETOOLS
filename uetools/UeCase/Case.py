@@ -88,8 +88,6 @@ class Case(
         saves UeCase variables to HDF5 file
     savevar(savefile, groups, variable, data):
         writes data and metadata to HDF5 file
-    load(casefname=None):
-        reads data from HDF5 file to UeCase vars
     readgridhdf5(savefname):
         reads gridue data from HDF5 file
     readgridue(gridue='gridue'):
@@ -351,7 +349,7 @@ class Case(
                 raise KeyError("{} could not be set".format(variable))
 
     def getue_memory(self, variable, s=None, cp=True, **kwargs):
-        """Retireves data from UEDGE variable in package.
+        """Retrieves data from UEDGE variable in package.
 
         Arguments
         ------------
