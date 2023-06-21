@@ -1,23 +1,29 @@
-
-class ADAS():
-
-
+class ADAS:
     def emission_CIII(self, fname):
         from numpy import log10
+
         # Create self.adf15
         self.read_adf15(fname)
 
-        for rate in ['excit', 'recom', 'chexc']: 
-            self.__setattr__('CIII_pec_{}'.format(rate), 
-                self.adf15[4650.1][rate].ev(log10(self.get('ne')/1e6), 
-                log10(self.get('te')/1.602e-19)))
-            self.__setattr__('CIII_emission_{}'.format(rate), \
-                10**self.__getattribute__('CIII_pec_{}'.format(rate))*\
-                self.get('ne')*self.get('ni')[:,:,4-(rate=='excit')]/1e12)
-        self.CIII_emission = self.CIII_emission_excit + self.CIII_emission_recom + \
-            self.CIII_emission_chexc
-
-        
+        for rate in ["excit", "recom", "chexc"]:
+            self.__setattr__(
+                "CIII_pec_{}".format(rate),
+                self.adf15[4650.1][rate].ev(
+                    log10(self.get("ne") / 1e6), log10(self.get("te") / 1.602e-19)
+                ),
+            )
+            self.__setattr__(
+                "CIII_emission_{}".format(rate),
+                10 ** self.__getattribute__("CIII_pec_{}".format(rate))
+                * self.get("ne")
+                * self.get("ni")[:, :, 4 - (rate == "excit")]
+                / 1e12,
+            )
+        self.CIII_emission = (
+            self.CIII_emission_excit
+            + self.CIII_emission_recom
+            + self.CIII_emission_chexc
+        )
 
     def read_adf15(self, path, order=1, raw=False):
         """Read photon emissivity coefficients from an ADAS ADF15 file.
@@ -37,25 +43,26 @@ class ADAS():
 
         Returns
         -------
-        None        
+        None
 
         Notes
         -----
         This function expects the format of PEC files produced via the ADAS adas810 or adas218 routines.
 
-        """ 
+        """
         from scipy.interpolate import RectBivariateSpline
         from numpy import array, delete, log10
+
         # adapted from read_adf15 from the Aurora package
 
         # find out whether file is metastable resolved
-        meta_resolved = path.split('#')[-2][-1]=='r'
-        if meta_resolved: 
-            print('Identified metastable-resolved PEC file')
+        meta_resolved = path.split("#")[-2][-1] == "r"
+        if meta_resolved:
+            print("Identified metastable-resolved PEC file")
 
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             lines = f.readlines()
-        cs = path.split('#')[-1].split('.dat')[0]
+        cs = path.split("#")[-1].split(".dat")[0]
 
         header = lines.pop(0)
         # Get the expected number of lines by reading the header:
@@ -63,20 +70,20 @@ class ADAS():
         self.adf15 = {}
 
         for i in range(0, num_lines):
-            if '----' in lines[0]:
-                _ = lines.pop(0) # separator may exist before each transition
+            if "----" in lines[0]:
+                _ = lines.pop(0)  # separator may exist before each transition
             # Get the wavelength, number of densities and number of temperatures
             # from the first line of the entry:
             l = lines.pop(0)
             header = l.split()
             # sometimes the wavelength and its units are not separated:
             try:
-                header = [hh.split('A')[0] for hh in header]
+                header = [hh.split("A")[0] for hh in header]
             except:
                 # lam and A are separated. Delete 'A' unit.
                 header = delete(header, 1)
             lam = float(header[0])
-            if header[1]=='':
+            if header[1] == "":
                 # 2nd element was empty -- annoyingly, this happens sometimes
                 num_den = int(header[2])
                 num_temp = int(header[3])
@@ -85,7 +92,7 @@ class ADAS():
                 num_temp = int(header[2])
             if meta_resolved:
                 # index of metastable state
-                INDM = int(header[-3].split('/')[0].split('=')[-1])
+                INDM = int(header[-3].split("/")[0].split("=")[-1])
             # Get the densities:
             dens = []
             while len(dens) < num_den:
@@ -104,17 +111,17 @@ class ADAS():
                     PEC[-1] += [float(v) for v in lines.pop(0).split()]
             PEC = array(PEC)
             # find what kind of rate we are dealing with
-            if 'recom' in l.lower(): 
-                rate_type = 'recom'
-            elif 'excit' in l.lower(): 
-                rate_type = 'excit'
-            elif 'chexc' in l.lower(): 
-                rate_type = 'chexc'
-            elif 'drsat' in l.lower(): 
-                rate_type = 'drsat'
+            if "recom" in l.lower():
+                rate_type = "recom"
+            elif "excit" in l.lower():
+                rate_type = "excit"
+            elif "chexc" in l.lower():
+                rate_type = "chexc"
+            elif "drsat" in l.lower():
+                rate_type = "drsat"
             # attempt to report unknown rate type -- this should be fairly robust
             else:
-                rate_type = l.replace(' ','').lower().split('type=')[1].split('/')[0]
+                rate_type = l.replace(" ", "").lower().split("type=")[1].split("/")[0]
             # create dictionary with keys for each wavelength:
 
             # add a key to the pec_dict[lam] dictionary for each type of rate: recom, excit or chexc
@@ -122,8 +129,9 @@ class ADAS():
             PEC_use = log10(PEC)
             if raw is True:
                 PEC_use = PEC
-            pec_fun = RectBivariateSpline(log10(dens), log10(temp),
-                PEC_use, kx=order, ky=order )
+            pec_fun = RectBivariateSpline(
+                log10(dens), log10(temp), PEC_use, kx=order, ky=order
+            )
 
             try:
                 self.adf15[lam]
@@ -134,11 +142,8 @@ class ADAS():
                     self.adf15[lam][rate_type]
                 except:
                     self.adf15[lam][rate_type] = dict()
-                self.adf15[lam][rate_type]['meta{}'.format(INDM)] =  pec_fun
+                self.adf15[lam][rate_type]["meta{}".format(INDM)] = pec_fun
             else:
                 self.adf15[lam][rate_type] = pec_fun
                 if raw is True:
                     self.adf15[lam][rate_type] = PEC
-                    
-
-     
