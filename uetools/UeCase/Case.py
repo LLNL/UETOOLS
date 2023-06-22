@@ -110,8 +110,10 @@ class Case(
     ):
         """Initializes the UeCase object.
 
+
+
         Keyword arguments
-        ------------
+        -----------------
         casefname : str (default =  None)
             HDF5 file where to read data from. If None, data is read
             from UEDGE
@@ -125,7 +127,7 @@ class Case(
         assign : bool (default = True)
             Switch whether to assign the current run to the caseobject
         verbose : bool
-
+            Prints additional information
         database : bool
 
         """
@@ -681,13 +683,14 @@ class Case(
                                 range(ind0, len(dictobj) + ind0), dictobj
                             )
                     elif isinstance(group[-1], int):
-                        # Set a single index
+                        # Set a single entry in a 1D or 2D array
                         if len(group) > 2 and isinstance(group[-2], int):
-                            # Two indices
+                            # 2D array
                             datalist = self.getue(group[-3])
                             datalist[group[-2], group[-1]] = dictobj
                             self.setue(group[-3], datalist)
                         else:
+                            # 1D array
                             datalist = self.getue(group[-2])
                             datalist[group[-1]] = dictobj
                             self.setue(group[-2], datalist)
@@ -741,12 +744,6 @@ class Case(
             self.restoresave(savefname, **kwargs)
         self.reload()
         # NOTE:  Commands are executed as part of reload: don't repeat here
-
-    #        try:
-    #            for command in commands:
-    #                exec(command)
-    #        except:
-    #            pass
 
     def setuserdiff(self, difffname, **kwargs):
         """Sets user-defined diffusivities
