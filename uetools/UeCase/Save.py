@@ -3,7 +3,7 @@ class Save:
         """Saves variable and metadata to HDF5 group and dataset
 
         Arguments
-        ------------
+        ---------
         savefile : h5py File object
             h5py object where to save data
         groups : list of str
@@ -16,7 +16,7 @@ class Save:
             data to be stored to dataset
 
         Returns
-        ------------
+        -------
         None
         """
         # Make group, package, file into a list and iterate?
@@ -49,11 +49,10 @@ class Save:
         # TODO: Do we want to always rewrite or try to append?
         from h5pickle import File
 
-        savefile = File(savename, "w" * (append is False) + "a" * (append is True))
-        if append is False:
-            self.savemetadata(savefile)
-        self.recursivesave(savefile, self.varinput[group], [group])
-        savefile.close()
+        with File(savename, "a" if append else "w") as savefile:
+            if append is False:
+                self.savemetadata(savefile)
+            self.recursivesave(savefile, self.varinput[group], [group])
 
     def savesetup(self, savename, **kwargs):
         self.savegroup(savename, "setup", **kwargs)
@@ -98,7 +97,6 @@ class Save:
             return saveobj
 
     def savemetadata(self, savefile, **kwargs):
-        from uedge import __version__
         from time import time, ctime
 
         try:
@@ -122,46 +120,39 @@ class Save:
         """Saves HDF5 file containing UeCase data
 
         Arguments
-        ------------
+        ---------
         savefname : str
             path to/name of file to write data to
 
         Keyword arguments
-        ------------
+        -----------------
         group : str (default = None)
             group identifier of group to be written to file. If None,
             all data stored in UeCase is written
         """
-        from h5pickle import File as pickleFile
         from h5py import File
-        from os.path import exists
-        from os import remove
 
         if self.inplace:
             print("Data read from file, no data to save. Aborting.")
             return
-        savefile = File(savefname, "w" * (append is False) + "a" * (append is True))
-        self.savemetadata(savefile)
-        if group is None:
-            self.recursivesave(savefile, self.varinput)
-        else:
-            self.recursivesave(savefile, self.varinput[group], [group])
-        savefile.close()
-        del savefile
+        with File(savefname, "a" if append else "w") as savefile:
+            self.savemetadata(savefile)
+            if group is None:
+                self.recursivesave(savefile, self.varinput)
+            else:
+                self.recursivesave(savefile, self.varinput[group], [group])
 
     def restoresave(self, savefname=None, **kwargs):
         """Restores a saved solution
 
         Keyword arguments
-        ------------
+        -----------------
         savefname : str (default = None)
             HDF5 file to read stored solution from. If None, solution
             is read from UeCase object
         **kwargs
             passed to setgroup
         """
-        from os import getcwd
-        from uedge import bbb
         from h5py import File
 
         if self.mutex() is False:
@@ -188,8 +179,6 @@ class Save:
                 for variable in variables:
                     self.setue(variable, savefile[group][variable][()])
                     self.vars[variable] = savefile[group][variable][()]
-        from uedge import bbb
 
         if self.verbose:
             print("Saved solution successfully restored from {}".format(savefname))
-        return
