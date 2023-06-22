@@ -25,12 +25,12 @@ class Case(
     """UEDGE Case container object.
 
     Subclasses
-    ------------
+    ----------
     Caseplot -- contains plotting routines and widgets
     Solver -- contains time-stepping and convergence routines
 
     Attributes
-    ------------
+    ----------
     allocate : function
         allocates the UEDGE arrays based on the input
     casefname : string
@@ -57,7 +57,7 @@ class Case(
         HDF5 file reader to read data from
 
     Methods
-    ------------
+    -------
     set_userdiff():
         sets user-defined diffusion coefficients
     save_userdiff(savefname, readvars=False):
@@ -325,8 +325,7 @@ class Case(
 
     def getsetue_inplace(self, *args, **kwargs):
         """Placeholder to avoid getting/setting when reading inplace."""
-        print("Cannot set/get UEDGE values when reading from HDF5 file")
-        return
+        raise Exception("Cannot set/get UEDGE values when reading from HDF5 file")
 
     def setue_memory(self, variable, value, idx=None, **kwargs):
         """Sets the Forthon variable in package to data
@@ -534,7 +533,7 @@ class Case(
             raise OSError('File "{}" not found!'.format(fname))
 
     def closehdf5(self, **kwargs):
-        """Closes UeCase file hdf5case  that is being read"""
+        """Closes UeCase file hdf5case that is being read"""
         try:
             self.hdf5case.close()
         except:
@@ -672,11 +671,10 @@ class Case(
                                         range(ind0, len(dictobj) + ind0), dictobj
                                     )
                             else:
-                                print(
+                                raise ValueError(
                                     "!!! ERROR !!! Unable to determine "
                                     "shape of {} from input".format(var)
                                 )
-                                print(" *** ABORTING ***")
                         else:
                             # Edit array without copying == setue
                             self.getue(var, cp=False).put(
