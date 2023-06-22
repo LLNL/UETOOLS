@@ -106,7 +106,7 @@ class Case(
         assign=True,
         verbose=True,
         database=False,
-        **kwargs
+        **kwargs,
     ):
         """Initializes the UeCase object.
 
@@ -194,6 +194,7 @@ class Case(
             self.exmain_evals = self.getue("exmain_evals")
             if assign is True:
                 self.assign()
+
             # Read YAML to get variables to be read/stored/used
             if variableyamlfile is None:  # No YAML variable file requested
                 # Use default: find package location and package YAMLs
@@ -203,6 +204,7 @@ class Case(
             else:  # YAML specified, use user input
                 variableyamlpath = "{}/{}".format(path, variableyamlfile)
             self.varinput = self.readyaml(variableyamlpath)  # Read to memory
+
             if self.casefname is not None:
                 self.restore(self.casefname)
             else:
@@ -235,7 +237,7 @@ class Case(
         if self.exmain_evals != self.getue("exmain_evals"):
             self.exmain_evals = self.getue("exmain_evals")
             if self.mutex() is False:
-                raise ValueError("Case doesn't own UEDGE memory")
+                raise Exception("Case doesn't own UEDGE memory")
             self.reload()
             self.vertices = self.createpolycollection(self.get("rm"), self.get("zm"))
 
@@ -272,19 +274,19 @@ class Case(
         NOTE: return None, or access value from UEDGE?
 
         Arguments
-        ------------
+        ---------
         variable : str
             name of variable to be returned
 
         Keyword arguments
-        ------------
+        -----------------
         s : int (default = None)
             species index to be returned for 3-dimensional arrays. If
             None, get returns the full 3-dimensional array. Otherwise,
             get returns the s:th index of the third dimension
 
         Returns
-        ------------
+        -------
         UeCase value of variable (array/int/str/float)
         """
         # TODO: serach input too? Store input to Vars?
@@ -330,7 +332,7 @@ class Case(
         """Sets the Forthon variable in package to data
 
         Arguments
-        ------------
+        ---------
         variable : str
             variable name
         value : array/list/float/int
@@ -350,12 +352,12 @@ class Case(
         """Retrieves data from UEDGE variable in package.
 
         Arguments
-        ------------
+        ---------
         variable : str
             variable name
 
         Returns
-        ------------
+        -------
         value of UEDGE variable (array/str/int/float)
         """
         from copy import deepcopy
@@ -389,20 +391,30 @@ class Case(
         TODO: Is this desired behavior?
 
         Keyword arguments
-        ------------
+        -----------------
         group : str (default = None)
             group specifier to reload. If None, reloads all
             variables in vars
+
+        Modifies
+        --------
+        self.vars : dict
+            Dictionary of values, with keys specified in self.varinput
+
+        Returns
+        -------
+        None
+
         """
-        from copy import deepcopy
         from numpy import ndarray, int64, float64
 
+        # Check whether data is read into memory
+        if self.inplace:
+            raise Exception(
+                'Cannot reload directly to HDF5 file with option "inplace".'
+            )
         if self.mutex is False:
-            raise ValueError("Case doesn't own UEDGE memory")
-        try:
-            commands = self.varinput["setup"].pop("commands")
-        except:
-            pass
+            raise Exception("Case doesn't own UEDGE memory")
 
         def recursivereload(dictobj, group=[]):
             if not isinstance(dictobj, dict):
@@ -423,7 +435,10 @@ class Case(
                         for variable in dictobj:
                             self.vars[variable] = self.getue(variable)
                 elif isinstance(group[-1], int):
-                    self.vars[group[-2]] = self.getue(group[-2])
+                    if len(group) > 2 and isinstance(group[-2], int):
+                        self.vars[group[-3]] = self.getue(group[-3])
+                    else:
+                        self.vars[group[-2]] = self.getue(group[-2])
                 elif isinstance(dictobj, bool):
                     # TODO: Now assumed only Falses set, which do nothing
                     # In the future, we might include Trues on keywords.
@@ -440,37 +455,23 @@ class Case(
                     self.unset_variables.append([group, dictobj])
             else:
                 for key, value in dictobj.items():
-                    dictobj = recursivereload(value, group + [key])
-                return dictobj
+                    recursivereload(value, group + [key])
 
-        # Check whether data is read into memory
-        if self.inplace:
-            print('Cannot reload directly to HDF5 file with option "inplace".')
-            print("Aborting")
-            return
         if group is None:
             recursivereload(self.varinput)
         else:
             recursivereload(self.varinput[group], [group])
-        if "commands" in locals():
-            try:
-                for command in commands:
-                    exec(command)
-            except:  # Exception as e:
-                raise  # e
-        #        try:
-        #            self.varinput['setup']['commands'] = commands
-        #            print('B4', bbb.albrb[16:19])
-        #            for command in commands:
-        #                exec(command)
-        #            print('AFTER', bbb.albrb[16:19])
-        #        except:
-        #            pass
-        # TODO: assess time lost here?
+
+        try:
+            commands = self.varinput["setup"].pop("commands")
+        except:
+            commands = []
+        for command in commands:
+            exec(command)
+
+        # Update the dict containing the package containing each variable
         for variable in self.vars.keys():
-            try:
-                self.packagelist[variable]
-            except:
+            if variable not in self.packagelist:
                 self.packagelist[variable] = self.getpackage(variable, verbose=False)
 
     def load_inplace(self, fileobj=None, group=[]):
@@ -574,9 +575,9 @@ class Case(
         savefname=None,
         readinput=True,
         restoresave=False,
-        **kwargs
+        **kwargs,
     ):
-        """ Reads YAML input file
+        """Reads YAML input file
 
         Reads data from file to attribute setup.
 
@@ -588,7 +589,7 @@ class Case(
         Keyword arguments
         -----------------
         restore : bool (default = True)
-            switch whether to set UEDGE parameters to the read data 
+            switch whether to set UEDGE parameters to the read data
 
         Returns
         -------
@@ -599,7 +600,8 @@ class Case(
         from numpy import array
 
         if self.mutex() is False:
-            raise ValueError("Case doesn't own UEDGE memory")
+            raise Exception("Case doesn't own UEDGE memory")
+
         if readinput is True:
             if setupfile is None:
                 setupfile = "{}.yaml".format(self.casename)
@@ -636,7 +638,7 @@ class Case(
 
         # TODO: Find a way to catch user-specified and radially varying
         #       diffusive coefficients when reading from file: userdifffname
-        #       and radialdifffname attributes no available!
+        #       and radialdifffname attributes not available!
         def setinputrecursive(dictobj, group=[]):
             # NOTE: Something in this function is SLOOOW
             if not isinstance(dictobj, dict):
@@ -647,16 +649,10 @@ class Case(
                         dictobj = dictobj.ljust(len(self.getue(group[-2])[group[-1]]))
                     except:
                         pass
+
                     # Set all other parameters
-                    if isinstance(group[-1], int) and not isinstance(
-                        dictobj, list
-                    ):  # Set index-by-index
-                        datalist = self.getue(group[-2])
-                        datalist[group[-1]] = dictobj
-                        self.setue(group[-2], datalist)
-                    elif not isinstance(dictobj, list):
-                        self.setue(group[-1], dictobj)
-                    else:  # Set whole array
+                    if isinstance(dictobj, list):
+                        # Set whole array, given a list
                         if isinstance(group[-1], int):
                             var = group[-2]
                             ind0 = group[-1]
@@ -686,6 +682,20 @@ class Case(
                             self.getue(var, cp=False).put(
                                 range(ind0, len(dictobj) + ind0), dictobj
                             )
+                    elif isinstance(group[-1], int):
+                        # Set a single index
+                        if len(group) > 2 and isinstance(group[-2], int):
+                            # Two indices
+                            datalist = self.getue(group[-3])
+                            datalist[group[-2], group[-1]] = dictobj
+                            self.setue(group[-3], datalist)
+                        else:
+                            datalist = self.getue(group[-2])
+                            datalist[group[-1]] = dictobj
+                            self.setue(group[-2], datalist)
+                    else:
+                        self.setue(group[-1], dictobj)
+
                 else:  # Set calls to restore diffusivities
                     setattr(self, group[-1], dictobj)
             else:
@@ -695,9 +705,14 @@ class Case(
 
         # Set group order to assure proper allocation and avoid warnings
         for allokey in ["grid", "species"]:
-            allolist = setup.pop(allokey)
+            try:
+                allolist = setup.pop(allokey)
+            except KeyError:
+                print(f"WARNING: Expecting setup group '{allokey}'")
+                continue
             setinputrecursive(allolist)
             self.allocate()
+
         if restore is True:
             setinputrecursive(setup)
             self.allocate()
@@ -750,7 +765,7 @@ class Case(
         # No matter, we are only reading: use h5py
 
         if self.mutex() is False:
-            raise ValueError("Case doesn't own UEDGE memory")
+            raise Exception("Case doesn't own UEDGE memory")
 
         try:
             difffile = File(difffname, "r")
@@ -789,7 +804,7 @@ class Case(
         """
 
         if self.mutex() is False:
-            raise ValueError("Case doesn't own UEDGE memory")
+            raise Exception("Case doesn't own UEDGE memory")
 
         try:
             difffile = self.openhdf5(difffname, "r")
@@ -815,7 +830,7 @@ class Case(
         from copy import deepcopy
 
         if self.mutex() is False:
-            raise ValueError("Case doesn't own UEDGE memory")
+            raise Exception("Case doesn't own UEDGE memory")
 
         if verbose is None:
             verbose = self.verbose
@@ -848,7 +863,7 @@ class Case(
     def restore(self, inputfname=None, savefname=None, populate=True, **kwargs):
         """Restores a full case into memory and object."""
         if self.mutex() is False:
-            raise ValueError("Case doesn't own UEDGE memory")
+            raise Exception("Case doesn't own UEDGE memory")
 
         self.setinput(inputfname, savefname=savefname, restoresave=True, **kwargs)
         if populate is True:
