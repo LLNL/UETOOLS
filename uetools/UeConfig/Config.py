@@ -8,6 +8,9 @@ class Config(Lookup):
         from yaml import safe_load
         from pathlib import Path
 
+        # True if succeeds
+        self.configured = False
+
         super().__init__()
         searchpath = path.expanduser("~")
         try:
@@ -32,7 +35,6 @@ class Config(Lookup):
                     )
                 )
                 return
-                self.configured = False
         # NOTE: what other information to write/store?
         self.configured = True
 
@@ -46,7 +48,11 @@ class Config(Lookup):
         no = ["no", "n"]
         print("UEDGE config file not found!")
         print("Create it here? [y/n]")
-        create = input()
+        try:
+            # Note: This can fail in subprocess
+            create = input()
+        except:
+            create = "n"
         if (create.lower() in yes) or (len(create) == 0):
             for dirpath in ["aphdir", "apidir"]:
                 defpath = "x"
