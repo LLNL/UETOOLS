@@ -14,6 +14,7 @@ class Database:
         sortlocation="midplane",
         rerun=False,
         meshplot_setup=False,
+        readinput=False,
     ):
         """
         
@@ -26,6 +27,7 @@ class Database:
         self.dbidentifier = dbidentifier
         self.datbasename = database
         self.rerun = rerun
+        self.readinput = readinput
         self.create_database(database, not meshplot_setup)
         # TODO: Store commonly used grid locations
         # TODO: Account for different grids
@@ -91,18 +93,21 @@ class Database:
                     self.sortlocation
                 )
             )
-        order = argsort(
-            self.get(self.sortvar)[:, self.sortlocation[0], self.sortlocation[1]]
-        )
+        order = self.get(self.sortvar)
+        for ind in self.sortlocation:
+            order = order[:, ind]
+        order = argsort(order)
+        if increasing is False:
+            order = order[::-1]
         neworder = {}
         for i in order:
             key = list(self.cases.keys())[i]
             neworder[key] = self.cases[key]
         self.cases = neworder
 
-        self.scanvar = self.get(self.sortvar)[
-            :, self.sortlocation[0], self.sortlocation[1]
-        ]
+        self.scanvar = self.get(self.sortvar)
+        for ind in self.sortlocation:
+            self.scanvar = self.scanvar[:, ind]
 
     def create_database(self, path, database):
         import os
@@ -110,8 +115,11 @@ class Database:
 
         createdb = []
         for parent, dirs, files in os.walk(path):
+            if "ignore" in parent:
+                continue
             subdir = parent.split("/")[-1]
             databases = [db for db in files if self.is_case("{}/{}".format(parent, db))]
+
             if self.rerun is False:
                 # HDF5s identified
                 if len(databases) == 1:
@@ -133,7 +141,7 @@ class Database:
                         )
                 # No database found, store location where input is
                 # Changing dirs while executing walk breaks the call
-                elif "input.yaml" in files:
+                elif ("input.yaml" in files) and self.readinput:
                     createdb.append(parent)
             else:
                 if "input.yaml" in files:
