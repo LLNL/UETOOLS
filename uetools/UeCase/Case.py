@@ -173,8 +173,17 @@ class Case(
         self.uedge_ver = (
             packageobject("bbb").getpyobject("uedge_ver")[0].strip().decode("UTF-8")
         )
-        self.user = getlogin()
-        self.hostname = gethostname()
+
+        try:
+            self.user = getlogin()
+        except OSError:
+            # Can fail on e.g cluster nodes
+            self.user = "unknown"
+        try:
+            self.hostname = gethostname()
+        except OSError:
+            self.hostname = "unknown"
+
         self.unset_variables = []
         self.omitvars = [
             "userdifffname",
@@ -867,6 +876,7 @@ class Case(
             verbose = self.verbose
 
         if silent is True:
+            old_iprint = self.getue("iprint")
             self.setue("iprint", 0)
 
         issfon = deepcopy(self.getue("issfon"))
@@ -896,7 +906,7 @@ class Case(
                 print(prtstr.format("WARNING, case NOT converged"))
                 print("fnrm without preconditioning: {:.2e}\n".format(fnrm))
         if silent is True:
-            self.setue("iprint", 1)
+            self.setue("iprint", old_iprint)  # Restore
 
     def restore(self, inputfname=None, savefname=None, populate=True, **kwargs):
         """Restores a full case into memory and object."""
