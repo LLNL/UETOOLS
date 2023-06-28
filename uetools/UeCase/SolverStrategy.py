@@ -164,3 +164,111 @@ class SolverStrategy:
 
         self._last = self._case.takestep(restart=1, ftol=1e-8, dtreal=dtreal, itermx=30)
         return self._last
+
+    @staticmethod
+    def optimize(start_settings, processes: int, *case_args, **case_kwargs):
+        """Use SciPy.optimize.differential_evolution to optimize the
+        strategy settings. Needs to be given the settings to start
+        with, and the arguments needed to construct a Case to be
+        solved.
+
+        Arguments
+        ---------
+
+        start_settings: List[float]
+            The strategy settings to start
+        processes : int
+            The number of processes to use
+
+        All following arguments and keywords are passed to the Case constructor.
+
+        Example
+        -------
+
+        In a directory with an "input.yaml" file:
+
+        import uetools
+        uetools.UeCase.SolverStrategy.optimize(
+            uetools.UeCase.SolverStrategy.good_settings[0],
+            32,
+            "input.yaml"
+        )
+
+        """
+        from .Parallel import Pool
+        import scipy.optimize as optimize
+
+        pool = Pool(processes=processes, rate_limit=1.0)
+
+        runner = RunSolver(*case_args, **case_kwargs)
+
+        result = optimize.differential_evolution(
+            runner,
+            [(0, 1.0)] * 10,
+            maxiter=1000,
+            popsize=15,
+            x0=start_settings,
+            workers=lambda f, i: pool.map(f, i, timeout=300, default=1e6),
+        )
+
+        with open("result.pkl", "wb") as f:
+            pickle.dump(result)
+
+
+class RunSolver:
+    def __init__(self, *args, **kwargs):
+        self.case_args = args
+        self.case_kwargs = kwargs
+
+    def __call__(self, settings):
+        from . import Case
+        from uedge import bbb
+        import uuid
+        import pickle
+        import time
+
+        score = 1e6
+        try:
+            bbb.iprint = 0  # Turn off printing from UEDGE
+
+            solver = SolverStrategy(settings)
+            case = Case(*self.case_args, **self.case_kwargs, verbose=False)
+
+            # Take first step
+            result = solver.start(case)
+
+            # Make list of results for each step
+            steps = [result]
+
+            iters = 0
+            start_time = time.time()
+            total_nfe = 0  # Total number of function evaluations
+            while iters < 100:
+                result = solver.next()
+                total_nfe += result["nfe"]
+                steps.append(result)
+                iters += 1
+                if result["success"] and result["dtreal"] > 1.0:
+                    # Successfully took a timestep over 1s
+                    score = time.time() - start_time
+                    break
+
+            total_time = time.time() - start_time
+
+            # Pickle for later analysis
+            filename = str(uuid.uuid4()) + ".pkl"
+            with open(filename, "wb") as f:
+                pickle.dump(
+                    {
+                        "settings": settings,
+                        "steps": steps,
+                        "time": total_time,
+                        "nfe": total_nfe,
+                        "score": score,
+                    },
+                    f,
+                )
+        except Exception as e:
+            print(f"Exception {e}")
+
+        return score
