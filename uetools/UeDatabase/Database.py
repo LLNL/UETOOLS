@@ -16,6 +16,9 @@ class Database:
         meshplot_setup=False,
         readinput=False,
     ):
+        """
+        
+        """
         from os import getcwd
         from os.path import isfile, isdir
 
@@ -44,30 +47,41 @@ class Database:
 
         chdir(path)
 
-    def is_case(self, file):
+    def is_case(self, filename: str) -> bool:
+        """
+        Returns True if the given file is a valid HDF5 UEDGE case file
+
+        Arguments
+        ---------
+        filename: string
+            Path to a UEDGE HDF5 case file
+
+        """
         from h5py import File
 
         try:
-            f = File(file, "r")
-            ret = True
-            # Check that necessary groups are present in file
-            for entry in ["centered", "staggered", "restore", "grid", "setup"]:
-                if entry not in f.keys():
-                    ret = False
-            f.close()
-            return ret
+            with File(filename, 'r') as f:
+                # Check that necessary groups are present in file
+                for entry in ['centered', 'staggered', 'restore', 'grid', 'setup']:
+                    if entry not in f.keys():
+                        return False
+            return True
         except:
             return False
 
-    def save(self, savename):
-        """Save the database"""
+    def save(self, savename: str):
+        """ Save the database to a pickle file"""
         from pickle import dump
 
         with open("{}.db".format(savename.split(".")[0]), "wb") as f:
             dump(self, f)
 
-    def sort(self, variable, location, increasing=True):
-        """Sorts cases according to variable at location"""
+    def sort(self, variable, location, increasing = True):
+        """ Sorts cases according to variable at location
+
+        Note: This works because python dict preserves the order
+        of insertion (since python 3.7).
+        """
         from numpy import argsort, where
 
         self.sortvar = variable

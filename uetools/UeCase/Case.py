@@ -25,12 +25,12 @@ class Case(
     """UEDGE Case container object.
 
     Subclasses
-    ------------
+    ----------
     Caseplot -- contains plotting routines and widgets
-    Solver -- contains time-stepping and concergence routines
+    Solver -- contains time-stepping and convergence routines
 
     Attributes
-    ------------
+    ----------
     allocate : function
         allocates the UEDGE arrays based on the input
     casefname : string
@@ -57,7 +57,7 @@ class Case(
         HDF5 file reader to read data from
 
     Methods
-    ------------
+    -------
     set_userdiff():
         sets user-defined diffusion coefficients
     save_userdiff(savefname, readvars=False):
@@ -88,8 +88,6 @@ class Case(
         saves UeCase variables to HDF5 file
     savevar(savefile, groups, variable, data):
         writes data and metadata to HDF5 file
-    load(casefname=None):
-        reads data from HDF5 file to UeCase vars
     readgridhdf5(savefname):
         reads gridue data from HDF5 file
     readgridue(gridue='gridue'):
@@ -108,12 +106,14 @@ class Case(
         assign=True,
         verbose=True,
         database=False,
-        **kwargs
+        **kwargs,
     ):
         """Initializes the UeCase object.
 
+
+
         Keyword arguments
-        ------------
+        -----------------
         casefname : str (default =  None)
             HDF5 file where to read data from. If None, data is read
             from UEDGE
@@ -124,8 +124,12 @@ class Case(
             Path to YAML file containing definitions of data and
             variables to be read. If None, accesses the module defaults
             # TODO: Use .uedgerc to define the file in question?
-        assign : boolean (default = True)
+        assign : bool (default = True)
             Switch whether to assign the current run to the caseobject
+        verbose : bool
+            Prints additional information
+        database : bool
+
         """
         import uetools
         from os.path import exists, abspath
@@ -174,7 +178,7 @@ class Case(
         self.packagelist = dict()
         # TODO: add hostname, aphdir, apidir, mcfilename, aphfname
 
-        """ Set up structure for reading/writing data """
+        # Set up structure for reading/writing data
         # Load all data to object in memory
         if self.inplace is False:
             self.get = self.get_memory
@@ -192,6 +196,7 @@ class Case(
             self.exmain_evals = self.getue("exmain_evals")
             if assign is True:
                 self.assign()
+
             # Read YAML to get variables to be read/stored/used
             if variableyamlfile is None:  # No YAML variable file requested
                 # Use default: find package location and package YAMLs
@@ -201,10 +206,10 @@ class Case(
             else:  # YAML specified, use user input
                 variableyamlpath = "{}/{}".format(path, variableyamlfile)
             self.varinput = self.readyaml(variableyamlpath)  # Read to memory
+
             if self.casefname is not None:
                 self.restore(self.casefname)
             else:
-                #                self.populate(verbose=False)
                 self.reload()
         # Read all data directly from HDF5 file
         else:
@@ -226,16 +231,15 @@ class Case(
 
         # Initialize parent classes
         super(Case, self).__init__()
-        return
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
-        """Checks if UEDGE state has changed and updates if needed"""
+        """Checks if UEDGE state has changed and updates if needed."""
 
         if self.exmain_evals != self.getue("exmain_evals"):
             self.exmain_evals = self.getue("exmain_evals")
             if self.mutex() is False:
-                return
+                raise Exception("Case doesn't own UEDGE memory")
             self.reload()
             self.vertices = self.createpolycollection(self.get("rm"), self.get("zm"))
 
@@ -272,19 +276,19 @@ class Case(
         NOTE: return None, or access value from UEDGE?
 
         Arguments
-        ------------
+        ---------
         variable : str
             name of variable to be returned
 
         Keyword arguments
-        ------------
+        -----------------
         s : int (default = None)
             species index to be returned for 3-dimensional arrays. If
             None, get returns the full 3-dimensional array. Otherwise,
             get returns the s:th index of the third dimension
 
         Returns
-        ------------
+        -------
         UeCase value of variable (array/int/str/float)
         """
         # TODO: serach input too? Store input to Vars?
@@ -304,7 +308,7 @@ class Case(
         return retvar
 
     def assign(self, **kwargs):
-        """Assigns the UEDGE session to this object"""
+        """Assigns the UEDGE session to this object."""
         setattr(packageobject("bbb"), "session_id", self.session_id)
         try:
             # Restore input to UEDGE
@@ -322,15 +326,14 @@ class Case(
             pass
 
     def getsetue_inplace(self, *args, **kwargs):
-        """Placeholder to avoid getting/setting when reading inplace"""
-        print("Cannot set/get UEDGE values when reading from HDF5 file")
-        return
+        """Placeholder to avoid getting/setting when reading inplace."""
+        raise Exception("Cannot set/get UEDGE values when reading from HDF5 file")
 
     def setue_memory(self, variable, value, idx=None, **kwargs):
         """Sets the Forthon variable in package to data
 
         Arguments
-        ------------
+        ---------
         variable : str
             variable name
         value : array/list/float/int
@@ -347,15 +350,15 @@ class Case(
                 raise KeyError("{} could not be set".format(variable))
 
     def getue_memory(self, variable, s=None, cp=True, **kwargs):
-        """Retireves data from UEDGE variable in package
+        """Retrieves data from UEDGE variable in package.
 
         Arguments
-        ------------
+        ---------
         variable : str
             variable name
 
         Returns
-        ------------
+        -------
         value of UEDGE variable (array/str/int/float)
         """
         from copy import deepcopy
@@ -389,24 +392,32 @@ class Case(
         TODO: Is this desired behavior?
 
         Keyword arguments
-        ------------
+        -----------------
         group : str (default = None)
             group specifier to reload. If None, reloads all
             variables in vars
+
+        Modifies
+        --------
+        self.vars : dict
+            Dictionary of values, with keys specified in self.varinput
+
+        Returns
+        -------
+        None
+
         """
-        from copy import deepcopy
         from numpy import ndarray, int64, float64
 
+        # Check whether data is read into memory
+        if self.inplace:
+            raise Exception(
+                'Cannot reload directly to HDF5 file with option "inplace".'
+            )
         if self.mutex is False:
-            return
-        try:
-            commands = self.varinput["setup"].pop("commands")
-        except:
-            pass
+            raise Exception("Case doesn't own UEDGE memory")
 
-        def recursivereload(dictobj=None, group=[]):
-            if dictobj is None:
-                dictobj = self.varinput
+        def recursivereload(dictobj, group=[]):
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
                 if isinstance(dictobj, (list, ndarray)):
@@ -425,7 +436,10 @@ class Case(
                         for variable in dictobj:
                             self.vars[variable] = self.getue(variable)
                 elif isinstance(group[-1], int):
-                    self.vars[group[-2]] = self.getue(group[-2])
+                    if len(group) > 2 and isinstance(group[-2], int):
+                        self.vars[group[-3]] = self.getue(group[-3])
+                    else:
+                        self.vars[group[-2]] = self.getue(group[-2])
                 elif isinstance(dictobj, bool):
                     # TODO: Now assumed only Falses set, which do nothing
                     # In the future, we might include Trues on keywords.
@@ -442,37 +456,23 @@ class Case(
                     self.unset_variables.append([group, dictobj])
             else:
                 for key, value in dictobj.items():
-                    dictobj = recursivereload(value, group + [key])
-                return dictobj
+                    recursivereload(value, group + [key])
 
-        # Check whether data is read into memory
-        if self.inplace:
-            print('Cannot reload directly to HDF5 file with option "inplace".')
-            print("Aborting")
-            return
         if group is None:
-            recursivereload()
+            recursivereload(self.varinput)
         else:
             recursivereload(self.varinput[group], [group])
-        if "commands" in locals():
-            try:
-                for command in commands:
-                    exec(command)
-            except:  # Exception as e:
-                raise  # e
-        #        try:
-        #            self.varinput['setup']['commands'] = commands
-        #            print('B4', bbb.albrb[16:19])
-        #            for command in commands:
-        #                exec(command)
-        #            print('AFTER', bbb.albrb[16:19])
-        #        except:
-        #            pass
-        # TODO: assess time lost here?
+
+        try:
+            commands = self.varinput["setup"].pop("commands")
+        except:
+            commands = []
+        for command in commands:
+            exec(command)
+
+        # Update the dict containing the package containing each variable
         for variable in self.vars.keys():
-            try:
-                self.packagelist[variable]
-            except:
+            if variable not in self.packagelist:
                 self.packagelist[variable] = self.getpackage(variable, verbose=False)
 
     def load_inplace(self, fileobj=None, group=[]):
@@ -516,14 +516,14 @@ class Case(
         """Opens HDF5 file and returns File object
 
         Arguments
-        ------------
+        ---------
         fname : str
             path to/name of file to be opened
         operation : str
             operation to open the file for ('r'/'w'/'r+')
 
         Returns
-        ------------
+        -------
         h5py File object
         """
         from h5pickle import File
@@ -535,7 +535,7 @@ class Case(
             raise OSError('File "{}" not found!'.format(fname))
 
     def closehdf5(self, **kwargs):
-        """Closes UeCase file hdf5case  that is being read"""
+        """Closes UeCase file hdf5case that is being read"""
         try:
             self.hdf5case.close()
         except:
@@ -576,25 +576,24 @@ class Case(
         savefname=None,
         readinput=True,
         restoresave=False,
-        **kwargs
+        **kwargs,
     ):
-        """Sets all UEDGE variables from Case input"""
-        """ Reads YAML input file
+        """Reads YAML input file
 
         Reads data from file to attribute setup.
 
         Arguments
-        ------------
+        ---------
         setupfile : str
             path to/name of input file to be read
 
         Keyword arguments
-        ------------
+        -----------------
         restore : bool (default = True)
-            switch whether to set UEDGE parameters to the read data 
+            switch whether to set UEDGE parameters to the read data
 
         Returns
-        ------------
+        -------
         None
         """
         from collections import OrderedDict
@@ -602,7 +601,8 @@ class Case(
         from numpy import array
 
         if self.mutex() is False:
-            return
+            raise Exception("Case doesn't own UEDGE memory")
+
         if readinput is True:
             if setupfile is None:
                 setupfile = "{}.yaml".format(self.casename)
@@ -639,7 +639,7 @@ class Case(
 
         # TODO: Find a way to catch user-specified and radially varying
         #       diffusive coefficients when reading from file: userdifffname
-        #       and radialdifffname attributes no available!
+        #       and radialdifffname attributes not available!
         def setinputrecursive(dictobj, group=[]):
             # NOTE: Something in this function is SLOOOW
             if not isinstance(dictobj, dict):
@@ -650,16 +650,10 @@ class Case(
                         dictobj = dictobj.ljust(len(self.getue(group[-2])[group[-1]]))
                     except:
                         pass
+
                     # Set all other parameters
-                    if isinstance(group[-1], int) and not isinstance(
-                        dictobj, list
-                    ):  # Set index-by-index
-                        datalist = self.getue(group[-2])
-                        datalist[group[-1]] = dictobj
-                        self.setue(group[-2], datalist)
-                    elif not isinstance(dictobj, list):
-                        self.setue(group[-1], dictobj)
-                    else:  # Set whole array
+                    if isinstance(dictobj, list):
+                        # Set whole array, given a list
                         if isinstance(group[-1], int):
                             var = group[-2]
                             ind0 = group[-1]
@@ -679,16 +673,30 @@ class Case(
                                         range(ind0, len(dictobj) + ind0), dictobj
                                     )
                             else:
-                                print(
+                                raise ValueError(
                                     "!!! ERROR !!! Unable to determine "
                                     "shape of {} from input".format(var)
                                 )
-                                print(" *** ABORTING ***")
                         else:
                             # Edit array without copying == setue
                             self.getue(var, cp=False).put(
                                 range(ind0, len(dictobj) + ind0), dictobj
                             )
+                    elif isinstance(group[-1], int):
+                        # Set a single entry in a 1D or 2D array
+                        if len(group) > 2 and isinstance(group[-2], int):
+                            # 2D array
+                            datalist = self.getue(group[-3])
+                            datalist[group[-2], group[-1]] = dictobj
+                            self.setue(group[-3], datalist)
+                        else:
+                            # 1D array
+                            datalist = self.getue(group[-2])
+                            datalist[group[-1]] = dictobj
+                            self.setue(group[-2], datalist)
+                    else:
+                        self.setue(group[-1], dictobj)
+
                 else:  # Set calls to restore diffusivities
                     setattr(self, group[-1], dictobj)
             else:
@@ -698,9 +706,14 @@ class Case(
 
         # Set group order to assure proper allocation and avoid warnings
         for allokey in ["grid", "species"]:
-            allolist = setup.pop(allokey)
+            try:
+                allolist = setup.pop(allokey)
+            except KeyError:
+                print(f"WARNING: Expecting setup group '{allokey}'")
+                continue
             setinputrecursive(allolist)
             self.allocate()
+
         if restore is True:
             setinputrecursive(setup)
             self.allocate()
@@ -732,12 +745,6 @@ class Case(
         self.reload()
         # NOTE:  Commands are executed as part of reload: don't repeat here
 
-    #        try:
-    #            for command in commands:
-    #                exec(command)
-    #        except:
-    #            pass
-
     def setuserdiff(self, difffname, **kwargs):
         """Sets user-defined diffusivities
 
@@ -753,7 +760,7 @@ class Case(
         # No matter, we are only reading: use h5py
 
         if self.mutex() is False:
-            return
+            raise Exception("Case doesn't own UEDGE memory")
 
         try:
             difffile = File(difffname, "r")
@@ -763,10 +770,9 @@ class Case(
         for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
             self.setue(variable, difffile["diffusivities"]["bbb"][variable][()])
         difffile.close()
-        return
 
     def mutex(self, silent=False, **kwargs):
-        """Returns bool whether case assigned to current UEDGE session
+        """Returns bool whether case assigned to current UEDGE session.
 
         Keyword parameters
         ------------------
@@ -793,7 +799,7 @@ class Case(
         """
 
         if self.mutex() is False:
-            return
+            raise Exception("Case doesn't own UEDGE memory")
 
         try:
             difffile = self.openhdf5(difffname, "r")
@@ -819,7 +825,7 @@ class Case(
         from copy import deepcopy
 
         if self.mutex() is False:
-            return
+            raise Exception("Case doesn't own UEDGE memory")
 
         if verbose is None:
             verbose = self.verbose
@@ -850,158 +856,10 @@ class Case(
             self.setue("iprint", 1)
 
     def restore(self, inputfname=None, savefname=None, populate=True, **kwargs):
-        """Restores a full case into memory and object"""
+        """Restores a full case into memory and object."""
         if self.mutex() is False:
-            return
+            raise Exception("Case doesn't own UEDGE memory")
+
         self.setinput(inputfname, savefname=savefname, restoresave=True, **kwargs)
         if populate is True:
             self.populate(silent=True, **kwargs)
-
-    '''
-    def savevar(self, savefile, groups, variable, data, **kwargs):
-        """ Saves variable and metadata to HDF5 group and dataset
-
-        Arguments
-        ------------
-        savefile : h5py File object
-            h5py object where to save data
-        groups : list of str
-            list of subroups to create and store variable
-        variable : str
-            name of dataset to create. If same as UEDGE variable name, 
-            metadata (description, units) are stored as dataset 
-            attributes
-        data : array/int/str/float
-            data to be stored to dataset
-        
-        Returns
-        ------------
-        None
-        """
-        # Make group, package, file into a list and iterate?
-        output = []
-        for group in groups:   
-            savefile.require_group(group)
-            savefile = savefile[group]
-            output.append(group)
-        if variable not in savefile.keys():
-            # Check whether variable is allocated or not
-            try:
-                if self.getpackobj(variable, verbose=False).allocated(\
-                    variable) != 0:
-                    savefile.create_dataset(variable, data=data)
-                else:
-                    savefile.create_dataset(variable, data=0)
-                    # TODO: Omit or save False?
-                    # TODO: Verbose prompt or not?
-            except:
-                savefile.create_dataset(variable, data=data)
-        try:
-            savefile.attrs[variable] = \
-                packageobject(package).getvarunit(variable)
-        except:
-            pass
-        try:
-            savefile.attrs[variable] = \
-                packageobject(package).getvardoc(variable)
-        except:
-            pass
-
-    def savegroup(self, savename, group, append=True, **kwargs):
-        # TODO: Do we want to always rewrite or try to append?
-        savefile = self.openhdf5(savename, 'a'*(append is True) + \
-            'w'*(append is False))
-        if append is False:
-            self.savemetadata(savefile)
-        self.recursivesave(savefile, self.varinput[group], [group])
-        savefile.close()
-
-    def savesetup(self, savename, **kwargs):
-        self.savegroup(savename, 'setup', **kwargs)
-    
-    def savegrid(self, savename, **kwargs): 
-        self.savegroup(savename, 'grid', **kwargs)
-
-    def savediffusivities(self, savename, **kwargs):
-        self.savegroup(savename, 'diffusivities')
-
-    def recursivesave(self, savefile, saveobj, group = [], **kwargs):
-        # Bottom level of structure
-        if not isinstance(saveobj, dict):
-            # Special setup for saving setup parameters to store
-            # actual set values of any setup parameters defined in input
-            if group[0]=='setup':
-                variable = group.pop(-1)
-                if variable in ['userdifffname', 'radialdifffname', 
-                    'casename', 'commands', 'savefile']:
-                    value = saveobj
-                else:
-                    value = self.getue(variable)
-                self.savevar(savefile, group, variable, value)
-            # Store requested data 
-            elif isinstance(saveobj, list):
-                for variable in saveobj:
-                    self.savevar(savefile, group, variable, 
-                        self.getue(variable))
-        # Recursively go deeper in structure
-        else:
-            for key, value in saveobj.items():
-                if isinstance(key, int):
-                    # Save the full array once only
-                    variable = group.pop(-1)
-                    self.savevar(savefile, group, variable,
-                        self.getue(variable))
-                    return
-                saveobj = self.recursivesave(savefile, value, group + [key])
-            return saveobj 
-
-    def savemetadata(self, savefile, **kwargs):
-        from uedge import __version__
-        from time import time, ctime
-        try:
-            savefile.attrs['casename'] = self.casename
-        except:
-            pass
-        try:
-            savefile.attrs['savefile'] = self.savefile
-        except:
-            pass
-        savefile.attrs['UETOOLS_version'] = self.uetoolsversion
-        savefile.attrs['time'] = time()
-        savefile.attrs['ctime'] = ctime()
-        savefile.attrs['code'] = 'UEDGE'
-        savefile.attrs['ver'] = self.uedge_ver
-        savefile.attrs['pyver'] = self.pyver
-        savefile.attrs['user'] = self.user
-        savefile.attrs['hostname'] = self.hostname
-        try:
-            savefile.attrs['location'] = self.location
-        except:
-            pass
-
-    def save(self, savefname, group=None, append=False, **kwargs):
-        """ Saves HDF5 file containing UeCase data
-        
-        Arguments
-        ------------
-        savefname : str 
-            path to/name of file to write data to 
-
-        Keyword arguments
-        ------------
-        group : str (default = None)
-            group identifier of group to be written to file. If None,
-            all data stored in UeCase is written
-        """
-        if self.inplace:
-            print('Data read from file, no data to save. Aborting.')
-            return
-        savefile = self.openhdf5(savefname, 'w'*(append is False) \
-            + 'a'*(append is True)) 
-        self.savemetadata(savefile)
-        if group is None:
-            self.recursivesave(savefile, self.varinput)
-        else:
-            self.recursivesave(savefile, self.varinput[group], [group])
-        savefile.close()
-    '''
