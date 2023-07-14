@@ -43,6 +43,7 @@ import pickle
 from typing import Optional
 
 
+
 def _case_handler(pipe, args, kwargs):
     """
     This function is launched on the remote process, and marshals
@@ -351,3 +352,4 @@ class Pool:
             wait_for_results()
 
         return results
+
