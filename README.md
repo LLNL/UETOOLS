@@ -3,7 +3,7 @@ Version: 1.0.0
 
 
 ## Authors
-Andreas Holm, William H. Meyer
+Andreas Holm, Ben Dudson, William H. Meyer
 
 ## Release 
 
