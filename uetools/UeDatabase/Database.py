@@ -33,19 +33,14 @@ class Database:
         # TODO: Account for different grids
 
         # Sort here
-        self.sort(sortvar, sortlocation)
+        try:
+            self.sort(sortvar, sortlocation)
+        except Exception as e:
+            print(f"Error while sorting: {e}")
 
         # Save if requested
         if savedbname is not None:
             self.save(savedbname)
-
-    def top(self):
-        self.chdir(self.cwd)
-
-    def chdir(self, path):
-        from os import chdir
-
-        chdir(path)
 
     def is_case(self, filename: str) -> bool:
         """
@@ -60,9 +55,9 @@ class Database:
         from h5py import File
 
         try:
-            with File(filename, 'r') as f:
+            with File(filename, "r") as f:
                 # Check that necessary groups are present in file
-                for entry in ['centered', 'staggered', 'restore', 'grid', 'setup']:
+                for entry in ["centered", "staggered", "restore", "grid", "setup"]:
                     if entry not in f.keys():
                         return False
             return True
@@ -76,7 +71,7 @@ class Database:
         with open("{}.db".format(savename.split(".")[0]), "wb") as f:
             dump(self, f)
 
-    def sort(self, variable, location, increasing = True):
+    def sort(self, variable, location, increasing=True):
         """ Sorts cases according to variable at location
 
         Note: This works because python dict preserves the order
@@ -112,19 +107,13 @@ class Database:
             self.scanvar = self.scanvar[:, ind]
 
     def create_database(self, path, database):
-        from os import walk
-        from os.path import abspath
+        import os
         from tqdm import tqdm
 
-        path = abspath(path)
-        self.chdir(path)
         createdb = []
-        for parent, dirs, files in walk('.'):
-            if 'ignore' in parent:
-                continue
-            subdir = parent.split('/')[-1]
-            databases = [db for db in files if self.is_case('{}/{}'.format(\
-                parent, db))]
+        for parent, dirs, files in os.walk(path):
+            subdir = parent.split("/")[-1]
+            databases = [db for db in files if self.is_case("{}/{}".format(parent, db))]
             if self.rerun is False:
                 # HDF5s identified
                 if len(databases) == 1:
@@ -156,23 +145,30 @@ class Database:
             print("===== CREATING NEW CASE DUMPS =====")
             for newdbfolder in tqdm(createdb):
                 subdir = newdbfolder.split("/")[-1]
-                self.chdir(path)
-                self.chdir(newdbfolder)
-                Case("input.yaml", verbose=False).save(
-                    "{}{}.hdf5".format(subdir, self.dbidentifier)
+                identifier = f"{subdir}/{subdir}{self.dbidentifier}"
+
+                yaml_file = os.path.join(newdbfolder, "input.yaml")
+                hdf5_file = os.path.join(
+                    newdbfolder, f"{subdir}{self.dbidentifier}.hdf5"
                 )
-                self.cases[
-                    "{}/{}".format(subdir, "{}{}".format(subdir, self.dbidentifier))
-                ] = Case(
-                    "{}{}.hdf5".format(subdir, self.dbidentifier),
-                    inplace=True,
-                    verbose=False,
-                )
-                self.chdir(path)
-        self.top()
+
+                # Load the case from YAML, save as HDF5
+                #
+                # Note: This modifies the global UEDGE state, so the
+                #       result may depend in surprising ways on the
+                #       order that Cases are loaded.
+                Case(yaml_file, verbose=False).save(hdf5_file)
+
+                # Re-open HDF5 file
+                self.cases[identifier] = Case(hdf5_file, inplace=True, verbose=False)
 
     def get(self, var, **kwargs):
-        """Returns an array of var for all cases"""
+        """Returns an array of var for all cases
+
+        Note: This can fail if the variable is not the same size for
+             every case e.g. different grids.
+
+        """
         # TODO: Supress verbose output
         from numpy import array
 
@@ -200,10 +196,12 @@ class Database:
     def plotOTsep(self, var, **kwargs):
         return self.plotscan(var, (-2, self.iysptrx + 1), **kwargs)
 
-    def plotOTmax(self, var, inds=(None,None), **kwargs):
+    def plotOTmax(self, var, inds=(None, None), **kwargs):
         from numpy import max
-        return self.plotvar(self.scanvar, max(var[:,-2,slice(*inds)], axis=1),
-            **kwargs)
+
+        return self.plotvar(
+            self.scanvar, max(var[:, -2, slice(*inds)], axis=1), **kwargs
+        )
 
     def plotOMP(self, var, **kwargs):
         return self.plotscan(var, (self.ixmp, self.iysptrx + 1), **kwargs)

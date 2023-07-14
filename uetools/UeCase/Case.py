@@ -95,6 +95,16 @@ class Case(
         a gridue grid
     restore(savefname, **kwargs)
         restores a UEDGE solution from HDF5
+
+    Side-effects
+    ------------
+
+    - Modifies UEDGE internal state, shared among all Case objects.
+
+    - Some methods need to change working directory when
+      calling UEDGE. In all cases the change should be reverted
+      before returning, so that there is no net change.
+
     """
 
     def __init__(
@@ -132,6 +142,7 @@ class Case(
 
         """
         import uetools
+        import os
         from os.path import exists, abspath
         from os import getlogin, getcwd
         from socket import gethostname
@@ -186,7 +197,8 @@ class Case(
             self.set = self.set_memory
             self.setue = self.setue_memory
             try:
-                self.location = abspath(self.casefname)
+                # Get the directory containing the input file
+                self.location = os.path.dirname(abspath(self.casefname))
             except:
                 self.location = getcwd()
             self.session_id = self.getue("max_session_id") + 1
@@ -221,6 +233,7 @@ class Case(
                 print("Must specify data file when inplace=True! Aborting.")
                 return
             self.casefname = abspath(self.casefname)
+            self.location = os.path.dirname(self.casefname)
             if exists(self.casefname):
                 try:
                     self.hdf5case = self.openhdf5(self.casefname, "r")
@@ -735,13 +748,35 @@ class Case(
                 self.userdifffname = self.casefname
             elif (self.getue("isbohmcalc") == 2) and (self.radialdifffname is None):
                 self.radialdifffname = self.casefname
+
             if self.userdifffname:
-                self.setuserdiff(self.userdifffname)
+                try:
+                    self.setuserdiff(self.userdifffname)
+                except Exception as e:
+                    print(
+                        f"WARNING: failed to read diffusivities from {self.userdifffname}: {e}"
+                    )
             if self.radialdifffname:
-                self.setradialdiff(self.radialdifffname)
+                try:
+                    self.setradialdiff(self.radialdifffname)
+                except Exception as e:
+                    print(
+                        f"WARNING: failed to read radial diffusivities from {self.radialdifffname}: {e}"
+                    )
+
         # TODO: Can this mess be made somehow prettier?
         if restoresave is True:
-            self.restoresave(savefname, **kwargs)
+            try:
+                self.restoresave(savefname, **kwargs)
+            except:
+                # This can fail if the restore file is not present If
+                # the caller specified a file then they would expect
+                # it to be there but if restoresave assumed
+                # savefname = casename + .hdf5 then it may not be there
+                if savefname is None:
+                    print("WARNING: Failed to read default savefile")
+                else:
+                    raise
         self.reload()
         # NOTE:  Commands are executed as part of reload: don't repeat here
 
@@ -823,6 +858,7 @@ class Case(
     def populate(self, silent=True, verbose=None, **kwargs):
         """Populates all UEDGE arrays by evaluating static 'time-step'"""
         from copy import deepcopy
+        import os
 
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
@@ -832,14 +868,21 @@ class Case(
 
         if silent is True:
             self.setue("iprint", 0)
+
         issfon = deepcopy(self.getue("issfon"))
         ftol = deepcopy(self.getue("ftol"))
-        self.setue("issfon", 0)
-        self.setue("ftol", 1e20)
-        self.exmain()
-        self.setue("issfon", issfon)
-        self.setue("ftol", ftol)
-        self.update()
+        try:
+            self.setue("issfon", 0)
+            self.setue("ftol", 1e20)
+            self.exmain()
+            self.setue("gengrid", 0)  # Ensure that grids aren't generated again
+        finally:
+            # Ensure that original settings and working directory are restored
+            self.setue("issfon", issfon)
+            self.setue("ftol", ftol)
+
+        self.update()  # Reloads variables from UEDGE
+
         if verbose is True:
             fnrm = sum(self.getue("yldot") ** 2) ** 0.5
             prtstr = "\n*** UEDGE arrays populated: {} ***"
