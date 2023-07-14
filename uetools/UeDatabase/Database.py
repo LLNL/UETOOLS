@@ -88,8 +88,11 @@ class Database:
         if self.sortlocation == "midplane":
             self.sortlocation = (self.ixmp, self.iysptrx + 1)
         elif isinstance(self.sortlocation, str):
-            print('Sort location option "{}" not recognized. Aborting'.format(\
-                self.sortlocation))
+            print(
+                'Sort location option "{}" not recognized. Aborting'.format(
+                    self.sortlocation
+                )
+            )
         order = self.get(self.sortvar)
         for ind in self.sortlocation:
             order = order[:, ind]
@@ -112,8 +115,11 @@ class Database:
 
         createdb = []
         for parent, dirs, files in os.walk(path):
+            if "ignore" in parent:
+                continue
             subdir = parent.split("/")[-1]
             databases = [db for db in files if self.is_case("{}/{}".format(parent, db))]
+
             if self.rerun is False:
                 # HDF5s identified
                 if len(databases) == 1:
@@ -135,7 +141,7 @@ class Database:
                         )
                 # No database found, store location where input is
                 # Changing dirs while executing walk breaks the call
-                elif ('input.yaml' in files) and self.readinput:
+                elif ("input.yaml" in files) and self.readinput:
                     createdb.append(parent)
             else:
                 if "input.yaml" in files:
