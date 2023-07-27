@@ -1,4 +1,3 @@
-
 class PostProcessors:
     
     def postproc_helloworld(self):
@@ -12,3 +11,4 @@ class PostProcessors:
         psi = self.get('psi')[self.get('ixmp')]
         self.psinormf = ((0.5*(psi[:,3] + psi[:,4])) -simagxs)/ \
             (sibdrys-simagxs)
+
