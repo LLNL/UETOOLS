@@ -5,6 +5,7 @@ from .Track import Tracker
 from .Save import Save
 from uetools.UeDashboard import Dashboard
 from uetools.UeUtils.Lookup import Lookup
+from uetools.UeUtils.Misc import Misc
 from uetools.UeUtils.RadTransp import RadTransp
 from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
@@ -23,7 +24,7 @@ from uedge import bbb, com, aph, api, svr, __version__
 
 class Case(
     Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS, 
-    Dashboard, Plot, RadTransp
+    Dashboard, Plot, RadTransp, Misc
 ):
     """ UEDGE Case container object.
 
