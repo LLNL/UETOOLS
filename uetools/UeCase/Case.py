@@ -5,10 +5,12 @@ from .Track import Tracker
 from .Save import Save
 from uetools.UeDashboard import Dashboard
 from uetools.UeUtils.Lookup import Lookup
+from uetools.UeUtils.RadTransp import RadTransp
 from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
+from uetools.UePlot.Plot import Plot
 from uedge import bbb, com, aph, api, svr, __version__
 
 # TODO: Where/how to define impurity files and paths?
@@ -19,7 +21,7 @@ from uedge import bbb, com, aph, api, svr, __version__
 # TODO: Unify all data to be stored in the same dictionary?
 
 class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, 
-    ADAS, Dashboard):
+    ADAS, Dashboard, Plot, RadTransp):
     """ UEDGE Case container object.
 
     Subclasses
@@ -209,7 +211,8 @@ class Case(Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save,
             self.load_inplace()
             
         # Initialize parent classes
-        super(Case, self).__init__()
+        super().__init__()
+#        super(Case, self).__init__()
         return
 
     # NOTE: Update class data, or try reading from forthon first??

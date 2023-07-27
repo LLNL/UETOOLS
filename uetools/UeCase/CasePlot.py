@@ -3,7 +3,11 @@ from uetools.UePlot import Plot
 
 class Caseplot(Plot):
     def __init__(self):
-        super(Caseplot, self).__init__()
+#        super(Caseplot, self).__init__()
+        super().__init__()
+        self.createvertices(self.get('rm'), self.get('zm')) 
+        # TODO: initialize parent properly instead
+        # of explicit call - how??
         # Calculate distances along targets
         self.otdistance = self.get('yyrb')
         self.itdistance = self.get('yylb')
@@ -238,6 +242,13 @@ class Caseplot(Plot):
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline('fngx', 'fngy' ,s, surfnorm, **kwargs)
         
+
+    def plot_driftdirection(self, ax=None, **kwargs):
+        ''' Plots the drift direction on the requested axis '''
+        if ax is None:
+            f, ax = subplots()
+    
+    
 
     def plot_streamline(self, varpol, varrad, s=None, surfnorm=True, **kwargs):
         from numpy import zeros_like

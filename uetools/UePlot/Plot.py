@@ -315,59 +315,16 @@ class Plot():
         return
 
 
-    def plotmesh_masked(self, z, zmask, maskvalues, **kwargs):
-        from copy import deepcopy
+    def plotmesh_masked(self, z, zmask, maskvalues, figsize=(5,7), 
+        **kwargs):
+        from matplotlib.pyplot import subplots
+        f, ax = subplots(figsize=figsize)       
 
-        try:
-            rm = kwargs['rm']
-        except:
-            rm = None
-        try:
-            zm = kwargs['zm']
-        except:
-            zm = None
-        try:
-            grid = kwargs['grid']
-        except:
-            grid = False
-        try:
-            log = kwargs['log']
-        except:
-            log = False
-        try:
-            cmap = kwargs['cmap']
-        except:
-            cmap = 'magma'
-        try:
-            zrange = kwargs['zrange']
-        except:
-            zrange = (None, None)
-        
-        if (rm is None) or (zm is None):
-            # Use stored PolyCollection
-            if (self.get('geometry')[0].strip().lower().decode('UTF-8') == \
-                'uppersn') and (flip is True): 
-                vertices = deepcopy(self.uppersnvertices)
-            else:
-                vertices = deepcopy(self.vertices)
-        else: # Create collection from data
-            vertices = self.createpolycollection(rm, zm)
-        if grid is False:
-            vertices.set_linewidths(1)
-            vertices.set_edgecolors('face')
-        else:
-            vertices.set_edgecolors(linecolor)
-            vertices.set_linewidths(linewidth)
-        vertices.set_cmap(cmap)
-        vertices.set_array(z[1:-1,1:-1].reshape(self.nx*self.ny))
-        mask = z[1:-1,1:-1].reshape(self.nx*self.ny)
+        cbar, vertices = self.plotmesh(z, interactive=True, ax=ax, **kwargs)
+
+        mask = zmask[1:-1,1:-1].reshape(self.nx*self.ny)
         vertices.set_alpha( [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask])
-        vertices.set_clim(*zrange)
-        if log is True:
-            vertices.set_norm(LogNorm())
-            vertices.set_clim(*zrange)
-        self.plotmesh(vertices, **kwargs)
-        return mask
+        return f
         
     def streamline(self, pol, rad, resolution=(500j,800j), linewidth='magnitude',  
         broken_streamlines=False, color='k', maxlength=0.4, mask=True, density=2, 
