@@ -484,15 +484,15 @@ class Case(
                 for key, value in dictobj.items():
                     recursivereload(value, group + [key])
 
+        try:
+            commands = self.varinput["setup"].pop("commands")
+        except:
+            commands = []
         if group is None:
             recursivereload(self.varinput)
         else:
             recursivereload(self.varinput[group], [group])
 
-        try:
-            commands = self.varinput["setup"].pop("commands")
-        except:
-            commands = []
         for command in commands:
             exec(command)
 
