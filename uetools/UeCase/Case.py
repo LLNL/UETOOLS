@@ -1,11 +1,11 @@
 from Forthon import packageobject
 from .CasePlot import Caseplot
 from .Solver import Solver
-from .Track import Tracker
 from .Save import Save
 from uetools.UeDashboard import Dashboard
 from uetools.UeUtils.Lookup import Lookup
 from uetools.UeUtils.Misc import Misc
+from uetools.UeUtils.Tracker import Tracker
 from uetools.UeUtils.RadTransp import RadTransp
 from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
@@ -24,7 +24,7 @@ from uedge import bbb, com, aph, api, svr, __version__
 
 class Case(
     Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS, 
-    Dashboard, Plot, RadTransp, Misc
+    Dashboard, Plot, RadTransp, Misc, Tracker
 ):
     """ UEDGE Case container object.
 
@@ -256,7 +256,9 @@ class Case(
             self.load_inplace()
 
         # Initialize parent classes
+        # Figure out why subclasses are not properly initialized
         super(Case, self).__init__()
+
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
@@ -320,7 +322,7 @@ class Case(
         # TODO: serach input too? Store input to Vars?
         from numpy import ndarray
 
-        self.update()  # Update results from UEDGE if they have changed
+#        self.update()  # Update results from UEDGE if they have changed
         # Switch to asses where to access data from
         try:
             retvar = self.vars[variable]
@@ -336,12 +338,14 @@ class Case(
     def assign(self, **kwargs):
         """Assigns the UEDGE session to this object."""
         setattr(packageobject("bbb"), "session_id", self.session_id)
+        print('+CALLED ASSIGN')
         try:
             # Restore input to UEDGE
             # NOTE: variables not set maintain previous values. Reset
             # all values before setting input?
             self.setinput(readinput=False)
         except:
+            print('FAIL ASSIGN')
             pass
         try:
             if self.restored_from_hdf5 is True:
@@ -349,7 +353,9 @@ class Case(
                     self.getue("GridFileName"), self.vars["runid"].strip()
                 )
         except:
+            print('FAIL ASSIGN')
             pass
+        print('-OUT ASSIGN')
 
     def getsetue_inplace(self, *args, **kwargs):
         """Placeholder to avoid getting/setting when reading inplace."""
@@ -433,6 +439,7 @@ class Case(
         None
 
         """
+        print('+CALLED RELOAD')
         from numpy import ndarray, int64, float64
 
         # Check whether data is read into memory
@@ -493,13 +500,23 @@ class Case(
         else:
             recursivereload(self.varinput[group], [group])
 
+        self.get_uevars()
+        # NOTE: Get the hashes before running any commands. This way,
+        # any changes done in external scripts etc will be registered.
+        # This is useful (and necessary) to capture changes to arrays
+        # being modified.
+        # TODO: verify implementation
+        print(bbb.albedo_by_user)
         for command in commands:
+            print('    EXECUTING COMMAND', command)
             exec(command)
+        print(bbb.albedo_by_user)
 
         # Update the dict containing the package containing each variable
         for variable in self.vars.keys():
             if variable not in self.packagelist:
                 self.packagelist[variable] = self.getpackage(variable, verbose=False)
+        print('-OUT RELOAD')
 
     def load_inplace(self, fileobj=None, group=[]):
         """Creates dictionaries necessary for accessing HDF5 data"""
@@ -622,6 +639,7 @@ class Case(
         -------
         None
         """
+        print('+CALLED SETINPUT')
         from collections import OrderedDict
         from copy import deepcopy
         from numpy import array
@@ -792,6 +810,8 @@ class Case(
                     raise
         self.reload()
         # NOTE:  Commands are executed as part of reload: don't repeat here
+        # TODO: ensure user-changed variables are read/written here
+        print('-OUT SETINPUT')
 
     def setuserdiff(self, difffname, **kwargs):
         """Sets user-defined diffusivities
@@ -872,6 +892,7 @@ class Case(
         """Populates all UEDGE arrays by evaluating static 'time-step'"""
         from copy import deepcopy
         import os
+        print('+CALL POPULATE')
 
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
@@ -879,10 +900,12 @@ class Case(
         if verbose is None:
             verbose = self.verbose
 
+        print('POPULATE 1')
         if silent is True:
             old_iprint = self.getue("iprint")
             self.setue("iprint", 0)
 
+        print('POPULATE 2')
         issfon = deepcopy(self.getue("issfon"))
         ftol = deepcopy(self.getue("ftol"))
         try:
@@ -895,8 +918,14 @@ class Case(
             self.setue("issfon", issfon)
             self.setue("ftol", ftol)
 
-        self.update()  # Reloads variables from UEDGE
+        print('POPULATE 3')
+        # TODO: Update does not seem to be strictly necessary to 
+        # restore data: seems like the reloading was being done
+        # to populate the case arrays only. This is to avoid out-of
+        # date arrays, which are accessing data. 
+#        self.update()  # Reloads variables from UEDGE
 
+        print('POPULATE 4')
         if verbose is True:
             fnrm = sum(self.getue("yldot") ** 2) ** 0.5
             prtstr = "\n*** UEDGE arrays populated: {} ***"
@@ -909,14 +938,18 @@ class Case(
             else:
                 print(prtstr.format("WARNING, case NOT converged"))
                 print("fnrm without preconditioning: {:.2e}\n".format(fnrm))
+        print('POPULATE 5')
         if silent is True:
             self.setue("iprint", old_iprint)  # Restore
+        print('-OUT POPULATE')
 
     def restore(self, inputfname=None, savefname=None, populate=True, **kwargs):
         """Restores a full case into memory and object."""
+        print('+CALLED RESTORE')
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
         self.setinput(inputfname, savefname=savefname, restoresave=True, **kwargs)
         if populate is True:
             self.populate(silent=True, **kwargs)
+        print('-OUT RESTORE')

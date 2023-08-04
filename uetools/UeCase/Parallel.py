@@ -90,7 +90,7 @@ class ParallelCase:
     and forwards method calls through a pipe.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         """
         Initializes a UeCase object in a separate process
         """

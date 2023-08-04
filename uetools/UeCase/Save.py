@@ -132,9 +132,14 @@ class Save:
         """
         from h5py import File
 
+        # TODO
+        # Implement checks to save any changes made to input variables 
+        # since last change/save
+
         if self.inplace:
             print("Data read from file, no data to save. Aborting.")
             return
+        self.record_changes()       
         with File(savefname, "a" if append else "w") as savefile:
             self.savemetadata(savefile)
             if group is None:
@@ -179,6 +184,9 @@ class Save:
                 for variable in variables:
                     self.setue(variable, savefile[group][variable][()])
                     self.vars[variable] = savefile[group][variable][()]
+
+        # TODO
+        # Implement structure to read and restore auto-detected changes
 
         if self.verbose:
             print("Saved solution successfully restored from {}".format(savefname))

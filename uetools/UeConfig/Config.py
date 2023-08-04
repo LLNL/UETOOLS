@@ -3,7 +3,7 @@ from uetools.UeUtils.Lookup import Lookup
 
 
 class Config(Lookup):
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, **kwargs):
         from os import path
         from yaml import safe_load
         from pathlib import Path

@@ -5,7 +5,7 @@ ion()
 
 
 class Plot:
-    def __init__(self, rm=None, zm=None):
+    def __init__(self, rm=None, zm=None, **kwargs):
         """Constructs patches objects
         rm - UEDGE R-node object
         zm - UEDGE Z-node object
@@ -68,10 +68,12 @@ class Plot:
 
         self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
         for i in range(2):
-            self.northnormaln[i] = northnormal[i] / sum(northnormal**2, axis=0) ** 0.5
+            self.northnormaln[i] = northnormal[i] / (sum(northnormal**2, 
+                axis=0) ** 0.5 + 1e-20)
         self.eastnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
         for i in range(2):
-            self.eastnormaln[i] = eastnormal[i] / sum(eastnormal**2, axis=0) ** 0.5
+            self.eastnormaln[i] = eastnormal[i] / (sum(eastnormal**2, 
+                axis=0) ** 0.5 + 1e-20)
 
 
 
