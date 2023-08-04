@@ -322,7 +322,7 @@ class Case(
         # TODO: serach input too? Store input to Vars?
         from numpy import ndarray
 
-#        self.update()  # Update results from UEDGE if they have changed
+        self.update()  # Update results from UEDGE if they have changed
         # Switch to asses where to access data from
         try:
             retvar = self.vars[variable]
@@ -924,7 +924,7 @@ class Case(
         # restore data: seems like the reloading was being done
         # to populate the case arrays only. This is to avoid out-of
         # date arrays, which are accessing data. 
-#        self.update()  # Reloads variables from UEDGE
+        self.update()  # Reloads variables from UEDGE
 
         if verbose is True:
             fnrm = sum(self.getue("yldot") ** 2) ** 0.5
