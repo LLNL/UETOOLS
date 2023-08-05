@@ -6,63 +6,83 @@ class Tracker():
         # NOTE: I cannot get this thing to initialize using super.......
 
     def get_uevars(self):
+        """ Records the attributes, packages, and hashes of all UEDGE variables
+
+        """
         from Forthon import package, packageobject
+        # Create object for storing variables
         self.uevars = {'undef':{}}
-        inputs, maybes, other, unclassified= [], [], [], []
+        # Loop through UEDGE packages
         for pkg in package():
+            # Get package Object
             pkgobj = packageobject(pkg)
+            # Loop through all variables in package
             for var in pkgobj.varlist():
+                # Parse the variable attributes into list
                 attrs = pkgobj.listvar(var).split('Attributes:')[1].split(\
                     '\n')[0].replace('  ','').split()
+                # All variables are assigned their group: if there is only
+                # one attribute, variable is not assigned any other attributes
                 if len(attrs) == 1:
                     self.uevars['undef'][var] = hash(str(var))
+                # Otherwise, there are custom attributes for the variable
                 else:
+                    # Loop through all assigned attributes for variable
                     for att in attrs[1:]:
+                        # Assert a dict entry for every attribute
                         try:
                             self.uevars[att]
                         except:
                             self.uevars[att] = {}
+                        # Add the variable to nested dict, with entry of
+                        # package name and current hash
                         self.uevars[att][var] = [pkg, hash(str(\
                             packageobject(pkg).getpyobject(var)))]
 
     def gather_changes(self, vardict, changes=None, key=None):
         from Forthon import packageobject
-        """ Recursively checks for changes in all variables in vardict """
-        # NOTE
-        # A scheme where old hashes are stored could be implemented.
-        # In this case, the comparison could append new hashes to 
-        # a list. Then, the current hash could be checked against the
-        # first hash, in order to determine whether there has been 
-        # any changes from the original. Upon a save, the list of
-        # hashes could be reset to their current values
+        """ Recursively checks for changes in all variables in vardict 
+
+        
+        """
+        # Loop through all dictionary entries
         for key, subdict in vardict.items():
+            # If there are nested dicts, traverse recursively down
             if isinstance(subdict, dict):
                 changes = check_changes(subdict, changes, key)
+            # If dict contains list, we've hit rock bottom
             elif isinstance(subdict, list):
+                # Get the current hash of the variable
                 checkhash = hash(str(packageobject(\
                     subdict[0]).getpyobject(key)))
+                # Check whether the hash differs
                 if subdict[1] !=  checkhash:
+                        # Store changed var name to list: assert list
                         try:
                             changes.append(key)
                         except:
                             changes = []
                             changes.append(key)
+                        # Update the hash to current value
                         vardict[key] = [subdict[0], checkhash]
+            # Catch any exceptions
             else:
                 print(subdict, ' passed through loop! '
                     'You shouldnt be here, go away!')
-            
+        # Pass variables down recursively
         return changes
             
             
 
     def record_changes(self):
+        """ Stores changed variables to self.varinput['setup']['detected'] """
         # Get list of all variables written to setup block
         setupvars = self.get_bottomkeys(self.varinput['setup'])
         # Get a list of all input variables changed since save/read
         changedvars = self.gather_changes(self.uevars['input']) 
         # Changes detected
         if changedvars is not None:
+            # Assert dictionary for detected changed variables exist
             try:
                 self.varinput['setup']['detected']
             except:

@@ -15,11 +15,9 @@ from uetools.UePlot.Plot import Plot
 from uedge import bbb, com, aph, api, svr, __version__
 
 # TODO: Where/how to define impurity files and paths?
-# TODO: Update data after reading save file
 # TODO: make yaml read/write/get/set case-insensitive
 # TODO: Consider compression of data
 # TODO: implement divergence plotting/calculation
-# TODO: Unify all data to be stored in the same dictionary?
 
 
 class Case(
@@ -442,10 +440,12 @@ class Case(
             raise Exception(
                 'Cannot reload directly to HDF5 file with option "inplace".'
             )
+        # Check that the case is assigned UEDGE memory
         if self.mutex is False:
             raise Exception("Case doesn't own UEDGE memory")
 
         def recursivereload(dictobj, group=[]):
+            """ Recursively traverses dictionary and stores UEDGE data to self """
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
                 if isinstance(dictobj, (list, ndarray)):
@@ -485,16 +485,21 @@ class Case(
             else:
                 for key, value in dictobj.items():
                     recursivereload(value, group + [key])
-
+        # Pop out any custom commands, as these cannot be reloaded (not vars)
         try:
             commands = self.varinput["setup"].pop("commands")
         except:
-            commands = []
+            pass
+        # Reload the variables recurively
         if group is None:
             recursivereload(self.varinput)
         else:
             recursivereload(self.varinput[group], [group])
-
+        # If there were any custom commands, put them back where they belong
+        try:
+            self.varinput["setup"]["commands"] = commands
+        except:
+            pass
         # Update the dict containing the package containing each variable
         for variable in self.vars.keys():
             if variable not in self.packagelist:
@@ -920,10 +925,6 @@ class Case(
             self.setue("issfon", issfon)
             self.setue("ftol", ftol)
 
-        # TODO: Update does not seem to be strictly necessary to 
-        # restore data: seems like the reloading was being done
-        # to populate the case arrays only. This is to avoid out-of
-        # date arrays, which are accessing data. 
         self.update()  # Reloads variables from UEDGE
 
         if verbose is True:
