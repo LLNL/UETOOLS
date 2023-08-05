@@ -132,16 +132,16 @@ class Save:
         """
         from h5py import File
 
-        # TODO
-        # Implement checks to save any changes made to input variables 
-        # since last change/save
-
         if self.inplace:
             print("Data read from file, no data to save. Aborting.")
             return
+        # Check and store any changes since case last saved/read
         self.record_changes()       
+        # Open file for writing
         with File(savefname, "a" if append else "w") as savefile:
+            # Save metadata of case
             self.savemetadata(savefile)
+            # Write requested data to file
             if group is None:
                 self.recursivesave(savefile, self.varinput)
             else:
