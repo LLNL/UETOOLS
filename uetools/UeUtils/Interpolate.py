@@ -9,6 +9,7 @@ class Interpolate():
     def interpolate_snull(
         self, oldgrid, newgrid, oldsave, hdf5=None, newsavename=None, **kwargs
 ):
+        """ Interpolates new solution based on previous state and new grid """
         from h5py import File
 
         if hdf5 is None:
@@ -53,7 +54,8 @@ class Interpolate():
                 'grid dimensions. Grid (nx, ny) = ({}, {}), save (nx, ny) = '
                 '({}, {})'.format(nx_old, ny_old, save_nx-2, save_ny-2))
     
-        newsave = GridSnull(grid_old, savedata).interpolate_grid(grid_new)
+        newgrid = GridSnull(grid_old, savedata).interpolate_grid(grid_new)
+        newsave = newgrid.savedata
         if newsavename is None:
             newsavename = 'interpolated_{}x{}-{}x{}'.format(grid_old['nxm'],
                 grid_old['nym'], grid_new['nxm'], grid_new['nym'])
@@ -63,13 +65,7 @@ class Interpolate():
             for var in ['nis', 'ngs', 'ups', 'tes', 'tis', 'tgs', 'phis']:
                 f_save['bbb'].create_dataset(var, data=newsave[var])
         
-
-
-        
-
-        # Combine patches
-
-        
+        return newgrid
 
 
 
@@ -81,6 +77,7 @@ class Interpolate():
     # and calculating parallel distances rather than poloidal
 
 class GridSnull:
+    """ Object containing single null grid data for interpolation """
     def __init__(self, dimensions, savedata):
         self.nx = dimensions['nxm']
         self.ny = dimensions['nym']
@@ -113,6 +110,7 @@ class GridSnull:
         }
 
     def interpolate_grid(self, dimensions):
+        """ Interpolates the current grid to a new GridSnull object """ 
         from numpy import concatenate
         nx_new = dimensions['nxm']
         ny_new = dimensions['nym']
@@ -160,11 +158,12 @@ class GridSnull:
             
         
                     
-        return savedata_new
+        return GridSnull(dimensions, savedata_new)
             
         
 
 class IndexGridPatch:
+    """ Object containing data for topological patch """
     def __init__(self, nxl, nxu, nyl, nyu, savedata):
         """ Set up the required interpolators """
         from numpy import linspace
@@ -196,7 +195,7 @@ class IndexGridPatch:
                     (self.x, self.y), self.savedata[variable])
 
     def interpolate_solution(self, nx, ny):
-        """ Evaluate the interpolations in index space """
+        """ Returns an interpolation of solution in index space """
         from numpy import linspace, meshgrid
         new_solution = {}
         x = linspace(0, 1, nx)
@@ -204,7 +203,6 @@ class IndexGridPatch:
         X, Y = meshgrid(x, y, indexing='ij')
         for variable, interpolator in self.interp.items():
             # Single-dimensioned variable
-#            new_solution[variable]=interpolator((X, Y))
             try:
                 new_solution[variable] = interpolator((X, Y))
             # Multi-species variable
