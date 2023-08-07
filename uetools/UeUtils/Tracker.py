@@ -76,6 +76,14 @@ class Tracker():
 
     def record_changes(self):
         """ Stores changed variables to self.varinput['setup']['detected'] """
+        # NOTE
+        # Conditionals could be introduced to detect whether any given
+        # variable is being used given the status of another setting.
+        # This could either be done by hard-coding the conditionals
+        # in this function, or the settings and flags could be passed
+        # as attributes/part of attributes in UEDGE and be parsed
+        # by one of the tracking functions.
+
         # Get list of all variables written to setup block
         setupvars = self.get_bottomkeys(self.varinput['setup'])
         # Get a list of all input variables changed since save/read
