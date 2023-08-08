@@ -24,7 +24,7 @@ class Tracker():
                 # All variables are assigned their group: if there is only
                 # one attribute, variable is not assigned any other attributes
                 if len(attrs) == 1:
-                    self.uevars['undef'][var] = hash(str(var))
+                    self.uevars['undef'][var] = [pkg, hash(str(var))]
                 # Otherwise, there are custom attributes for the variable
                 else:
                     # Loop through all assigned attributes for variable
@@ -49,7 +49,7 @@ class Tracker():
         for key, subdict in vardict.items():
             # If there are nested dicts, traverse recursively down
             if isinstance(subdict, dict):
-                changes = check_changes(subdict, changes, key)
+                changes = self.gather_changes(subdict, changes, key)
             # If dict contains list, we've hit rock bottom
             elif isinstance(subdict, list):
                 # Get the current hash of the variable
@@ -67,7 +67,8 @@ class Tracker():
                         vardict[key] = [subdict[0], checkhash]
             # Catch any exceptions
             else:
-                print(subdict, ' passed through loop! '
+                print(type(subdict), subdict)
+                print(key, ' passed through loop! '
                     'You shouldnt be here, go away!')
         # Pass variables down recursively
         return changes
