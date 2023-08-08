@@ -7,7 +7,7 @@
 class Interpolate():
 
     def interpolate_snull(
-        self, oldgrid, newgrid, oldsave, hdf5=None, newsavename=None, **kwargs
+        self, oldgrid, newgrid, oldsave=None, hdf5=None, newsavename=None, **kwargs
 ):
         """ Interpolates new solution based on previous state and new grid """
         from h5py import File
@@ -37,15 +37,19 @@ class Interpolate():
 
         # Read solution
         savedata = {}
-        with File(oldsave) as f_save:
-            # Get handle to save group: UeCase save or not
-            try:
-                f_save['restore']
-                savegroup = f_save['restore/bbb']
-            except:
-                savegroup = f_save['bbb']
+        if oldsave is None:
             for var in ['nis', 'ngs', 'ups', 'tes', 'tis', 'tgs', 'phis']:
-                savedata[var] = savegroup[var][()]
+                savedata[var] = self.getue(var)
+        else:
+            with File(oldsave) as f_save:
+                # Get handle to save group: UeCase save or not
+                try:
+                    f_save['restore']
+                    savegroup = f_save['restore/bbb']
+                except:
+                    savegroup = f_save['bbb']
+                for var in ['nis', 'ngs', 'ups', 'tes', 'tis', 'tgs', 'phis']:
+                    savedata[var] = savegroup[var][()]
 
         (save_nx, save_ny) = savedata['tis'].shape
         # Assert solution matches old grid
