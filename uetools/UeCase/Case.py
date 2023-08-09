@@ -234,6 +234,7 @@ class Case(
                 self.restore(self.casefname)
             else:
                 self.reload()
+                self.get_uevars()
         # Read all data directly from HDF5 file
         else:
             self.get = self.get_inplace
