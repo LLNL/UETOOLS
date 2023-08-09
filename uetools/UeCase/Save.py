@@ -147,7 +147,7 @@ class Save:
             else:
                 self.recursivesave(savefile, self.varinput[group], [group])
 
-    def restoresave(self, savefname=None, **kwargs):
+    def load_state(self, savefname=None, **kwargs):
         """Restores a saved solution
 
         Keyword arguments
