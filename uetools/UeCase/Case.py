@@ -233,7 +233,7 @@ class Case(
             self.varinput = self.readyaml(variableyamlpath)  # Read to memory
 
             if self.casefname is not None:
-                self.restore(self.casefname)
+                self.restore_input(self.casefname)
             else:
                 self.reload()
         # Read all data directly from HDF5 file
@@ -780,7 +780,7 @@ class Case(
         # TODO: Can this mess be made somehow prettier?
         if restoresave is True:
             try:
-                self.restoresave(savefname, **kwargs)
+                self.load_state(savefname, **kwargs)
             except:
                 # This can fail if the restore file is not present If
                 # the caller specified a file then they would expect
@@ -912,7 +912,7 @@ class Case(
         if silent is True:
             self.setue("iprint", old_iprint)  # Restore
 
-    def restore(self, inputfname=None, savefname=None, populate=True, **kwargs):
+    def restore_input(self, inputfname=None, savefname=None, populate=True, **kwargs):
         """Restores a full case into memory and object."""
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
@@ -920,3 +920,7 @@ class Case(
         self.setinput(inputfname, savefname=savefname, restoresave=True, **kwargs)
         if populate is True:
             self.populate(silent=True, **kwargs)
+
+    def restore_save(self, savefname, **kwargs):
+        self.load_state(savefname, **kwargs)
+        self.populate(**kwargs)
