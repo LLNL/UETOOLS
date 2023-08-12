@@ -3,9 +3,9 @@ from uetools.UePlot import Plot
 
 
 class Caseplot(Plot):
-    def __init__(self):
+    def __init__(self, **kwargs):
 #        super(Caseplot, self).__init__()
-        super().__init__()
+        super().__init__(**kwargs)
         self.createvertices(self.get('rm'), self.get('zm')) 
         # TODO: initialize parent properly instead
         # of explicit call - how??

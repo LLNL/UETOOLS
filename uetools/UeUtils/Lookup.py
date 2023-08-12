@@ -80,6 +80,10 @@ class Lookup:
         ret = {}
         for i in range(len(keys)):
             ret[keys[i]] = vals[i + 1].replace("  ", "")
+        try:
+            ret['Attributes'] = ret['Attributes'].split()
+        except:
+            raise 
         return ret
 
     def aboutparameter(self, variable, parameter):
