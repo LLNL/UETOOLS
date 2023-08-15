@@ -139,9 +139,10 @@ class Caseplot(Plot):
             kwargs["mvs"] = maskvalues
             return self.variablemaskedmesh(z, **kwargs)
 
-    def CIIImasked_flow(self, fname, maskvalues, interactive=False, **kwargs):
+    def CIIImasked_flow(self, fname, maskvalues, interactive=False, species=4,
+        **kwargs):
         z = (self.get("upi") ** 2 + self.get("vy") ** 2) ** 0.5
-        z = self.get("upi")[:, :, 4]
+        z = self.get("upi")[:, :, species]
         #        return self.masked_CIII_2D(fname, self.get('ne'), maskvalues, **kwargs)
         return self.masked_CIII_2D(fname, z, maskvalues, interactive, **kwargs)
 

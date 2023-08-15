@@ -80,8 +80,8 @@ class Interpolate():
                 'grid dimensions. Grid (nx, ny) = ({}, {}), save (nx, ny) = '
                 '({}, {})'.format(nx_old, ny_old, save_nx-2, save_ny-2))
     
-        newgrid = GridSnull(grid_old, savedata, radtransp).interpolate_grid(\
-            grid_new)
+        self.oldgrid = GridSnull(grid_old, savedata, radtransp)
+        newgrid = self.oldgrid.interpolate_grid(grid_new)
         newsave = newgrid.savedata
         newradtransp = newgrid.radtransp
         if newsavename is None:
@@ -123,17 +123,23 @@ class GridSnull:
         self.radtransp = radtransp
         # Define the snull topology:
         #       ____________________________________________
-        #      |                                            |
-        # SOL  |                    COMMON                  |
-        #      |____________________________________________|
         #      |            |                   |           |
-        # CORE |    ILEG    |        CORE       |   OLEG    |
+        # SOL  |            |                   |           |
         #      |____________|___________________|___________|
-        # 
+        #      |            |                   |           |
+        # CORE |            |                   |           |
+        #      |____________|___________________|___________|
+        #           ILEG             CORE            OLEG
         self.patches = {
             'sol': {
-                'common': IndexGridPatch(0, self.nx+2, self.iysptrx+1, 
-                            self.ny+2, savedata, radtransp)
+#                'common': IndexGridPatch(0, self.nx+2, self.iysptrx+1, 
+#                            self.ny+2, savedata, radtransp)
+                'ileg': IndexGridPatch(0, self.ixpt1+1, self.iysptrx, 
+                            self.ny+2, savedata, radtransp),
+                'core': IndexGridPatch(self.ixpt1+1, self.ixpt2+1, self.iysptrx, 
+                            self.ny+2, savedata, radtransp),
+                'oleg': IndexGridPatch(self.ixpt2+1, self.nx+2, self.iysptrx, 
+                            self.ny+2, savedata, radtransp),
             },
             'core': {
                 'ileg': IndexGridPatch(0, self.ixpt1+1, 0, 
@@ -157,7 +163,10 @@ class GridSnull:
         # Store the new dimensions
         nxny = {
             'sol':{
-                'common': [nx_new+2, ny_new-iysptrx_new+1]
+#                'common': [nx_new+2, ny_new-iysptrx_new+1]
+                'ileg': [ixpt1_new+1, ny_new+2-(iysptrx_new+1)],
+                'core': [ixpt2_new-ixpt1_new, ny_new+2-(iysptrx_new+1)],
+                'oleg': [nx_new-ixpt2_new+1 , ny_new+2-(iysptrx_new+1)]
             },
             'core':{
                 'ileg': [ixpt1_new+1, iysptrx_new+1],
@@ -176,6 +185,7 @@ class GridSnull:
                 try:
                     patches_new[radialkey][poloidalkey]
                 except:
+                    print(poloidalkey, radialkey, nxny[radialkey][poloidalkey])
                     patches_new[radialkey][poloidalkey] = \
                         patch.interpolate_solution(*nxny[\
                         radialkey][poloidalkey])
@@ -189,7 +199,12 @@ class GridSnull:
                         patches_new['core']['core'][variable],
                         patches_new['core']['oleg'][variable]
                     )), 
-                    patches_new['sol']['common'][variable]
+                    concatenate((
+                        patches_new['sol']['ileg'][variable], 
+                        patches_new['sol']['core'][variable],
+                        patches_new['sol']['oleg'][variable]
+                    ))
+#                    patches_new['sol']['common'][variable]
                 ), axis = 1)
          
         radtransp_new = {}
@@ -203,7 +218,12 @@ class GridSnull:
                                 patches_new['core']['core'][variable],
                                 patches_new['core']['oleg'][variable]
                             )), 
-                            patches_new['sol']['common'][variable]
+                            concatenate((
+                                patches_new['sol']['ileg'][variable], 
+                                patches_new['sol']['core'][variable],
+                                patches_new['sol']['oleg'][variable]
+                            ))
+#                            patches_new['sol']['common'][variable]
                         ), axis = 1)   
                 except:
                     radtransp_new[vartype][variable] = \
