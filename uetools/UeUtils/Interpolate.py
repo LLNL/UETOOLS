@@ -151,18 +151,18 @@ class GridSnull:
             
         self.patches = {
             'sol': {
-                'ileg': PatchType(0, self.ixpt1+1, self.iysptrx, 
+                'ileg': PatchType(0, self.ixpt1+1, self.iysptrx+1, 
                             self.ny+2, savedata, radtransp, self.connlen),
-                'core': IndexGridPatch(self.ixpt1+1, self.ixpt2+1, self.iysptrx, 
-                            self.ny+2, savedata, radtransp),
-                'oleg': PatchType(self.ixpt2+1, self.nx+2, self.iysptrx, 
+                'core': PatchType(self.ixpt1+1, self.ixpt2+1, self.iysptrx+1, 
+                            self.ny+2, savedata, radtransp, self.connlen),
+                'oleg': PatchType(self.ixpt2+1, self.nx+2, self.iysptrx+1, 
                             self.ny+2, savedata, radtransp, self.connlen),
             },
             'core': {
                 'ileg': PatchType(0, self.ixpt1+1, 0, 
                             self.iysptrx+1, savedata, radtransp, self.connlen),
-                'core': IndexGridPatch(self.ixpt1+1, self.ixpt2+1, 0, 
-                            self.iysptrx+1, savedata, radtransp),
+                'core': PatchType(self.ixpt1+1, self.ixpt2+1, 0, 
+                            self.iysptrx+1, savedata, radtransp, self.connlen),
                 'oleg': PatchType(self.ixpt2+1, self.nx+2, 0, 
                             self.iysptrx+1, savedata, radtransp, self.connlen),
             }
@@ -185,12 +185,12 @@ class GridSnull:
             'sol':{
 #                'common': [nx_new+2, ny_new-iysptrx_new+1]
                 'ileg': [0, ixpt1_new+1, iysptrx_new+1, ny_new+2, connlen_new],
-                'core': [ixpt1_new+1, ixpt2_new+1, iysptrx_new+1, ny_new+2],
+                'core': [ixpt1_new+1, ixpt2_new+1, iysptrx_new+1, ny_new+2, connlen_new],
                 'oleg': [ixpt2_new+1, nx_new+2, iysptrx_new+1, ny_new+2, connlen_new]
             },
             'core':{
                 'ileg': [0, ixpt1_new+1, 0, iysptrx_new+1, connlen_new],
-                'core': [ixpt1_new+1, ixpt2_new+1, 0, iysptrx_new+1],
+                'core': [ixpt1_new+1, ixpt2_new+1, 0, iysptrx_new+1, connlen_new],
                 'oleg': [ixpt2_new+1, nx_new+2, 0, iysptrx_new+1, connlen_new]
             }
         }
