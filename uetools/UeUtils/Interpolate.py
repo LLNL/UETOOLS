@@ -423,7 +423,6 @@ class ParallelGridPatch:
         new_solution = {}
         nx = nxu - nxl
         ny = nyu - nyl
-        print('INTERPOLATING')
         connlen = deepcopy(connlen)
         newpoints = self.get_xy(nxl, nxu, nyl, nyu, nx, ny, connlen)
         for variable, interpolator in self.interp.items():
@@ -441,7 +440,6 @@ class ParallelGridPatch:
             if len(solution) == 1:
                 new_solution[variable] = new_solution[variable][0]
             else:
-                print(nx, ny, array(new_solution[variable]).shape)
                 new_solution[variable] = array(new_solution[variable]).\
                     transpose((1,2,0))
             # Pop into arrays according to shape
