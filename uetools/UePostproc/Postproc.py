@@ -11,7 +11,7 @@ class PostProcessors:
         self.psinormc =  (self.get('psi')[self.get('ixmp'),:,0]-simagxs)/ \
             (sibdrys-simagxs)
 
-    def set_psinormf(self, simagxs, sibdrys):
+    def set_psinormf(self, simagxs=None, sibdrys=None):
         if simagxs is None:
             simagxs = self.get('simagxs')
         if sibdrys is None:
