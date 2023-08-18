@@ -23,7 +23,7 @@ from uedge import bbb, com, aph, api, svr, __version__
 
 class Case(
     Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS, 
-    Dashboard, Plot, RadTransp, Misc, Tracker Interpolate
+    Dashboard, Plot, RadTransp, Misc, Tracker, Interpolate
 ):
     """ UEDGE Case container object.
 
