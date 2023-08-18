@@ -5,7 +5,7 @@ ion()
 
 
 class Plot:
-    def __init__(self, rm=None, zm=None):
+    def __init__(self, rm=None, zm=None, **kwargs):
         """Constructs patches objects
         rm - UEDGE R-node object
         zm - UEDGE Z-node object
@@ -24,6 +24,8 @@ class Plot:
         return
 
     def createvertices(self, rm, zm):
+        from numpy import zeros, transpose, cross, sum
+        # CREATE POLYGON COLLECTIONS TO USE
         self.vertices = self.createpolycollection(rm, zm)
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             self.disp = 0
@@ -34,6 +36,46 @@ class Plot:
             self.uppersnvertices = self.createpolycollection(
                 rm, -zm + self.disp, setparams=False
             )
+
+        # CREATE NORMAL VECTOR IN LOCAL CELL COORDINATES
+        nodes = zeros((self.get("nx") + 2, self.get("ny") + 2, 5, 2))
+        nodes[:, :, :, 0] = self.get("rm")
+        nodes[:, :, :, 1] = self.get("zm")
+        nodes = transpose(nodes, (2, 3, 0, 1))
+
+        # TODO: rather than align poloidal/radial in direction of cell,
+        # evaluate face normal locally at cell face?
+        # Find midpoints of y-faces
+        self.symid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
+        self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
+        self.symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
+        # Find midpoints of x-faces
+        self.sxmid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
+        self.sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
+        self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
+
+        # Find vectors of east faces
+        eastface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
+        eastface[:-1] = nodes[4] - nodes[2]
+        # Find vectors of north faces
+        northface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
+        northface[:-1] = nodes[4] - nodes[3]
+        # Find normals to faces
+        toroidal = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
+        toroidal[-1] = 1
+        eastnormal = cross(eastface, toroidal, axis=0)
+        northnormal = cross(toroidal, northface, axis=0)
+
+        self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
+        for i in range(2):
+            self.northnormaln[i] = northnormal[i] / (sum(northnormal**2, 
+                axis=0) ** 0.5 + 1e-20)
+        self.eastnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
+        for i in range(2):
+            self.eastnormaln[i] = eastnormal[i] / (sum(eastnormal**2, 
+                axis=0) ** 0.5 + 1e-20)
+
+
 
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         """Creates a poly collection and records boundaries"""
@@ -418,62 +460,17 @@ class Plot:
 
         return
 
-    def plotmesh_masked(self, z, zmask, maskvalues, **kwargs):
-        from copy import deepcopy
+    def plotmesh_masked(self, z, zmask, maskvalues, figsize=(5,7), 
+        **kwargs):
+        from matplotlib.pyplot import subplots
+        f, ax = subplots(figsize=figsize)       
 
-        try:
-            rm = kwargs["rm"]
-        except:
-            rm = None
-        try:
-            zm = kwargs["zm"]
-        except:
-            zm = None
-        try:
-            grid = kwargs["grid"]
-        except:
-            grid = False
-        try:
-            log = kwargs["log"]
-        except:
-            log = False
-        try:
-            cmap = kwargs["cmap"]
-        except:
-            cmap = "magma"
-        try:
-            zrange = kwargs["zrange"]
-        except:
-            zrange = (None, None)
 
-        if (rm is None) or (zm is None):
-            # Use stored PolyCollection
-            if (
-                self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
-            ) and (flip is True):
-                vertices = deepcopy(self.uppersnvertices)
-            else:
-                vertices = deepcopy(self.vertices)
-        else:  # Create collection from data
-            vertices = self.createpolycollection(rm, zm)
-        if grid is False:
-            vertices.set_linewidths(1)
-            vertices.set_edgecolors("face")
-        else:
-            vertices.set_edgecolors(linecolor)
-            vertices.set_linewidths(linewidth)
-        vertices.set_cmap(cmap)
-        vertices.set_array(z[1:-1, 1:-1].reshape(self.nx * self.ny))
-        mask = z[1:-1, 1:-1].reshape(self.nx * self.ny)
-        vertices.set_alpha(
-            [1 * ((x < maskvalues[0]) or (x > maskvalues[1])) for x in mask]
-        )
-        vertices.set_clim(*zrange)
-        if log is True:
-            vertices.set_norm(LogNorm())
-            vertices.set_clim(*zrange)
-        self.plotmesh(vertices, **kwargs)
-        return mask
+        cbar, vertices = self.plotmesh(z, interactive=True, ax=ax, **kwargs)
+
+        mask = zmask[1:-1,1:-1].reshape(self.nx*self.ny)
+        vertices.set_alpha( [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask])
+        return f
 
     def streamline(
         self,
@@ -497,10 +494,6 @@ class Plot:
         zm = self.get("zm")
         nx = self.get("nx")
         ny = self.get("ny")
-        nodes = zeros((nx + 2, ny + 2, 5, 2))
-        nodes[:, :, :, 0] = rm
-        nodes[:, :, :, 1] = zm
-        nodes = transpose(nodes, (2, 3, 0, 1))
         # Create polygons for masking
         outerx = []
         outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
@@ -530,39 +523,8 @@ class Plot:
             facecolor="white",
             edgecolor="none",
         )
-
-        # TODO: rather than align poloidal/radial in direction of cell,
-        # evaluate face normal locally at cell face?
-        # Find midpoints of y-faces
-        symid = zeros((2, 2, nx + 2, ny + 2))
-        symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
-        symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
-        # Find midpoints of x-faces
-        sxmid = zeros((2, 2, nx + 2, ny + 2))
-        sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
-        sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
-
-        # Find vectors of east faces
-        eastface = zeros((3, nx + 2, ny + 2))
-        eastface[:-1] = nodes[4] - nodes[2]
-        # Find vectors of north faces
-        northface = zeros((3, nx + 2, ny + 2))
-        northface[:-1] = nodes[4] - nodes[3]
-        # Find normals to faces
-        toroidal = zeros((3, nx + 2, ny + 2))
-        toroidal[-1] = 1
-        eastnormal = cross(eastface, toroidal, axis=0)
-        northnormal = cross(toroidal, northface, axis=0)
-
-        northnormaln = zeros((2, nx + 2, ny + 2))
-        for i in range(2):
-            northnormaln[i] = northnormal[i] / sum(northnormal**2, axis=0) ** 0.5
-        eastnormaln = zeros((2, nx + 2, ny + 2))
-        for i in range(2):
-            eastnormaln[i] = eastnormal[i] / sum(eastnormal**2, axis=0) ** 0.5
-
-        x = pol * eastnormaln[0] + rad * northnormaln[0]
-        y = pol * eastnormaln[1] + rad * northnormaln[1]
+        x = pol * self.eastnormaln[0] + rad * self.northnormaln[0]
+        y = pol * self.eastnormaln[1] + rad * self.northnormaln[1]
 
         gx, gy = mgrid[
             rm.min() : rm.max() : resolution[0], zm.min() : zm.max() : resolution[1]
@@ -575,13 +537,13 @@ class Plot:
         #        yinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
         #            y[1:-1,1:-1].ravel(), (gx, gy))
         xinterp = griddata(
-            (sxmid[1, 0, 1:-1, 1:-1].ravel(), sxmid[1, 1, 1:-1, 1:-1].ravel()),
-            x[1:-1, 1:-1].ravel(),
+            (self.sxmid[1, 0, 1:-1, 1:-1].ravel(), 
+            self.sxmid[1, 1, 1:-1, 1:-1].ravel()), x[1:-1, 1:-1].ravel(),
             (gx, gy),
         )
         yinterp = griddata(
-            (symid[1, 0, 1:-1, 1:-1].ravel(), symid[1, 1, 1:-1, 1:-1].ravel()),
-            y[1:-1, 1:-1].ravel(),
+            (self.symid[1, 0, 1:-1, 1:-1].ravel(), 
+            self.symid[1, 1, 1:-1, 1:-1].ravel()), y[1:-1, 1:-1].ravel(),
             (gx, gy),
         )
 

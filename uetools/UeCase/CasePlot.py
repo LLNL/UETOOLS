@@ -3,8 +3,12 @@ from uetools.UePlot import Plot
 
 
 class Caseplot(Plot):
-    def __init__(self):
-        super(Caseplot, self).__init__()
+    def __init__(self, **kwargs):
+#        super(Caseplot, self).__init__()
+        super().__init__(**kwargs)
+        self.createvertices(self.get('rm'), self.get('zm')) 
+        # TODO: initialize parent properly instead
+        # of explicit call - how??
         # Calculate distances along targets
         self.otdistance = self.get("yyrb")
         self.itdistance = self.get("yylb")
@@ -30,15 +34,15 @@ class Caseplot(Plot):
         drplatecenter -= dr0
         dzplatecenter -= dz0
         # Calculate cumulative distance along target
-        dist = cumsum((drplatecenter**2 + dzplatecenter**2) ** 0.5)
+        dist = cumsum((drplatecenter ** 2 + dzplatecenter ** 2) ** 0.5)
         # Calculate distance along plate to strike point
-        dsep = dist[iysptrx] + (rsp**2 + zsp**2) ** 0.5
+        dsep = dist[iysptrx] + (rsp ** 2 + zsp ** 2) ** 0.5
         return dist - dsep
 
     def it(self, variable, marksep=True, staggered=False, **kwargs):
         # Exchange YYC for working radialdistance
         fig = self.plotprofile(
-            self.itdistance[1:-1], variable[0**staggered, 1:-1], **kwargs
+            self.itdistance[1:-1], variable[0 ** staggered, 1:-1], **kwargs
         )
         # Add Sep location if requested
         if marksep is True:
@@ -135,9 +139,10 @@ class Caseplot(Plot):
             kwargs["mvs"] = maskvalues
             return self.variablemaskedmesh(z, **kwargs)
 
-    def CIIImasked_flow(self, fname, maskvalues, interactive=False, **kwargs):
+    def CIIImasked_flow(self, fname, maskvalues, interactive=False, species=4,
+        **kwargs):
         z = (self.get("upi") ** 2 + self.get("vy") ** 2) ** 0.5
-        z = self.get("upi")[:, :, 4]
+        z = self.get("upi")[:, :, species]
         #        return self.masked_CIII_2D(fname, self.get('ne'), maskvalues, **kwargs)
         return self.masked_CIII_2D(fname, z, maskvalues, interactive, **kwargs)
 
@@ -252,6 +257,29 @@ class Caseplot(Plot):
 
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline("fngx", "fngy", s, surfnorm, **kwargs)
+
+    def plot_driftdirection(self, ax=None, width=0.02, color='k', **kwargs):
+        ''' Plots the drift direction on the requested axis '''
+        from numpy import sum, mean
+        if ax is None:
+            f = self.grid()
+            ax = f.get_axes()[0]
+        pol = (self.get('v2cb')[:,:,0]*self.get('rbfbt'))
+        rad = (self.get('vycb'))[:,:,0]
+        x0 = mean(self.get('rm')[self.get(\
+            'ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
+        y0 = mean(self.get('zm')[self.get(\
+            'ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
+
+        x = pol * self.eastnormaln[0] + rad * self.northnormaln[0]
+        y = pol * self.eastnormaln[1] + rad * self.northnormaln[1]
+        x = sum(x)
+        y = sum(y)
+        norm = max(abs(x), abs(y))
+        x /= norm
+        y /= norm
+        ax.arrow(x0, y0, x/3, y/3, width=width, color=color, **kwargs)
+
 
     def plot_streamline(self, varpol, varrad, s=None, surfnorm=True, **kwargs):
         from numpy import zeros_like
