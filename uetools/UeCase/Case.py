@@ -1,11 +1,11 @@
 from Forthon import packageobject
 from .CasePlot import Caseplot
 from .Solver import Solver
-from .Track import Tracker
 from .Save import Save
 from uetools.UeDashboard import Dashboard
 from uetools.UeUtils.Lookup import Lookup
 from uetools.UeUtils.Misc import Misc
+from uetools.UeUtils.Tracker import Tracker
 from uetools.UeUtils.RadTransp import RadTransp
 from uetools.UeUtils.Interpolate import Interpolate
 from uetools.UeUtils.ConvergeStep import ConvergeStep
@@ -16,16 +16,14 @@ from uetools.UePlot.Plot import Plot
 from uedge import bbb, com, aph, api, svr, __version__
 
 # TODO: Where/how to define impurity files and paths?
-# TODO: Update data after reading save file
 # TODO: make yaml read/write/get/set case-insensitive
 # TODO: Consider compression of data
 # TODO: implement divergence plotting/calculation
-# TODO: Unify all data to be stored in the same dictionary?
 
 
 class Case(
     Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS, 
-    Dashboard, Plot, RadTransp, Misc, Interpolate
+    Dashboard, Plot, RadTransp, Misc, Tracker Interpolate
 ):
     """ UEDGE Case container object.
 
@@ -237,6 +235,7 @@ class Case(
                 self.restore_input(self.casefname)
             else:
                 self.reload()
+                self.get_uevars()
         # Read all data directly from HDF5 file
         else:
             self.get = self.get_inplace
@@ -257,7 +256,9 @@ class Case(
             self.load_inplace()
 
         # Initialize parent classes
+        # Figure out why subclasses are not properly initialized
         super(Case, self).__init__()
+
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
@@ -441,10 +442,12 @@ class Case(
             raise Exception(
                 'Cannot reload directly to HDF5 file with option "inplace".'
             )
+        # Check that the case is assigned UEDGE memory
         if self.mutex is False:
             raise Exception("Case doesn't own UEDGE memory")
 
         def recursivereload(dictobj, group=[]):
+            """ Recursively traverses dictionary and stores UEDGE data to self """
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
                 if isinstance(dictobj, (list, ndarray)):
@@ -484,19 +487,21 @@ class Case(
             else:
                 for key, value in dictobj.items():
                     recursivereload(value, group + [key])
-
+        # Pop out any custom commands, as these cannot be reloaded (not vars)
         try:
             commands = self.varinput["setup"].pop("commands")
         except:
-            commands = []
+            pass
+        # Reload the variables recurively
         if group is None:
             recursivereload(self.varinput)
         else:
             recursivereload(self.varinput[group], [group])
-
-        for command in commands:
-            exec(command)
-
+        # If there were any custom commands, put them back where they belong
+        try:
+            self.varinput["setup"]["commands"] = commands
+        except:
+            pass
         # Update the dict containing the package containing each variable
         for variable in self.vars.keys():
             if variable not in self.packagelist:
@@ -659,6 +664,10 @@ class Case(
             self.savefname = setup.pop("savefile")
         except:
             pass
+        try:
+            detected = setup.pop('detected')
+        except:
+            pass
         if self.casename is None:
             self.casename = casename
         if isinstance(self.casename, bytes):
@@ -744,6 +753,11 @@ class Case(
         if restore is True:
             setinputrecursive(setup)
             self.allocate()
+            try:
+                setinputrecursive(detected)
+            except:
+                pass
+
             if self.restored_from_hdf5 is True:
                 conf = Config(verbose=False)
                 print("=================================================")
@@ -791,8 +805,25 @@ class Case(
                     print("WARNING: Failed to read default savefile")
                 else:
                     raise
+            # TODO
+            # IMPLEMENT TRACKING AND CUSTOM COMMANDS HERE
+
+        self.get_uevars()
+        # NOTE: Get the hashes before running any commands. This way,
+        # any changes done in external scripts etc will be registered.
+        # This is useful (and necessary) to capture changes to arrays
+        # being modified.
+        # TODO: verify implementation
         self.reload()
+        try:
+            for command in commands:
+                exec(command)
+        except:
+            pass
+
+
         # NOTE:  Commands are executed as part of reload: don't repeat here
+        # TODO: ensure user-changed variables are read/written here
 
     def setuserdiff(self, difffname, **kwargs):
         """Sets user-defined diffusivities

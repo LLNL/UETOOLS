@@ -135,8 +135,13 @@ class Save:
         if self.inplace:
             print("Data read from file, no data to save. Aborting.")
             return
+        # Check and store any changes since case last saved/read
+        self.record_changes()       
+        # Open file for writing
         with File(savefname, "a" if append else "w") as savefile:
+            # Save metadata of case
             self.savemetadata(savefile)
+            # Write requested data to file
             if group is None:
                 self.recursivesave(savefile, self.varinput)
             else:
@@ -179,6 +184,9 @@ class Save:
                 for variable in variables:
                     self.setue(variable, savefile[group][variable][()])
                     self.vars[variable] = savefile[group][variable][()]
+
+        # TODO
+        # Implement structure to read and restore auto-detected changes
 
         if self.verbose:
             print("Saved solution successfully restored from {}".format(savefname))

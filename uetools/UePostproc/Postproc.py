@@ -8,7 +8,6 @@ class PostProcessors:
             simagxs = self.get('simagxs')
         if sibdrys is None:
             sibdrys = self.get('sibdrys')
-
         self.psinormc =  (self.get('psi')[self.get('ixmp'),:,0]-simagxs)/ \
             (sibdrys-simagxs)
 
@@ -17,7 +16,6 @@ class PostProcessors:
             simagxs = self.get('simagxs')
         if sibdrys is None:
             sibdrys = self.get('sibdrys')
-
         psi = self.get('psi')[self.get('ixmp')]
         self.psinormf = ((0.5*(psi[:,3] + psi[:,4])) -simagxs)/ \
             (sibdrys-simagxs)
