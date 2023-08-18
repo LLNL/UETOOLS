@@ -147,6 +147,23 @@ class Save:
             else:
                 self.recursivesave(savefile, self.varinput[group], [group])
 
+    def dump(self, savefname, **kwargs):
+        """ Dumps all variables to a save file
+        
+        Calls self.save(**kwargs)
+        """
+        from Forthon import package, packageobject
+        from h5py import File
+
+        self.save(savefname, **kwargs)
+        with File(savefname, "a") as savefile:
+            # Create data dump class
+            savefile.create_group('datadump')
+            for pkg in package():
+                for var in packageobject(pkg).varlist():
+                    self.savevar(savefile, ['datadump'], var, self.getue(var))
+        
+
     def load_state(self, savefname=None, **kwargs):
         """Restores a saved solution
 
