@@ -431,13 +431,10 @@ class ParallelGridPatch:
                 new_solution[variable].append(
                     griddata(
                         interpolator[i][0], interpolator[i][1], newpoints,
-#                        fill_value = -1
                     ).reshape((nx, ny))
                 )
-#                meanval = mean(new_solution[variable][-1][1:-1,1:-1])
-#                new_solution[variable][-1][new_solution[variable][-1]==-1] = meanval
         for variable, solution in new_solution.items():
-            if len(solution) == 1:
+            if variable in ['tes', 'tis', 'phis']:
                 new_solution[variable] = new_solution[variable][0]
             else:
                 new_solution[variable] = array(new_solution[variable]).\
@@ -452,21 +449,10 @@ class ParallelGridPatch:
         # Truncate connection length to correspond to patch
         x = connlen[nxl:nxu, nyl:nyu]
         # Check whether we are starting from the right
-        # TODO: other indicators needed for DNULLS!
         xzero = deepcopy(x[0])
         for i in range(x.shape[0]):
             x[i] -= xzero # Make sure left bound starts at zero
             x[i] /= x[-1] # Make sure right boundary ends at 1
-#        if nxl == 0:
-#            # Normalize to PFR cut, i.e. right side
-#            xnorm = deepcopy(x[-1])
-#        elif nxu == connlen.shape[0]:
-#            # Normalize to PFR cut, i.e. left side
-#            xnorm = deepcopy(x[0])
-#        else:
-#            raise ValueError('Patch could not be assinged topological L/R location!')
-#        for i in range(x.shape[0]):
-#            x[i] -= xnorm
         y = zeros((nx, ny))
         for i in range(y.shape[0]):
             y[i] = linspace(0, 1, ny) 
