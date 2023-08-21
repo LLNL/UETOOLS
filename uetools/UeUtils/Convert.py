@@ -1,12 +1,13 @@
 
 class Convert:
-    def write_py(self,fname):
+    def write_py(self, fname):
         """ Writes a standalone Python input file for the Case
         """
         from Forthon import package, packageobject
 
         def recursive_lineread(dictobj, lines=None, fails=None):
             """ Recusively parses setup variables to input lines """
+            # TODO: figure out why this routines believes ncore's value to be a string
             if lines is None:
                 lines = []
             if fails is None:
@@ -157,11 +158,12 @@ class Convert:
             if 'userdifffname' in fails:
                 file = fails.pop('userdifffname')
                 f.write('\n# ==== SET USER-SPECIFIED DIFFUSIVITIES ====\n')
-                f.write('with File("{}", "r") as f:\n'.format(file))
-                f.write('    bbb.dif_use=f["diffusivities/bbb/dif_use"][()]\n')
-                f.write('    bbb.kye_use=f["diffusivities/bbb/kye_use"][()]\n')
-                f.write('    bbb.kyi_use=f["diffusivities/bbb/kyi_use"][()]\n')
-                f.write('    bbb.tray_use=f["diffusivities/bbb/tray_use"][()]\n')
+                f.write('f = File("{}", "r")\n'.format(file))
+                f.write('bbb.dif_use=f["diffusivities/bbb/dif_use"][()]\n')
+                f.write('bbb.kye_use=f["diffusivities/bbb/kye_use"][()]\n')
+                f.write('bbb.kyi_use=f["diffusivities/bbb/kyi_use"][()]\n')
+                f.write('bbb.tray_use=f["diffusivities/bbb/tray_use"][()]\n')
+                f.write('f.close()\n')
             # If a file is used to set the radial transport coefficients,
             # manually in the radial direction, uniform poloidally, read 
             # and restore them here
@@ -182,7 +184,120 @@ class Convert:
                 print('    -{}'.format(key))
 
 
-    # TODO: Implement the same routine for writing YAML files
-    # TODO: Implement routine that converts python to yaml inpace/parses .py file to yaml
+    def write_yaml(self, fname):
+        from yaml import dump
+        with open(fname, 'w') as f:
+            dump(self.varinput['setup'], f)
+        # TODO: add capability to also write autodetected changes
+
+
+    def py2yaml(self, fnamepy, fnameyaml, blockseparator='===='):
+        from Forthon import package
+        from yaml import dump
+        yamlinput = {}
+        packages = package()
+        block = ''
+        others = []
+        index = None
+        with open(fnamepy, 'r') as f:
+            for line in f:
+                # Omit empty lines
+                if len(line.split()) == 0:
+                    continue
+                elif 'bbb.allocate' in line:
+                    continue
+                elif 'casename' in line:
+                    yamlinput['casename'] = line.split('=')[-1].split('#')[0].strip()
+                # Line is a variable
+                elif line.split('.')[0] in packages:
+                    if 'USER-SPECIFIED'.lower() in block:
+                        others.append(line)
+                    else:
+                        var, value = line.split('=')
+                        value=value.strip()
+                        var = var.split('.')[1]
+                        # Variable setting indices
+                        if '[' in var:
+                            indices = var.split('[')[-1].split(']')[0]
+                            var = var.split('[')[0]
+                            # Setting range
+                            if ':' in indices:
+                                # Set from start of array
+                                if indices[0] == ':':
+                                    index = None
+                                # Set to start from specific index
+                                else:
+                                    index = int(indices.split(':')[0])
+                            # Only one entry is set
+                            else:
+                                index = int(indices)
+                            if '[[' in value:
+                                value=value.replace('[[','[').\
+                                    replace(']]',']').replace(' ','').\
+                                    replace('],[',', ')
+                            if index is None:
+                                yamlinput[block][var] = value
+                            else:
+                                yamlinput[block][var] = {index: value}
+                        else:
+                            # Set undefined parameters
+                            if len(block) == 0:
+                                yamlinput[var] = value
+                            # Write non-indexed paramters to dict
+                            else:
+                                yamlinput[block][var] = value
+                # Line contains a block
+                elif blockseparator in line:    
+                    # Set block header: check from beginning and end
+                    block = line.split(blockseparator)[-2].strip().lower()
+                    if block == '#':
+                        block = line.split(blockseparator)[1].strip().lower()
+                    # Set block title
+                    if ('user-specified' not in block) and ('restore solution' not in block):
+                        yamlinput[block] = {}
+                # Omit comment lines
+                elif line.strip()[0] == '#':
+                    continue
+                elif 'restore solution' in block:
+                    if 'File'  in line:
+                        yamlinput['savefile'] = line.split('"')[1]
+                else:
+                    # Gather any fallen-through lines here --> commands?
+                    others.append(line)
+
+        yamlinput['commands'] = []
+        for line in others:
+            yamlinput['commands'].append(line.replace('\n',''))
+        with open(fnameyaml, 'w') as f:
+            dump(yamlinput, f, sort_keys=False,default_style=None, default_flow_style=False)
+        lines = []
+        commands = False
+        with open(fnameyaml, 'r') as f:
+            for line in f:
+                lines.append(line)
+        with open(fnameyaml, 'w') as f:
+            for line in lines:
+                if 'e' in line:
+                    try:
+                        linevar, lineval = line.split(':')
+                    except:
+                        linevar, lineval = ' ', ' '
+                        pass
+                    if lineval.split('e')[0][-1] in [str(x) for x in range(10)]:
+                        if '.' not in lineval:
+                            lineval = lineval.replace('e','.e')
+                            line = '{}:{}'.format(linevar, lineval)
+                if 'commands' in line:
+                    commands=True
+                if commands is False:
+                    f.write(line.replace("'",""))
+                else: 
+                    if 'commands' in line:
+                        f.write(line)
+                    else:
+                        f.write("{}'".format(line.strip().replace("'","").replace("- ", "- '")))
+                        f.write('\n')
+        
+
 
 

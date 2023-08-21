@@ -104,7 +104,7 @@ class Solver(UeRun):
 
     # TODO: Fix this so that methods can be inherited directly!
     def convergenceanalysis(self, filename, **kwargs):
-        return UeRun.convergenceanalysis(filename)
+        return UeRun.convergenceanalysis(filename, **kwargs)
 
     def failureanalysis(self, filename, **kwargs):
-        return UeRun.failureanalysis(filename)
+        return UeRun.failureanalysis(filename, **kwargs)
