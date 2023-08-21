@@ -187,7 +187,7 @@ class Convert:
     def write_yaml(self, fname):
         from yaml import dump
         with open(fname, 'w') as f:
-            dump(self.varinput['setup'], f)
+            dump(self.varinput['setup'], f, sort_keys=False,default_style=None, default_flow_style=False)
         # TODO: add capability to also write autodetected changes
 
 
