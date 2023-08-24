@@ -1,6 +1,18 @@
 
 
 class Misc():
+
+
+    def about_setup(self):
+        """ Function outputting data about setup """
+
+        nisp = self.get('nisp')
+        ngsp = self.get('ngsp')
+        nhsp = self.get('nhsp')
+        nhgsp = self.get('nhgsp')
+    
+
+
     def smooth_curve(self, x, y, s=1, **kwargs):
         """ Returns smoothed x and y data """
         from scipy.interpolate import splrep, BSpline
@@ -28,4 +40,42 @@ class Misc():
                 continue
         return keys
 
+    def potent_1dsol(self):
+        from numpy import zeros_like
+        phi = self.get('phi')
+        phis = zeros_like(phi)
+        gx = self.get('gx')
+        ixp1 = self.get('ixp1')
+        ex = self.get('ex')
 
+
+        phis[1,:] = self.get('kappal')[:,0]*self.get('te')[1]/self.get('qe')
+        if self.get('isudsym') ==0:
+            for iy in range(1, self.ny+1):
+                for ix in range(1,self.nx+1):
+                    ix1 = ixp1[ix, iy]
+                    dxf = 0.5*(gx[ix, iy] + gx[ix1, iy])/(gx[ix, iy]*gx[ix1, iy])
+                    phis[ix1, iy] = phis[ix, iy] - ex[ix, iy] * dxf
+                
+            for ix in range(self.ixpt1+1, self.ixpt2+1):
+                for iy in range(self.iysptrx+1):
+                    phis[ix, iy] = phis[ix, self.iysptrx+1]
+                phis[ix, self.ny+1] = phis[ix, self.ny]
+        else:
+            nxc = self.get('nxc')
+            for iy in range(1, self.ny+1):
+                for ix in range(0, nxc):
+                    ix1= ixp1[ix, iy]
+                    dxf = 0.5*(gx[ix, iy] + gx[ix1, iy])/(gx[ix, iy]*gx[ix1, iy])
+                    phis[ix1, iy] = phis[ix, iy] - ex[ix, iy] * dxf
+                # NOTE: no overlap for the two subdomains in poloidal direction
+                for ix in range(self.nx, nxc, -1):
+                    ix1= ixm1[ix, iy]
+                    ix2= ixp1[ix, iy]
+                    dxf = 0.5*(gx[ix, iy] + gx[ix1, iy])/(gx[ix, iy]*gx[ix1, iy])
+                    phis[ix, iy] = phis[ix2, iy] - ex[ix, iy] * dxf
+                    
+            
+
+        self.setue('phis', phis)
+        self.setue('phi', phis)
