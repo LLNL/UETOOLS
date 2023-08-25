@@ -87,6 +87,8 @@ class Database:
         # Make sort location more advanced
         if self.sortlocation == "midplane":
             self.sortlocation = (self.ixmp, self.iysptrx + 1)
+        elif isinstance(self.sortlocation, int):
+            self.sortlocation = [self.sortlocation]
         elif isinstance(self.sortlocation, str):
             print(
                 'Sort location option "{}" not recognized. Aborting'.format(
