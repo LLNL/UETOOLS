@@ -81,15 +81,32 @@ class Plot:
         """Creates a poly collection and records boundaries"""
         from matplotlib.collections import PolyCollection
         from uedge import com
+        from numpy import concatenate
 
         if setparams is True:
             self.nx = rm.shape[0] - 2
             self.ny = rm.shape[1] - 2
+            ixpt1 = self.get("ixpt1")[0]
+            ixpt2 = self.get("ixpt2")[0]
+            iysptrx = self.get("iysptrx")
             # TODO: where to pass/find xpoint indices?
-            self.isepr = rm[1 : self.get("ixpt1")[0] + 2, self.get("iysptrx") + 1, 1]
-            self.isepz = zm[1 : self.get("ixpt1")[0] + 2, self.get("iysptrx") + 1, 1]
-            self.osepr = rm[self.get("ixpt2")[0] : -1, self.get("iysptrx") + 1, 2]
-            self.osepz = zm[self.get("ixpt2")[0] : -1, self.get("iysptrx") + 1, 2]
+            self.isepr = rm[1 : ixpt1 + 2, iysptrx + 1, 1]
+            self.isepz = zm[1 : ixpt1 + 2, iysptrx + 1, 1]
+            self.osepr = rm[ixpt2 : -1, iysptrx + 1, 2]
+            self.osepz = zm[ixpt2 : -1, iysptrx + 1, 2]
+
+            self.sepcorer = self.get("rm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
+            self.sepcorez = self.get("zm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
+            self.solboundr = self.get("rm")[:, -2, 3:]
+            self.solboundz = self.get("zm")[:, -2, 3:]
+            self.pfrboundr = concatenate((
+                                self.get("rm")[: ixpt1+1, 1, 2], 
+                                self.get("rm")[ixpt2+1 :, 1, 1]
+                            ))
+            self.pfrboundz = concatenate((
+                                self.get("zm")[: ixpt1+1, 1, 2],
+                                self.get("zm")[ixpt2+1 :, 1, 1] 
+                            ))
 
         vertices = []
         # Loop through all cells, omitting guard cells
@@ -264,59 +281,10 @@ class Plot:
     def plotlcfs(self, ax, flip=False, color="grey", linewidth=0.5, **kwargs):
         """Plots LCFS on ax"""
         from uedge import com, bbb, grd
-
-        if self.get("geometry")[0].strip().lower().decode("UTF-8") == "dnull":
-            rm = self.get("rm")
-            zm = self.get("zm")
-            iysptrx1 = self.get("iysptrx1")
-            iysptrx2 = self.get("iysptrx2")
-            ixrb = self.get("ixrb")
-            ixlb = self.get("ixlb")
-            ixpt1 = self.get("ixpt1")
-            ixpt2 = self.get("ixpt2")
-
-            ax.plot(
-                rm[: ixrb[0] + 1, iysptrx1[0] + 1, 1],
-                zm[: ixrb[0] + 1, iysptrx1[0] + 1, 1],
-                color=color,
-                linewidth=linewidth,
-            )
-            ax.plot(
-                rm[ixlb[1] :, iysptrx1[0] + 1, 1],
-                zm[ixlb[1] :, iysptrx1[0] + 1, 1],
-                color=color,
-                linewidth=linewidth,
-            )
-
-            ax.plot(
-                rm[: ixpt1[0] + 1, iysptrx2[0] + 1, 2],
-                zm[: ixpt1[0] + 1, iysptrx2[0] + 1, 2],
-                color=color,
-                linewidth=linewidth,
-            )
-            ax.plot(
-                rm[ixpt2[1] + 1 :, iysptrx2[0] + 1, 1],
-                zm[ixpt2[1] + 1 :, iysptrx2[0] + 1, 1],
-                color=color,
-                linewidth=linewidth,
-            )
-
-            ax.plot(
-                rm[ixpt1[0] + 1 : ixrb[0] + 1, iysptrx2[0] + 1, 1],
-                zm[ixpt1[0] + 1 : ixrb[0] + 1, iysptrx2[0] + 1, 1],
-                color=color,
-                linewidth=linewidth,
-            )
-            ax.plot(
-                rm[ixlb[1] : ixpt2[1] + 1, iysptrx2[0] + 1, 2],
-                zm[ixlb[1] : ixpt2[1] + 1, iysptrx2[0] + 1, 2],
-                color=color,
-                linewidth=linewidth,
-            )
-
-        else:
-            plotted = False
-            try:
+        from numpy import int64
+        plotted = False
+        try:
+            if not type(com.rbdry, int64):
                 ax.plot(
                     com.rbdry,
                     self.checkusn(com.zbdry, flip),
@@ -335,41 +303,27 @@ class Plot:
                     color=color,
                     linewidth=linewidth,
                 )
-                plotted = True
-            except:
-                pass
-            try:
-                if self.get("rbdry") != False:
-                    ax.plot(
-                        self.get("rbdry"),
-                        self.checkusn(self.get("zbdry"), flip),
-                        color=color,
-                        linewidth=linewidth,
-                    )
-                    ax.plot(
-                        self.isepr,
-                        self.checkusn(self.isepz, flip),
-                        color=color,
-                        linewidth=linewidth,
-                    )
-                    ax.plot(
-                        self.osepr,
-                        self.checkusn(self.osepz, flip),
-                        color=color,
-                        linewidth=linewidth,
-                    )
-                    plotted = True
-            except:
-                pass
-            if plotted is False:
                 ax.plot(
-                    self.get("rm")[com.ixpt1[0] : com.ixpt2[0] + 1, com.iysptrx + 1, 2],
-                    self.checkusn(
-                        self.get("zm")[
-                            com.ixpt1[0] : com.ixpt2[0] + 1, com.iysptrx + 1, 2
-                        ],
-                        flip,
-                    ),
+                    self.pfrboundr,
+                    self.checkusn(self.pfrboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                ax.plot(
+                    self.solboundr,
+                    self.checkusn(self.solboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                plotted = True
+        except:
+            pass
+        try:
+            print('AAA')
+            if not isinstance(self.get("rbdry"), int64):
+                ax.plot(
+                    self.get("rbdry"),
+                    self.checkusn(self.get("zbdry"), flip),
                     color=color,
                     linewidth=linewidth,
                 )
@@ -385,6 +339,52 @@ class Plot:
                     color=color,
                     linewidth=linewidth,
                 )
+                ax.plot(
+                    self.pfrboundr,
+                    self.checkusn(self.pfrboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                ax.plot(
+                    self.solboundr,
+                    self.checkusn(self.solboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                plotted = True
+        except:
+            pass
+        if plotted is False:
+            ax.plot(
+                self.sepcorer, 
+                self.checkusn(self.sepcorez, flip),
+                color=color,
+                linewidth=linewidth,
+            )
+            ax.plot(
+                self.isepr,
+                self.checkusn(self.isepz, flip),
+                color=color,
+                linewidth=linewidth,
+            )
+            ax.plot(
+                self.osepr,
+                self.checkusn(self.osepz, flip),
+                color=color,
+                linewidth=linewidth,
+            )
+            ax.plot(
+                self.pfrboundr,
+                self.checkusn(self.pfrboundz, flip),
+                color=color,
+                linewidth=linewidth,
+            )
+            ax.plot(
+                self.solboundr,
+                self.checkusn(self.solboundz, flip),
+                color=color,
+                linewidth=linewidth,
+            )
 
     def plotvessel(self, ax, flip=False):
         """Plots vessel on ax"""
@@ -396,7 +396,7 @@ class Plot:
         except:
             pass
         try:
-            if self.get("xlim") != False:
+            if self.get("xlim") is not None:
                 ax.plot(
                     self.get("xlim"),
                     self.checkusn(self.get("ylim"), flip),
@@ -412,6 +412,7 @@ class Plot:
         except:
             pass
 
+
     def plotplates(self, ax, flip=False):
         """Plot plates on ax"""
         from uedge import com, bbb, grd
@@ -422,7 +423,7 @@ class Plot:
         except:
             pass
         try:
-            if self.get("rplate1") != False:
+            if self.get("rplate1") is not None:
                 ax.plot(
                     self.get("rplate1"),
                     self.checkusn(self.get("zplate1"), flip),

@@ -15,7 +15,7 @@ class ADAS:
             self.__setattr__(
                 "CIII_emission_{}".format(rate),
                 10 ** self.__getattribute__("CIII_pec_{}".format(rate))
-                * self.get("ne")
+                * (self.get("ne")*(rate != "chexc") + self.get("ng")[:,:,0]*(rate == "chexc"))
                 * self.get("ni")[:, :, 4 - (rate == "excit")]
                 / 1e12,
             )
