@@ -319,7 +319,6 @@ class Plot:
         except:
             pass
         try:
-            print('AAA')
             if not isinstance(self.get("rbdry"), int64):
                 ax.plot(
                     self.get("rbdry"),
@@ -575,5 +574,95 @@ class Plot:
             density=density,
             **kwargs
         )
+
+        return f
+
+
+
+    def contour(
+        self,
+        var,
+        resolution=(500j, 800j),
+        color="k",
+        levels=14,
+        linewidth=0.5,
+        mask=True,
+        ax=None,
+        labels=True,
+        **kwargs
+    ):
+        from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
+        from scipy.interpolate import griddata, bisplrep
+        from matplotlib.patches import Polygon
+        from matplotlib.pyplot import subplots
+        from copy import deepcopy
+
+        if ax is None:
+            f, ax = subplots()
+        else:
+            f = ax.get_figure()
+
+        rm = self.get("rm")
+        zm = self.get("zm")
+        nx = self.get("nx")
+        ny = self.get("ny")
+        # Create polygons for masking
+        outerx = []
+        outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+        outerx = outerx + list(rm[0, :, 1])
+        outerx = outerx + list(rm[:, -1, 3])
+        outerx = outerx + list(rm[:, ::-1][-1, :, 4])
+        outerx = outerx + list(rm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+        outery = []
+        outery = outery + list(zm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+        outery = outery + list(zm[0, :, 1])
+        outery = outery + list(zm[:, -1, 3])
+        outery = outery + list(zm[:, ::-1][-1, :, 4])
+        outery = outery + list(zm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+
+        innerx = rm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+        innery = zm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+
+        outer = Polygon(
+            array([outerx, outery]).transpose(),
+            closed=True,
+            facecolor="white",
+            edgecolor="none",
+        )
+        inner = Polygon(
+            array([innerx, innery]).transpose(),
+            closed=True,
+            facecolor="white",
+            edgecolor="none",
+        )
+
+        gx, gy = mgrid[
+            rm.min() : rm.max() : resolution[0], zm.min() : zm.max() : resolution[1]
+        ]
+
+        # Previous implementation, which (incorrectly) assumed values to
+        # be given for cell-centers
+        #        xinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
+        #            x[1:-1,1:-1].ravel(), (gx, gy))
+        #        yinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
+        #            y[1:-1,1:-1].ravel(), (gx, gy))
+        varinterp = griddata(
+            (rm[1:-1, 1:-1, 0].ravel(), zm[1:-1, 1:-1, 0].ravel()), 
+            var[1:-1, 1:-1].ravel(), (gx, gy),
+        )
+
+        if mask is True:
+            for i in range(gx.shape[0]):
+                for j in range(gx.shape[1]):
+                    p = (gx[i, j], gy[i, j])
+                    if (inner.contains_point(p)) or (not outer.contains_point(p)):
+                        varinterp[i, j] = nan
+
+        CS = ax.contour(
+                gx, gy, varinterp, levels=levels, linewidths=linewidth, 
+                colors=color, **kwargs
+        )
+        if labels is True:
+            ax.clabel(CS, fontsize=9, inline=False, fmt='% 1.2e')
 
         return f

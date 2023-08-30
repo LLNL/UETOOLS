@@ -78,6 +78,11 @@ class Save:
                     "savefile",
                 ]:
                     value = saveobj
+                # Exception for saving objects spawned without any input files
+                elif isinstance(saveobj, list):
+                    for var in saveobj:
+                        self.savevar(savefile, group, var, self.getue(var))
+                    return
                 else:
                     value = self.getue(variable)
                 self.savevar(savefile, group, variable, value)
