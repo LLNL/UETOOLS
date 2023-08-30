@@ -24,6 +24,54 @@ class ADAS:
             + self.CIII_emission_recom
             + self.CIII_emission_chexc
         )
+        
+    def i_emiss(self, fname, i_idx, wavel, plot=True, **kwargs):
+        from numpy import log10
+
+        # Create self.adf15
+        self.read_adf15(fname)
+        t = self.get_tname(i_idx)
+        ne = self.get('ne')
+        te = self.get('te')
+        ni = self.get('ni')[:,:,i_idx]
+        niup = self.get('ni')[:,:,i_idx+1]
+        ng = self.get('ng')[:,:,0]
+        j2ev = 1.6022e-19
+        
+        self.__setattr__("{}_pec_excit".format(t),self.adf15[wavel]["excit"].ev(log10(ne/1e6),log10(te/j2ev)))
+        self.__setattr__("{}_pec_recom".format(t),self.adf15[wavel]["recom"].ev(log10(ne/1e6),log10(te/j2ev)))
+        self.__setattr__("{}_pec_chexc".format(t),self.adf15[wavel]["chexc"].ev(log10(ne/1e6),log10(te/j2ev)))
+        
+        self.__setattr__("{}_emission_excit".format(t),10**self.__getattribute__("{}_pec_excit".format(t))*ne*ni/1e12)
+        self.__setattr__("{}_emission_recom".format(t),10**self.__getattribute__("{}_pec_recom".format(t))*ne*niup/1e12)
+        self.__setattr__("{}_emission_chexc".format(t),10**self.__getattribute__("{}_pec_chexc".format(t))*ng*niup/1e12)
+        
+        tot = self.__getattribute__("{}_emission_excit".format(t)) + self.__getattribute__("{}_emission_recom".format(t)) + self.__getattribute__("{}_emission_chexc".format(t))
+        self.__setattr__("{}_emission".format(t),tot)
+        
+        if plot:
+            title = "{} emission".format(t)
+            return self.plotmesh(tot,title=title,**kwargs)
+        else:
+            return tot
+        
+    def get_tname(self,i_idx):
+        tname = str()
+        i_mass = self.get('minu')[i_idx]
+        if i_mass == 12:
+            tname += 'C'
+        elif i_mass == 4:
+            tname += 'He'
+        elif i_mass == 2:
+            tname += 'D'
+            
+        i_charge = int(self.get('ziin')[i_idx])
+        if i_charge > 0:
+            tname += str(i_charge)+'+'
+        else:
+            tname += str(i_charge)
+            
+        return tname
 
     def read_adf15(self, path, order=1, raw=False):
         """Read photon emissivity coefficients from an ADAS ADF15 file.

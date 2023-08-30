@@ -145,6 +145,23 @@ class Caseplot(Plot):
         z = self.get("upi")[:, :, species]
         #        return self.masked_CIII_2D(fname, self.get('ne'), maskvalues, **kwargs)
         return self.masked_CIII_2D(fname, z, maskvalues, interactive, **kwargs)
+    
+    def i_vel(self,pec_fname,i_idx,wavel,floor=0,plot=True,zrange=(-30,30),**kwargs):
+        from numpy import nan
+        self.i_emiss(pec_fname,i_idx,wavel,plot=False)
+        t = self.get_tname(i_idx)
+        emiss = self.__getattribute__("{}_emission".format(t))
+        try:
+            v = self.get("upi")[:,:,i_idx]/1000 #km/s
+        except:
+            v = self.get("up")[:,:,i_idx]/1000 #km/s
+        v[emiss<floor*emiss.max()] = nan
+        if plot:
+            title = "{} velocity".format(t)
+            return self.plotmesh(v,cmap='seismic',zrange=zrange,**kwargs)
+        else:
+            return v*1000
+        
 
     def variablemaskedmesh(self, z=None, **kwargs):
         from matplotlib.pyplot import ion, ioff, subplots

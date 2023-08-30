@@ -203,12 +203,17 @@ class Plot:
         z - values, if any. If None, plots grid
         rm, zm - radial and horizontal nodes
         """
-        from matplotlib.pyplot import figure, Figure
+        from matplotlib.pyplot import figure, Figure, get_cmap
         from matplotlib.colors import LogNorm
         from matplotlib.collections import PolyCollection
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
         from copy import deepcopy
         from numpy import array
         from uedge import com, bbb, grd
+        
+        # Set colormap
+        cmap=get_cmap(cmap)
+        cmap.set_bad(color='whitesmoke')
 
         try:
             self.vertices
@@ -267,7 +272,9 @@ class Plot:
         ax.set_ylabel("Z [m]")
         ax.set_aspect(aspect)
         if (z is not None) and (colorbar is True):
-            cbar = ax.get_figure().colorbar(vertices, ax=ax)
+            axins = inset_axes(ax,width = '25%',height = '2.5%',loc = 'upper right',borderpad = 1.4,)
+            cbar = ax.get_figure().colorbar(vertices, cax = axins, orientation = "horizontal")
+            #cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")
 
         if watermark is True:
