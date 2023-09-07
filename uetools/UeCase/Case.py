@@ -23,8 +23,20 @@ from uedge import bbb, com, aph, api, svr, __version__
 
 
 class Case(
-    Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS, 
-    Dashboard, Plot, RadTransp, Misc, Tracker, Interpolate, Convert
+    Caseplot,
+    Solver,
+    Lookup,
+    PostProcessors,
+    ConvergeStep,
+    Save,
+    ADAS,
+    Dashboard,
+    Plot,
+    RadTransp,
+    Misc,
+    Tracker,
+    Interpolate,
+    Convert,
 ):
     """ UEDGE Case container object.
 
@@ -124,13 +136,11 @@ class Case(
     ):
         """Initializes the UeCase object.
 
-
-
         Keyword arguments
         -----------------
         casefname : str (default =  None)
-            HDF5 file where to read data from. If None, data is read
-            from UEDGE
+            YAML or HDF5 file to read data from.
+            If None, data is read from UEDGE memory
         inplace : bool (default = False)
             Switch whether to read data from file into UeCase memory
             (False) or get data using file I/O at every call
@@ -144,6 +154,26 @@ class Case(
             Prints additional information
         database : bool
 
+        Examples
+        --------
+
+        To start UEDGE from a YAML input file, and save
+        to an HDF5 state file:
+        
+            import uetools
+            case = uetools.Case("input.yaml")  # Read settings from YAML
+            ...
+            case.save("state.hdf5")  # Save to an HDF5 file
+
+        To read the state from the HDF5 file:
+
+            import uetools
+            case = uetools.Case("state.hdf5")
+
+        Notes:
+         - Not all variables are saved in the HDF5 file.
+           Those that are saved
+        
         """
         import uetools
         import os
@@ -259,7 +289,6 @@ class Case(
         # Initialize parent classes
         # Figure out why subclasses are not properly initialized
         super(Case, self).__init__()
-
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
@@ -488,6 +517,7 @@ class Case(
             else:
                 for key, value in dictobj.items():
                     recursivereload(value, group + [key])
+
         # Pop out any custom commands, as these cannot be reloaded (not vars)
         try:
             commands = self.varinput["setup"].pop("commands")
@@ -611,7 +641,7 @@ class Case(
         restoresave=False,
         **kwargs,
     ):
-        """Reads YAML input file
+        """Read input settings, either from YAML or HDF5 file.
 
         Reads data from file to attribute setup.
 
@@ -648,7 +678,14 @@ class Case(
                 self.restored_from_hdf5 = True
                 savefname = setupfile
                 self.setue("GridFileName", setupfile)
-                self.setue("isgriduehdf5", 1)
+                # This may not work for older versions of UEDGE
+                try:
+                    self.setue("isgriduehdf5", 1)
+                except KeyError:
+                    raise Exception(
+                        "UEDGE missing isgriduehdf5 input. Please update UEDGE to a newer version."
+                    )
+
         setup = deepcopy(self.varinput["setup"])
 
         # Pop out groups that cannot be parsed by default
@@ -666,7 +703,7 @@ class Case(
         except:
             pass
         try:
-            detected = setup.pop('detected')
+            detected = setup.pop("detected")
         except:
             pass
         if self.casename is None:
@@ -821,7 +858,6 @@ class Case(
                 exec(command)
         except:
             pass
-
 
         # NOTE:  Commands are executed as part of reload: don't repeat here
         # TODO: ensure user-changed variables are read/written here
