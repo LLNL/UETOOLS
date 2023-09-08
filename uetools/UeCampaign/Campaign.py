@@ -376,6 +376,9 @@ class Campaign:
             # Previous also failed. Go back and try a different way
             # Question: Should we delete the failed cases?
             #           Or try going in the same direction with a smaller step?
+            # Set distances to large values, so these states aren't used again
+            state["distance"] = 1e20
+            previous["distance"] = 1e20
             state = self.states[previous["previous"]]
 
         # Have a converged starting case.
