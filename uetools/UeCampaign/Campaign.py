@@ -177,6 +177,22 @@ class Campaign:
 
     The state can also be retrieved by calling campaign.closest_state()
 
+    To run asyncronously while doing other things, you can set up a
+    multiprocessing pool:
+
+        pool = uetools.Parallel.QuietPool(processes=2)
+
+    then launch one job at a time:
+
+        campaign.run_next_async(pool)
+
+    which returns information about the submitted job.
+    It's important to check for finished jobs to update the states:
+
+        campaign.check_async()
+
+    That will return a list of finished jobs.
+
     Output logging
     ~~~~~~~~~~~~~~
 
@@ -256,6 +272,7 @@ class Campaign:
                 "distance": distance(self.start_values, target),
             }
         }
+        self.total_distance = distance(self.start_values, self.target)
 
         # No simulations currently running or queued
         self.in_progress = {}
@@ -281,7 +298,7 @@ class Campaign:
         Returns a measure of progress made. 0 at the start of the campaign,
         1 when the target values are reached
         """
-        return 1.0 - self.closest_distance() / distance(self.start_values, self.target)
+        return 1.0 - self.closest_distance() / self.total_distance
 
     def __str__(self):
         """
@@ -316,6 +333,7 @@ class Campaign:
         self.target = state["target"]
         self.states = state["states"]
         self.start_values = state["start_values"]
+        self.total_distance = distance(self.start_values, self.target)
         self.in_progress = {}
 
     def next_action(self) -> Tuple[Path, dict]:
@@ -362,9 +380,7 @@ class Campaign:
 
         # Have a converged starting case.
         # Decide whether to try the target values. The closer we are the higher the chance.
-        d = distance(state["values"], self.target) / distance(
-            self.start_values, self.target
-        )
+        d = distance(state["values"], self.target) / self.total_distance
         if random.uniform(0, 1) > d:
             # Try jumping to the target
             return (state, self.target)
@@ -516,11 +532,10 @@ class Campaign:
                         distance(
                             self.states[started["previous"]]["values"], self.target
                         )
-                        / distance(self.start_values, self.target)
+                        / self.total_distance
                     )
                     to_progress = 1.0 - (
-                        distance(started["values"], self.target)
-                        / distance(self.start_values, self.target)
+                        distance(started["values"], self.target) / self.total_distance
                     )
                     log(
                         "Started "
@@ -554,9 +569,7 @@ class Campaign:
             elif output == "log":
                 # Print logs of finished jobs
                 for run in finished:
-                    to_progress = 1.0 - (
-                        run["distance"] / distance(self.start_values, self.target)
-                    )
+                    to_progress = 1.0 - (run["distance"] / self.total_distance)
                     log(
                         "Finished "
                         + run["filename"].name[:4]
