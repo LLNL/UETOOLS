@@ -3,6 +3,7 @@ from pathlib import Path
 import random
 import uuid
 import time
+import datetime
 import numpy as np
 
 T = TypeVar("T")
@@ -87,8 +88,11 @@ def run_case(input_file, changes, output_file):
 
 class Campaign:
     """
+    Tries to find a converged UEDGE state with a specified target
+    set of parameters.
 
-    
+    Uses a random walk process, optionally using a pool of processes
+    to explore paths to the target parameters in parallel.
 
     Members
     -------
@@ -106,16 +110,20 @@ class Campaign:
     states: dict
         Known state files. Key is File name.
         Each entry contains:
-        - "filename": The file, same as the key.
-        - "previous": Name of the previous state file, or None if initial state.
-        - "values": A dictionary of values, with the same keys as the target.
-        - "converged": Boolean, whether converged or not.
-        - "distance": A measure of distance between values and target
+        - "filename"   The file, same as the key.
+        - "previous"   Name of the previous state file, or None if initial state.
+        - "values"     A dictionary of values, with the same keys as the target.
+        - "converged"  Boolean, whether converged or not.
+        - "distance"   A measure of distance between values and target
 
     in_progress: dict
         One entry per currently running calculation. Key is the resulting file name.
         Each entry contains:
-         - 
+         - "filename"        The file that will be written when finished
+         - "previous"        Existing file containing the starting state
+         - "values"          Parameter values being attempted
+         - "async_result"    An AsyncResult object representing future result
+         - "submitted_time"  Time when the job was submitted
 
     Example
     -------
@@ -127,7 +135,6 @@ class Campaign:
         import uetools
         campaign = uetools.Campaign(case, {'pcoree': 1e6, 'ncore': 6e19}, ".")
 
-    
     Running in serial
     ~~~~~~~~~~~~~~~~~
 
@@ -155,8 +162,47 @@ class Campaign:
     with a pool of workers. The primary process coordinates workers,
     and decides what to try next based on the results of all workers.
 
+    To run asyncronously with 2 processors:
     
+        campaign.run_async(processes = 2)
+
+    While this is running it will display a status line with
+    the elapsed time, number of states calculated, and progress e.g:
     
+        00:03:51 | 003 states |###########>         |55.0%
+
+    When the target is reached the file containing the result is printed:
+
+        Final state in file: c238b767-ca33-46d6-8c6c-746dbfe5de12.hdf5
+
+    The state can also be retrieved by calling campaign.closest_state()
+
+    Output logging
+    ~~~~~~~~~~~~~~
+
+    The default run_async method will write to output every 1/2 second
+    as it updates the status display. This quickly adds up if the output
+    is being logged. To only print when something interesting happens,
+    set output='log':
+
+        campaign.run_async(processes=2, output='log')
+
+    This will print something like:
+
+        2023-09-07 23:31:28.074046: Started cb26 (87.6%) from init (0.0%)
+        2023-09-07 23:31:28.074760: Started fae0 (21.2%) from init (0.0%)
+        2023-09-07 23:35:48.201753: Finished cb26 (87.6%)
+        2023-09-07 23:35:48.202120: Started 869a (69.8%) from init (0.0%)
+        2023-09-07 23:35:54.705231: Finished fae0 (21.2%)
+        2023-09-07 23:35:54.705568: Started 48ec (100.0%) from cb26 (87.6%)
+        2023-09-07 23:40:07.828991: Finished 869a (69.8%)
+        2023-09-07 23:40:07.829406: Started 2482 (100.0%) from cb26 (87.6%)
+        2023-09-07 23:40:22.336841: Finished 48ec (100.0%)
+        Final state in file: 48ec63ab-f48b-4435-a7b4-b68ba1024fcd.hdf5
+
+    Where 4 letters of the start of the file name are printed, along with
+    the percentage progress towards the target.
+
     Saving and restoring
     ~~~~~~~~~~~~~~~~~~~~
     
@@ -380,25 +426,24 @@ class Campaign:
         """
 
         # Get the next action to perform
-        input_state, changes = self.next_action()
+        input_state, values = self.next_action()
+        input_file = input_state["filename"]
 
         # Choose a file name for the result
         output_file = self.path / (str(uuid.uuid4()) + ".hdf5")
 
         # Submit job to the pool
-        async_result = pool.apply_async(
-            run_case, (input_state["filename"], changes, output_file)
-        )
+        async_result = pool.apply_async(run_case, (input_file, values, output_file))
 
         # Store the handle and some information about the run
         new_run = {
-            "filename": filename,
-            "previous": case["filename"],
+            "filename": output_file,
+            "previous": input_file,
             "values": values,
             "async_result": async_result,
             "submitted_time": time.time(),
         }
-        self.in_progress[filename] = new_run
+        self.in_progress[output_file] = new_run
         return new_run
 
     def check_async(self) -> list[dict]:
@@ -426,3 +471,98 @@ class Campaign:
         for run in finished:
             del self.in_progress[run["filename"]]
         return finished
+
+    def run_async(
+        self,
+        processes: int = 2,
+        delay: float = 0.5,
+        output: str = "term",
+        bar_length: int = 20,
+    ):
+        """
+        Run UEDGE simulations asyncronously until the target is reached 
+
+        processes: int
+            Number of processors to use
+
+        delay: float
+            Time between updates, in seconds
+
+        output: str
+            One of 'term', 'log'
+
+        bar_length: int
+            For 'term' output, the length of the progress bar in chars
+        """
+        # Create a pool that suppresses output from subprocesses
+        # Otherwise with many tasks the output is very cluttered
+        import uetools
+
+        pool = uetools.Parallel.QuietPool(processes)
+
+        assert output in ["term", "log"]
+
+        def log(msg: str):
+            print(f"{datetime.datetime.now()}: " + msg)
+
+        start_time = time.time()
+        while True:
+            while len(self.in_progress) < processes:
+                # Start another job
+                started = self.run_next_async(pool)
+
+                if output == "log":
+                    from_progress = 1.0 - (
+                        distance(
+                            self.states[started["previous"]]["values"], self.target
+                        )
+                        / distance(self.start_values, self.target)
+                    )
+                    to_progress = 1.0 - (
+                        distance(started["values"], self.target)
+                        / distance(self.start_values, self.target)
+                    )
+                    log(
+                        "Started "
+                        + started["filename"].name[:4]
+                        + f" ({to_progress * 100.:.1f}%) from "
+                        + started["previous"].name[:4]
+                        + f" ({from_progress * 100:.1f}%)"
+                    )
+
+            time.sleep(delay)
+
+            # Check for finished jobs
+            finished = self.check_async()
+            progress = self.fraction_progress()
+
+            if output == "term":
+                # Update a simple one-line status with progress bar
+                nruns = len(self.states) - 1  # Number of completed runs
+                elapsed_time = datetime.timedelta(seconds=time.time() - start_time)
+
+                nbars = int(bar_length * progress)
+                bar = "|" + "#" * nbars + ">" + " " * (bar_length - nbars) + "|"
+
+                print(
+                    f"\r{elapsed_time} | {nruns:03} states "
+                    + bar
+                    + f"{progress*100:.1f}%",
+                    end="",
+                )
+
+            elif output == "log":
+                # Print logs of finished jobs
+                for run in finished:
+                    to_progress = 1.0 - (
+                        run["distance"] / distance(self.start_values, self.target)
+                    )
+                    log(
+                        "Finished "
+                        + run["filename"].name[:4]
+                        + f" ({to_progress * 100.:.1f}%)"
+                    )
+
+            if progress > 0.999:
+                print("\nFinal state in file: " + str(self.closest_state()["filename"]))
+                return

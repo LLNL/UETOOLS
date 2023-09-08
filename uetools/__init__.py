@@ -7,5 +7,6 @@ except:
 from .UeCase import Case
 from .UeDatabase import Database, restoredb
 from . import UeCase
+from .UeCase import Parallel
 from . import UeConfig
 from .UeCampaign import Campaign
