@@ -46,10 +46,10 @@ def converge_case(case) -> Tuple[bool, dict]:
 
 def run_case(input_file, changes, output_file):
     """
-      - Read state from an input file
-      - Change settings
-      - Run UEDGE and attempt to converge
-      - Save state to an output file
+    - Read state from an input file
+    - Change settings
+    - Run UEDGE and attempt to converge
+    - Save state to an output file
 
     """
     import uetools
@@ -149,7 +149,7 @@ class Campaign:
     Will modify the settings and try to converge UEDGE.
     It will return a dictionary describing the run, and add the new
     state to the campaign.states dictionary.
-    
+
     Progress towards the target values can be monitored using
     campaign.fraction_progress(), which returns 0 at the start and 1
     when target is reached.
@@ -163,12 +163,12 @@ class Campaign:
     and decides what to try next based on the results of all workers.
 
     To run asyncronously with 2 processors:
-    
+
         campaign.run_async(processes = 2)
 
     While this is running it will display a status line with
     the elapsed time, number of states calculated, and progress e.g:
-    
+
         00:03:51 | 003 states |###########>         |55.0%
 
     When the target is reached the file containing the result is printed:
@@ -221,7 +221,7 @@ class Campaign:
 
     Saving and restoring
     ~~~~~~~~~~~~~~~~~~~~
-    
+
     Campaign objects can be pickled, or serialised
     and stored in another format. That file will contain a record of all
     the datasets, and can be unpickled to continue a campaign.
@@ -249,7 +249,7 @@ class Campaign:
             Dictionary of UEDGE settings to aim for
         path: Path
             A directory to be used to store UEDGE states
-        
+
         """
 
         path = Path(path).absolute()
@@ -289,7 +289,7 @@ class Campaign:
 
     def closest_distance(self) -> float:
         """
-        Return a measure of the closest distance to the target 
+        Return a measure of the closest distance to the target
         """
         return self.closest_state()["distance"]
 
@@ -482,7 +482,15 @@ class Campaign:
                     self.states[result["filename"]] = result
                 except:
                     # This run raised an exception
-                    finished.append({"filename": run["filename"], "converged": False})
+                    finished.append(
+                        {
+                            "filename": run["filename"],
+                            "submitted_time": run["submitted_time"],
+                            "finished_time": time.time(),
+                            "converged": False,
+                            "distance": 1e20,
+                        }
+                    )
         # Remove finished runs from in_progress
         for run in finished:
             del self.in_progress[run["filename"]]
@@ -496,7 +504,7 @@ class Campaign:
         bar_length: int = 20,
     ):
         """
-        Run UEDGE simulations asyncronously until the target is reached 
+        Run UEDGE simulations asyncronously until the target is reached
 
         processes: int
             Number of processors to use
