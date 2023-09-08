@@ -5,6 +5,7 @@ import uuid
 import time
 import datetime
 import numpy as np
+import pickle
 
 T = TypeVar("T")
 
@@ -505,6 +506,7 @@ class Campaign:
         delay: float = 0.5,
         output: str = "term",
         bar_length: int = 20,
+        save_file: str = None,
     ):
         """
         Run UEDGE simulations asyncronously until the target is reached
@@ -520,6 +522,11 @@ class Campaign:
 
         bar_length: int
             For 'term' output, the length of the progress bar in chars
+
+        save_file: str
+            Pickle the campaign as new results come in.
+            This helps if the campaign has to be stopped and restarted.
+
         """
         # Create a pool that suppresses output from subprocesses
         # Otherwise with many tasks the output is very cluttered
@@ -586,6 +593,11 @@ class Campaign:
                         + run["filename"].name[:4]
                         + f" ({to_progress * 100.:.1f}%)"
                     )
+
+            if len(finished) > 0 and save_file is not None:
+                # Pickle the campaign
+                with open(save_file, "wb") as f:
+                    pickle.dump(self, f)
 
             if progress > 0.999:
                 print("\nFinal state in file: " + str(self.closest_state()["filename"]))
