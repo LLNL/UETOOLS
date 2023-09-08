@@ -1,1 +1,1 @@
-from .Campaign import Campaign, console
+from .Campaign import Campaign

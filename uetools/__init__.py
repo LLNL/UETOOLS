@@ -8,4 +8,4 @@ from .UeCase import Case
 from .UeDatabase import Database, restoredb
 from . import UeCase
 from . import UeConfig
-from . import UeCampaign
+from .UeCampaign import Campaign
