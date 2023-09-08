@@ -172,7 +172,10 @@ class Case(
 
         Notes:
          - Not all variables are saved in the HDF5 file.
-           Those that are saved
+           The variables to be saved are those defined in the YAML
+           file defined by variableyamlfile. If variableyamlfile
+           is unset, the default variables saved are those defined
+           in yamls/standardvariables.yml in UETOOLS/
         
         """
         import uetools
