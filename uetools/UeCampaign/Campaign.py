@@ -284,6 +284,8 @@ class Campaign:
         """
         closest = None
         for state in self.states.values():
+            if not state["converged"]:
+                continue  # Skip non-converged cases
             if (closest is None) or (state["distance"] < closest["distance"]):
                 closest = state
         return closest
