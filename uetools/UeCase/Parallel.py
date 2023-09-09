@@ -43,7 +43,6 @@ import pickle
 from typing import Optional
 
 
-
 def _case_handler(pipe, args, kwargs):
     """
     This function is launched on the remote process, and marshals
@@ -321,7 +320,7 @@ class Pool:
                     start_time = active_started.pop(ind)
 
         for index, item in enumerate(iterable):
-            if len(active_process) >= self.max_processes:
+            while len(active_process) >= self.max_processes:
                 wait_for_results()
 
             # At least one process has finished
@@ -353,3 +352,47 @@ class Pool:
 
         return results
 
+
+def mute():
+    """
+    Redirect output to /dev/null by modifying the C library
+    records. This should also redirect output from Fortran code.
+
+    Taken from https://stackoverflow.com/a/978264
+
+    To use this, create a pool and pass this function as the initializer:
+
+        import multiprocessing as mp
+        pool = mp.Pool(processes=2, initializer=mute)
+
+    """
+    import os
+
+    # open 2 fds
+    null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
+    # save the current file descriptors to a tuple
+    save = os.dup(1), os.dup(2)
+    # put /dev/null fds on 1 and 2
+    os.dup2(null_fds[0], 1)
+    os.dup2(null_fds[1], 2)
+
+
+def QuietPool(processes: int = 2, *args, **kwargs):
+    """
+    Create a multiprocessing pool that suppresses output.
+    Adds an initializer argument to redirect stdout to /dev/null.
+
+    Arguments
+    ---------
+
+    processes: int
+        Maximum number of processes in the pool
+
+    Returns
+    -------
+
+    A Multiprocessing Pool
+    """
+    import multiprocessing as mp
+
+    return mp.Pool(processes=processes, initializer=mute, *args, **kwargs)
