@@ -346,7 +346,25 @@ class Campaign:
 
         Returns the path to the starting dataset, and a dictionary
         of values to try and reach.
+
+        Parameters
+        ----------
+
+        prefer_near : float, > 0
+            Higher values increase the chance of states near the target being chosen
+            i.e. more effort is put into advancing existing paths, rather than
+            starting new ones
+
+        prefer_no_jump : float, > 0
+            Higher values reduce the chance of jumping to the target parameters
+
+        prefer_small_step : float, > 0
+            Higher values reduce the average step size
         """
+
+        prefer_near = 2
+        prefer_no_jump = 2
+        prefer_small_step = 3
 
         # Choose a starting dataset, preferring those that are close
         # to the target
@@ -365,7 +383,8 @@ class Campaign:
                     return state
 
         state = choose(
-            list(self.states.values()), lambda state: 1.0 / (state["distance"] + 1e-10)
+            list(self.states.values()),
+            lambda state: 1.0 / (state["distance"] + 1e-10) ** prefer_near,
         )  # Avoid divide-by-zero
 
         if not state["converged"]:
@@ -387,15 +406,16 @@ class Campaign:
         # Have a converged starting case.
         # Decide whether to try the target values. The closer we are the higher the chance.
         d = distance(state["values"], self.target) / self.total_distance
-        if random.uniform(0, 1) > d:
+        if random.uniform(0, 1) ** prefer_no_jump > d:
             # Try jumping to the target
             return (state, self.target)
 
         # Choose a direction to go in towards the target.
         values = {}
         for var, target in self.target.items():
-            weight = random.uniform(0, 1)
-            values[var] = weight * state["values"][var] + (1.0 - weight) * target
+            # Note: Higher powers bias towards smaller steps
+            weight = random.uniform(0, 1) ** prefer_small_step
+            values[var] = (1.0 - weight) * state["values"][var] + weight * target
         return (state, values)
 
     def run_next(self) -> dict:
