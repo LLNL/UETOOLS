@@ -393,6 +393,8 @@ class Campaign:
             if previous["converged"]:
                 # Previous case did converge.
                 # Try again with the same settings
+                # and set distance to a large value so it's not chosen again
+                state["distance"] = 1e20
                 return (state, state["values"])
 
             # Previous also failed. Go back and try a different way
