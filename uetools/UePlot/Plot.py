@@ -112,6 +112,16 @@ class Plot:
         self.dumpfig.get_axes()[iax].set_ylim(xlim)
         self.dumpfig.get_axes()[iax].set_xlabel(xlabel)
         self.dumpfig.get_axes()[iax].set_ylabel(xlabel)
+
+    def savefig(self, fname, **kwargs):
+        from matplotlib.pyplot import fignum_exists
+        try:
+            if not fignum_exists(self.dumpfig.number):
+                raise ValueError('No open figure found!')
+        except:
+            raise ValueError('No open figure found!')
+        self.dumpfig.savefig(fname, **kwargs)
+
           
 
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
