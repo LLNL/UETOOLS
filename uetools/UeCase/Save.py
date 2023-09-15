@@ -186,7 +186,7 @@ class Save:
         **kwargs
             passed to setgroup
         """
-        from h5py import File
+        from h5py import File, is_hdf5
         from os.path import exists
 
         if self.mutex() is False:
@@ -198,13 +198,13 @@ class Save:
             raise ValueError('Save file {} does not exist!'.format(\
                 savefname
             ))
-
-        try:
-            savefile = File(savefname, "r")
-        except:
+        elif not is_hdf5(savefname):
             raise ValueError('Save file {} is not in HDF5 format!'.format(\
                 savefname
             ))
+            
+
+        with File(savefname, "r") as savefile:
 #        # Try reading new, subdivided save file
 #        try:
 #            # Don't override user-specified name for case by reading from file
@@ -212,20 +212,20 @@ class Save:
 #                self.casename = savefile.attrs["casename"]
 #        except:
 #            pass
-        try:
-            for group, variables in savefile["restore"].items():
-                for variable, value in variables.items():
-                    self.setue(variable, value[()])
-                    self.vars[variable] = value[()]
-        # If not, try reading old-style save file
-        except:
-            for group, variables in self.varinput["restore"].items():
-                for variable in variables:
-                    self.setue(variable, savefile[group][variable][()])
-                    self.vars[variable] = savefile[group][variable][()]
+            try:
+                for group, variables in savefile["restore"].items():
+                    for variable, value in variables.items():
+                        self.setue(variable, value[()])
+                        self.vars[variable] = value[()]
+            # If not, try reading old-style save file
+            except:
+                for group, variables in self.varinput["restore"].items():
+                    for variable in variables:
+                        self.setue(variable, savefile[group][variable][()])
+                        self.vars[variable] = savefile[group][variable][()]
 
-        # TODO
-        # Implement structure to read and restore auto-detected changes
+            # TODO
+            # Implement structure to read and restore auto-detected changes
 
         if self.verbose:
             print("Saved solution successfully restored from {}".format(savefname))
