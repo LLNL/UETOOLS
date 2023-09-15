@@ -2,6 +2,7 @@ from Forthon import packageobject
 from .CasePlot import Caseplot
 from .Solver import Solver
 from .Save import Save
+from uedge.rundt import UeRun
 from uetools.UeDashboard import Dashboard
 from uetools.UeUtils.Lookup import Lookup
 from uetools.UeUtils.Misc import Misc
@@ -24,7 +25,7 @@ from uedge import bbb, com, aph, api, svr, __version__
 
 class Case(
     Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS, 
-    Dashboard, Plot, RadTransp, Misc, Tracker, Interpolate, Convert
+    Dashboard, Plot, RadTransp, Misc, Tracker, Interpolate, Convert, #UeRun
 ):
     """ UEDGE Case container object.
 
@@ -37,7 +38,7 @@ class Case(
     ----------
     allocate : function
         allocates the UEDGE arrays based on the input
-    casefname : string
+    filename : string
         path to input file where data is read from
     inplace : boolean
         switch defining whether to read data into memory or read from
@@ -113,7 +114,7 @@ class Case(
 
     def __init__(
         self,
-        casefname=None,
+        filename=None,
         inplace=False,
         variableyamlfile=None,
         casename=None,
@@ -128,7 +129,7 @@ class Case(
 
         Keyword arguments
         -----------------
-        casefname : str (default =  None)
+        filename : str (default =  None)
             HDF5 file where to read data from. If None, data is read
             from UEDGE
         inplace : bool (default = False)
@@ -152,6 +153,14 @@ class Case(
         from socket import gethostname
         from matplotlib.pyplot import ioff, ion
 
+        # Assert input is correct before proceeding
+        if filename is not None:
+            if not exists(filename):
+                raise ValueError('File {} does not exist!'.format(\
+                    filename
+                ))
+
+
         conf = Config(verbose=verbose)
         if conf.configured is False:
             return
@@ -167,7 +176,7 @@ class Case(
         self.restored_from_hdf5 = False
         self.uetoolsversion = "1.0"  # UEtools version
         self.allocate = packageobject("bbb").getpyobject("allocate")
-        self.casefname = casefname
+        self.filename = filename
         self.inplace = inplace
         self.userdifffname = None
         self.radialdifffname = None
@@ -211,7 +220,7 @@ class Case(
             self.setue = self.setue_memory
             try:
                 # Get the directory containing the input file
-                self.location = os.path.dirname(abspath(self.casefname))
+                self.location = os.path.dirname(abspath(self.filename))
             except:
                 self.location = getcwd()
             self.session_id = self.getue("max_session_id") + 1
@@ -232,8 +241,8 @@ class Case(
                 variableyamlpath = "{}/{}".format(path, variableyamlfile)
             self.varinput = self.readyaml(variableyamlpath)  # Read to memory
 
-            if self.casefname is not None:
-                self.restore_input(self.casefname)
+            if self.filename is not None:
+                self.restore_input(self.filename)
             else:
                 self.reload()
                 self.get_uevars()
@@ -243,16 +252,16 @@ class Case(
             self.set = self.getsetue_inplace
             self.getue = self.getsetue_inplace
             self.setue = self.getsetue_inplace
-            if self.casefname is None:
+            if self.filename is None:
                 print("Must specify data file when inplace=True! Aborting.")
                 return
-            self.casefname = abspath(self.casefname)
-            self.location = os.path.dirname(self.casefname)
-            if exists(self.casefname):
+            self.filename = abspath(self.filename)
+            self.location = os.path.dirname(self.filename)
+            if exists(self.filename):
                 try:
-                    self.hdf5case = self.openhdf5(self.casefname, "r")
+                    self.hdf5case = self.openhdf5(self.filename, "r")
                 except:
-                    print("Unable to open {}. Aborting.".format(self.casefname))
+                    print("Unable to open {}. Aborting.".format(self.filename))
                     return
             self.load_inplace()
 
@@ -279,7 +288,7 @@ class Case(
         try:
             retvar = self.hdf5case[self.vars[variable]][()]
         except:
-            print("{} not found in {}".format(variable, self.casefname))
+            print("{} not found in {}".format(variable, self.filename))
             return
 
         if isinstance(retvar, (ndarray, list)):
@@ -774,9 +783,9 @@ class Case(
             # See if diffusivities unset despite being user-defined
             # If yes, try looking for them in the case being restored
             if (self.getue("isbohmcalc") in [0, 1]) and (self.userdifffname is None):
-                self.userdifffname = self.casefname
+                self.userdifffname = self.filename
             elif (self.getue("isbohmcalc") == 2) and (self.radialdifffname is None):
-                self.radialdifffname = self.casefname
+                self.radialdifffname = self.filename
 
             if self.userdifffname:
                 try:
@@ -846,7 +855,7 @@ class Case(
         try:
             difffile = File(difffname, "r")
         except:
-            difffile = File(self.casefname, "r")
+            difffile = File(self.filename, "r")
 
         for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
             self.setue(variable, difffile["diffusivities"]["bbb"][variable][()])
@@ -885,7 +894,7 @@ class Case(
         try:
             difffile = self.openhdf5(difffname, "r")
         except:
-            difffile = self.openhdf5(self.casefname, "r")
+            difffile = self.openhdf5(self.filename, "r")
         for variable in ["difniv", "kyev", "kyiv", "travisv"]:
             self.setue(variable, difffile["diffusivities"]["bbb"][variable][()])
             difffile.close()

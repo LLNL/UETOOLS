@@ -79,12 +79,18 @@ class Save:
                 ]:
                     value = saveobj
                 # Exception for saving objects spawned without any input files
-                elif isinstance(saveobj, list):
-                    for var in saveobj:
-                        self.savevar(savefile, group, var, self.getue(var))
-                    return
+#                elif isinstance(saveobj, list):
+#                    for var in saveobj:
+#                        self.savevar(savefile, group, var, self.getue(var))
+#                    return
                 else:
-                    value = self.getue(variable)
+                    try:
+                        value = self.getue(variable)
+                    except:
+                        for var in saveobj:
+                            for var in saveobj:
+                                self.savevar(savefile, group, var, self.getue(var))
+                            return
                 self.savevar(savefile, group, variable, value)
             # Store requested data
             elif isinstance(saveobj, list):
@@ -188,13 +194,13 @@ class Save:
         if savefname is None:
             savefname = "{}.hdf5".format(self.casename)
         savefile = File(savefname, "r")
-        # Try reading new, subdivided save file
-        try:
-            # Don't override user-specified name for case by reading from file
-            if casefname is None:
-                self.casename = savefile.attrs["casename"]
-        except:
-            pass
+#        # Try reading new, subdivided save file
+#        try:
+#            # Don't override user-specified name for case by reading from file
+#            if casefname is None:
+#                self.casename = savefile.attrs["casename"]
+#        except:
+#            pass
         try:
             for group, variables in savefile["restore"].items():
                 for variable, value in variables.items():

@@ -95,7 +95,10 @@ class Caseplot(Plot):
         return self.plotmesh(**kwargs)
 
     def heatmap(self, var, s=None, **kwargs):
-        return self.plotmesh(self.get(var, s), **kwargs)
+        if isinstance(var, str):
+            return self.plotmesh(self.get(var, s), **kwargs)
+        else:
+            return self.plotmesh(var, **kwargs)
 
     def selector2D(self, var, interactive, **kwargs):
         if interactive is True:

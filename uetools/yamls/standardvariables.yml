@@ -95,6 +95,10 @@ species:
         - 'nhgsp'
         - 'nzsp'
 
+constants:
+    bbb:
+        - 'ev'
+
 centered:
     bbb:
         - 'ne'
@@ -104,8 +108,9 @@ centered:
         - 'ng'
         - 'tg'
         - 'phi'
-        - 'ev'
+        - 'ey'
         - 'prad'
+        - 'pradhyd'
         - 'rbfbt'
     com:
         - 'yyc'

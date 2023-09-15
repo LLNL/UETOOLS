@@ -75,7 +75,44 @@ class Plot:
             self.eastnormaln[i] = eastnormal[i] / (sum(eastnormal**2, 
                 axis=0) ** 0.5 + 1e-20)
 
+    def newplot(self, **kwargs):
+        """ Creates a figure for 'dump' plots """
+        from matplotlib.pyplot import subplots
 
+        self.dumpfig, self.dumpax = subplots(**kwargs)
+
+
+    def plot(self, 
+            x=[], 
+            y=[], 
+            xlabel='', 
+            ylabel='', 
+            xlim=(None, None),
+            ylim=(None, None),
+            iax=0, 
+            figsize = (7,5),
+            nrows=1,
+            ncols=1,
+            color='k',
+            plottype='plot',
+            new=False,
+            **kwargs):
+        from matplotlib.pyplot import fignum_exists
+        try:
+            self.dumpfig.number
+        except:
+            self.newplot(nrows=nrows, ncols=ncols, figsize=figsize)
+        if (not fignum_exists(self.dumpfig.number)) or new:
+            self.newplot(nrows=nrows, ncols=ncols, figsize=figsize)
+
+        getattr(self.dumpfig.get_axes()[iax], plottype)(
+            x, y, color=color, **kwargs
+        )
+        self.dumpfig.get_axes()[iax].set_xlim(xlim)
+        self.dumpfig.get_axes()[iax].set_ylim(xlim)
+        self.dumpfig.get_axes()[iax].set_xlabel(xlabel)
+        self.dumpfig.get_axes()[iax].set_ylabel(xlabel)
+          
 
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         """Creates a poly collection and records boundaries"""
@@ -107,6 +144,10 @@ class Plot:
                                 self.get("zm")[: ixpt1+1, 1, 2],
                                 self.get("zm")[ixpt2+1 :, 1, 1] 
                             ))
+            self.itboundr = self.get("rm")[1, :, 1]
+            self.itboundz = self.get("zm")[1, :, 1]
+            self.otboundr = self.get("rm")[-2, :, 2]
+            self.otboundz = self.get("zm")[-2, :, 2]
 
         vertices = []
         # Loop through all cells, omitting guard cells
@@ -131,7 +172,7 @@ class Plot:
         ax=None,
         xlim=(None, None),
         ylim=(0, None),
-        figsize=(6, 5),
+        figsize=(7, 5),
         xlabel=None,
         ylabel=None,
         title=None,
@@ -214,6 +255,10 @@ class Plot:
             self.vertices
         except:
             self.createvertices(self.get("rm"), self.get("zm"))
+    
+        if z is not None:
+            if len(z.shape) != 2:
+                raise ValueError('Array to be plotted must be two-dimensional!')    
 
         if ax is None:
             f = figure(title, figsize=figsize)
@@ -310,6 +355,18 @@ class Plot:
                     linewidth=linewidth,
                 )
                 ax.plot(
+                    self.otboundr,
+                    self.checkusn(self.otboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                ax.plot(
+                    self.itboundr,
+                    self.checkusn(self.itboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                ax.plot(
                     self.solboundr,
                     self.checkusn(self.solboundz, flip),
                     color=color,
@@ -345,6 +402,18 @@ class Plot:
                     linewidth=linewidth,
                 )
                 ax.plot(
+                    self.otboundr,
+                    self.checkusn(self.otboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                ax.plot(
+                    self.itboundr,
+                    self.checkusn(self.itboundz, flip),
+                    color=color,
+                    linewidth=linewidth,
+                )
+                ax.plot(
                     self.solboundr,
                     self.checkusn(self.solboundz, flip),
                     color=color,
@@ -375,6 +444,18 @@ class Plot:
             ax.plot(
                 self.pfrboundr,
                 self.checkusn(self.pfrboundz, flip),
+                color=color,
+                linewidth=linewidth,
+            )
+            ax.plot(
+                self.otboundr,
+                self.checkusn(self.otboundz, flip),
+                color=color,
+                linewidth=linewidth,
+            )
+            ax.plot(
+                self.itboundr,
+                self.checkusn(self.itboundz, flip),
                 color=color,
                 linewidth=linewidth,
             )
@@ -584,11 +665,15 @@ class Plot:
         var,
         resolution=(500j, 800j),
         color="k",
+        flip=False,
         levels=14,
         linewidth=0.5,
         mask=True,
         ax=None,
         labels=True,
+        vessel=False,
+        plates=False,
+        lcfs=True,
         **kwargs
     ):
         from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
@@ -598,7 +683,9 @@ class Plot:
         from copy import deepcopy
 
         if ax is None:
-            f, ax = subplots()
+            f = self.plotmesh(linewidth=0.02, vessel=vessel, plates=plates,
+                flip=flip, lcfs=lcfs)
+            ax = f.get_axes()[0]
         else:
             f = ax.get_figure()
 
@@ -606,6 +693,10 @@ class Plot:
         zm = self.get("zm")
         nx = self.get("nx")
         ny = self.get("ny")
+        if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
+            if flip is True:
+                zm = -zm + self.disp
+
         # Create polygons for masking
         outerx = []
         outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
