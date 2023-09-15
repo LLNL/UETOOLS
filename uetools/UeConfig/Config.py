@@ -3,7 +3,7 @@ from uetools.UeUtils.Lookup import Lookup
 
 
 class Config(Lookup):
-    def __init__(self, verbose=True, **kwargs):
+    def configcase(self, verbose=True, **kwargs):
         from os import path
         from yaml import safe_load
         from pathlib import Path
@@ -11,15 +11,15 @@ class Config(Lookup):
         # True if succeeds
         self.configured = False
 
-        super().__init__()
         searchpath = path.expanduser("~")
+        super().__init__()
         try:
             config = safe_load(Path("{}/.uedgerc".format(searchpath)).read_text())
             if verbose is True:
                 print("UEDGE configuration file {}/.uedgerc found.".format(searchpath))
         except:
             if self.createuedgerc() is False:
-                return
+                return False
             else:
                 config = safe_load(Path("{}/.uedgerc".format(searchpath)).read_text())
 
@@ -34,9 +34,9 @@ class Config(Lookup):
                         dirpath
                     )
                 )
-                return
+                return False
         # NOTE: what other information to write/store?
-        self.configured = True
+        return True
 
     def createuedgerc(self):
         from os import path

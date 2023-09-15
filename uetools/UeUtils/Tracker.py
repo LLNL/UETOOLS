@@ -1,9 +1,6 @@
 
 
 class Tracker():
-    def __init__(self, **kwargs): 
-        print('PING')
-        # NOTE: I cannot get this thing to initialize using super.......
 
     def get_uevars(self):
         """ Records the attributes, packages, and hashes of all UEDGE variables

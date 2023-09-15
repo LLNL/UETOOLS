@@ -1,7 +1,5 @@
-from uetools.UePlot import Plot
 
-
-class Dashboard(Plot):
+class Dashboard():
     def dashboard(self, flip=False, **kwargs):
         from matplotlib.pyplot import ion, ioff, subplots
         from matplotlib.widgets import Slider, RangeSlider, Button

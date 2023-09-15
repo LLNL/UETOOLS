@@ -1,12 +1,15 @@
 # Package setting up solvers, time-stepping, etc
 # Holm10 Dec 10 2022, based on rundt.py
 from Forthon import packageobject
-from uedge.rundt import UeRun
 import os
+from uedge.rundt import UeRun
 from copy import deepcopy
 
 
 class Solver(UeRun):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     def exmain(self):
         #        self.exmain_evals = self.get('exmain_evals') + 1
         original_wd = os.getcwd()
@@ -92,19 +95,3 @@ class Solver(UeRun):
 
         return result
 
-    def converge(self, *args, **kwargs):
-        original_wd = os.getcwd()
-        try:
-            # Run in case directory
-            os.chdir(self.location)
-            UeRun.converge(self, *args, **kwargs)
-        finally:
-            # Restore original directory
-            os.chdir(original_wd)
-
-    # TODO: Fix this so that methods can be inherited directly!
-    def convergenceanalysis(self, filename, **kwargs):
-        return UeRun.convergenceanalysis(filename, **kwargs)
-
-    def failureanalysis(self, filename, **kwargs):
-        return UeRun.failureanalysis(filename, **kwargs)

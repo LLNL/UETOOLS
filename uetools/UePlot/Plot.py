@@ -5,7 +5,7 @@ ion()
 
 
 class Plot:
-    def __init__(self, rm=None, zm=None, **kwargs):
+    def __init__(self, *args, rm=None, zm=None, **kwargs):
         """Constructs patches objects
         rm - UEDGE R-node object
         zm - UEDGE Z-node object
@@ -21,6 +21,7 @@ class Plot:
         # TODO: figure out why createpolycollection bogs down Datbase?
         if self.database is not True:
             self.createvertices(rm, zm)
+        super().__init__(*args, **kwargs)
         return
 
     def createvertices(self, rm, zm):

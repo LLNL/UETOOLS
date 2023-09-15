@@ -2,9 +2,7 @@ from Forthon import packageobject
 from .CasePlot import Caseplot
 from .Solver import Solver
 from .Save import Save
-from uedge.rundt import UeRun
 from uetools.UeDashboard import Dashboard
-from uetools.UeUtils.Lookup import Lookup
 from uetools.UeUtils.Misc import Misc
 from uetools.UeUtils.Tracker import Tracker
 from uetools.UeUtils.Convert import Convert
@@ -14,7 +12,6 @@ from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
-from uetools.UePlot.Plot import Plot
 from uedge import bbb, com, aph, api, svr, __version__
 
 # TODO: Where/how to define impurity files and paths?
@@ -22,10 +19,8 @@ from uedge import bbb, com, aph, api, svr, __version__
 # TODO: Consider compression of data
 # TODO: implement divergence plotting/calculation
 
-
-class Case(
-    Caseplot, Solver, Lookup, PostProcessors, ConvergeStep, Save, ADAS, 
-    Dashboard, Plot, RadTransp, Misc, Tracker, Interpolate, Convert, #UeRun
+class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS, 
+    RadTransp, Interpolate, Convert, Tracker, Config, Caseplot, Solver
 ):
     """ UEDGE Case container object.
 
@@ -161,9 +156,6 @@ class Case(
                 ))
 
 
-        conf = Config(verbose=verbose)
-        if conf.configured is False:
-            return
         # TODO: add label attribute
         # Read from uedge.label and strip
         # Use to restore and/or save files
@@ -228,6 +220,8 @@ class Case(
                 packageobject("bbb"), "max_session_id", self.getue("max_session_id") + 1
             )
             self.exmain_evals = self.getue("exmain_evals")
+            if not self.configcase(verbose=verbose):
+                return
             if assign is True:
                 self.assign()
 
@@ -252,6 +246,8 @@ class Case(
             self.set = self.getsetue_inplace
             self.getue = self.getsetue_inplace
             self.setue = self.getsetue_inplace
+            if not self.configcase(verbose=verbose):
+                return
             if self.filename is None:
                 print("Must specify data file when inplace=True! Aborting.")
                 return
@@ -266,8 +262,7 @@ class Case(
             self.load_inplace()
 
         # Initialize parent classes
-        # Figure out why subclasses are not properly initialized
-        super(Case, self).__init__()
+        super().__init__(**kwargs)
 
 
     # NOTE: Update class data, or try reading from forthon first??
@@ -769,7 +764,6 @@ class Case(
                 pass
 
             if self.restored_from_hdf5 is True:
-                conf = Config(verbose=False)
                 print("=================================================")
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
