@@ -8,7 +8,7 @@ class Tracker():
         """
         from Forthon import package, packageobject
         # Create object for storing variables
-        self.uevars = {'undef':{}}
+        self.uevars = {'undef':{}, 'input': {}}
         # Loop through UEDGE packages
         for pkg in package():
             # Get package Object
