@@ -870,7 +870,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         silent : boolean (default : False)
             Switch whether to issue mutex warning or not
         """
-        if self.use_mutex = False:
+        if self.use_mutex == False:
             return True
         if self.session_id == self.getue("session_id"):
             return True
