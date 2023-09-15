@@ -219,7 +219,14 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             setattr(
                 packageobject("bbb"), "max_session_id", self.getue("max_session_id") + 1
             )
-            self.exmain_evals = self.getue("exmain_evals")
+            try:
+                self.exmain_evals = self.getue("exmain_evals")
+                self.use_mutex = True
+            except:
+                print('Variable "exmain_evals" not found!')
+                print('Using UEDGE version <7, deactivate mutex')
+                self.use_mutex = False
+
             if not self.configcase(verbose=verbose):
                 return
             if assign is True:
@@ -863,6 +870,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         silent : boolean (default : False)
             Switch whether to issue mutex warning or not
         """
+        if self.use_mutex = False:
+            return True
         if self.session_id == self.getue("session_id"):
             return True
         else:
