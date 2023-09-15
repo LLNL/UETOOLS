@@ -187,13 +187,24 @@ class Save:
             passed to setgroup
         """
         from h5py import File
+        from os.path import exists
 
         if self.mutex() is False:
             return
 
         if savefname is None:
             savefname = "{}.hdf5".format(self.casename)
-        savefile = File(savefname, "r")
+        if not exists(savefname):
+            raise ValueError('Save file {} does not exist!'.format(\
+                savefname
+            ))
+
+        try:
+            savefile = File(savefname, "r")
+        except:
+            raise ValueError('Save file {} is not in HDF5 format!'.format(\
+                savefname
+            ))
 #        # Try reading new, subdivided save file
 #        try:
 #            # Don't override user-specified name for case by reading from file
