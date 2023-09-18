@@ -697,8 +697,10 @@ class Plot:
             f = self.plotmesh(linewidth=0.02, vessel=vessel, plates=plates,
                 flip=flip, lcfs=lcfs)
             ax = f.get_axes()[0]
-        elif ax is Figure:
+        elif isinstance(ax, Figure):
+            f = ax
             ax = f.get_axes()[0]
+            
         else:
             f = ax.get_figure()
 
