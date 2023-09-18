@@ -47,7 +47,7 @@ class ConvergeStep:
             self.setue("issfon", 1)
             self.setue("ftol", 1e-5)
             self.exmain()
-            self.converge(casename=casename, **kwargs)
+            self.converge(savefname=casename, **kwargs)
             if self.getue("iterm") != 1:
                 break
             if (increment > 0) and (currval > stop):

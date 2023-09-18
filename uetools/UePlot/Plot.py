@@ -690,12 +690,14 @@ class Plot:
         from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
         from scipy.interpolate import griddata, bisplrep
         from matplotlib.patches import Polygon
-        from matplotlib.pyplot import subplots
+        from matplotlib.pyplot import subplots, Figure
         from copy import deepcopy
 
         if ax is None:
             f = self.plotmesh(linewidth=0.02, vessel=vessel, plates=plates,
                 flip=flip, lcfs=lcfs)
+            ax = f.get_axes()[0]
+        elif ax is Figure:
             ax = f.get_axes()[0]
         else:
             f = ax.get_figure()
