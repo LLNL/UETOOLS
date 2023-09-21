@@ -7,7 +7,7 @@ from glob import glob
 
 
 install_requires = [
-     'requests', 'h5pickle', 'tqdm', 'uedge'
+     'requests', 'h5pickle', 'tqdm', 'uedge', 'pyyaml'
 ]
 if sys.version_info < (3,):
     install_requires.append('tk')

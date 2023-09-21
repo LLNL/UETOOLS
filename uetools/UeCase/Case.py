@@ -253,11 +253,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             self.set = self.getsetue_inplace
             self.getue = self.getsetue_inplace
             self.setue = self.getsetue_inplace
-            if not self.configcase(verbose=verbose):
-                return
-            if self.filename is None:
-                print("Must specify data file when inplace=True! Aborting.")
-                return
             self.filename = abspath(self.filename)
             self.location = os.path.dirname(self.filename)
             if exists(self.filename):
@@ -267,6 +262,11 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                     print("Unable to open {}. Aborting.".format(self.filename))
                     return
             self.load_inplace()
+            if not self.configcase(verbose=verbose):
+                return
+            if self.filename is None:
+                print("Must specify data file when inplace=True! Aborting.")
+                return
 
         # Initialize parent classes
         super().__init__(**kwargs)
