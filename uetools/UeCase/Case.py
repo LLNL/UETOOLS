@@ -286,6 +286,11 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
     def get_inplace(self, variable, s=None, **kwargs):
         """Returns variable from HDF5"""
         from numpy import ndarray
+        from h5py import File
+        
+        # TODO: figure out why some cases spontaneously close?
+        if 'Closed' in str(self.hdf5case):
+            self.hdf5case = File(self.filename, 'r')
 
         try:
             retvar = self.hdf5case[self.vars[variable]][()]
@@ -577,13 +582,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             return File(fname, operation)
         else:
             raise OSError('File "{}" not found!'.format(fname))
-
-    def closehdf5(self, **kwargs):
-        """Closes UeCase file hdf5case that is being read"""
-        try:
-            self.hdf5case.close()
-        except:
-            raise OSError("No HDF5 file open")
 
     def read_hdf5_setup(self, fname):
         from h5pickle import File, Group

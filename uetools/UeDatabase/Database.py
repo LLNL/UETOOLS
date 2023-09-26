@@ -81,11 +81,11 @@ class Database:
 
         self.sortvar = variable
         self.sortlocation = location
-        self.ixmp = self.get("ixmp")[0]
-        self.iysptrx = self.get("iysptrx")[0]
 
         # Make sort location more advanced
         if self.sortlocation == "midplane":
+            self.ixmp = self.get("ixmp")[0]
+            self.iysptrx = self.get("iysptrx")[0]
             self.sortlocation = (self.ixmp, self.iysptrx + 1)
         elif isinstance(self.sortlocation, int):
             self.sortlocation = [self.sortlocation]
@@ -121,24 +121,29 @@ class Database:
                 continue
             subdir = parent.split("/")[-1]
             databases = [db for db in files if self.is_case("{}/{}".format(parent, db))]
-
             if self.rerun is False:
                 # HDF5s identified
                 if len(databases) == 1:
                     # Verify all necessary data is present
-                    self.cases[
-                        "{}/{}".format(subdir, databases[0].replace(".hdf5", ""))
-                    ] = Case(
+                    if len(subdir) == 0:
+                        casekey = databases[0].replace(".hdf5", "")
+                    else:
+                        casekey = "{}/{}".format(subdir, databases[0].replace(\
+                            ".hdf5", ""))
+                    self.cases[casekey] = Case(
                         "{}/{}".format(parent, databases[0]),
                         inplace=True,
                         verbose=False,
                         database=database,
                     )
-                elif len(databases) > 1:
+                elif len(databases) > 1: 
                     for db in databases:
-                        self.cases[
-                            "{}/{}".format(subdir, db.replace(".hdf5", ""))
-                        ] = Case(
+                        if len(subdir) == 0:
+                            casekey = db.replace(".hdf5", "")
+                        else:
+                            casekey = "{}/{}".format(subdir, db.replace(\
+                                ".hdf5", ""))
+                        self.cases[casekey] = Case(
                             "{}/{}".format(parent, db), inplace=True, database=database
                         )
                 # No database found, store location where input is

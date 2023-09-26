@@ -2,7 +2,7 @@
 
 class RadTransp():
     
-    def iterate_radtransp(self, casename, psite, teexp, psine, neexp, 
+    def iterate_radtransp(self, savefname, psite, teexp, psine, neexp, 
         sibdrys=None, simagxs=None, iters=10, steps=4, **kwargs):
         from numpy import linspace
         i = 0
@@ -10,8 +10,8 @@ class RadTransp():
             for frac in linspace(1/steps, 1, steps):
                 self.step_radtransp(frac, psite, teexp, psine, neexp, 
                     sibdrys=sibdrys, simagxs=simagxs, **kwargs)
-                self.converge(casename='{}_radtransp_frac{}_iter{}'.format(\
-                    casename, str(frac).replace('.', ''), i+1), dtreal=1e-10)
+                self.converge(savefname='{}_radtransp_frac{}_iter{}'.format(\
+                    savefname, str(frac).replace('.', ''), i+1), dtreal=1e-10)
                 if self.get('iterm') != 1:
                     print('Convergence failed!')
                     return
@@ -19,7 +19,7 @@ class RadTransp():
         for itr in range(i, iters):
             self.step_radtransp(1, psite, teexp, psine, neexp, 
                 sibdrys=sibdrys, simagxs=simagxs, **kwargs)
-            self.converge(casename='{}_radtransp_iter{}'.format(casename, i+1), 
+            self.converge(savefname='{}_radtransp_iter{}'.format(savefname, i+1), 
                 dtreal=1e-10)
             if self.get('iterm') != 1:
                 print('Convergence failed!')
