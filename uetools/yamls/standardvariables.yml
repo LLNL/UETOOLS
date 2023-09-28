@@ -22,7 +22,6 @@ grid:
         - 'ixlb'
         - 'ixpt1'
         - 'ixmdp'
-        - 'ixmp'
         - 'ixpt2'
         - 'ixrb'
         - 'iysptrx'
@@ -38,6 +37,7 @@ grid:
         - 'bphi'
         - 'b'
         - 'br'
+        - 'vol'
         - 'bz'
         - 'psi'
         - 'nlim'
@@ -61,6 +61,8 @@ grid:
         - 'zplate2'
     bbb:
         - 'ixmp'
+        - 'ixp1'
+        - 'ixm1'
 
 diffusivities:
     bbb:
@@ -133,3 +135,6 @@ staggered:
         - 'vycb'
         - 'v2cb'
 
+boundary:
+    bbb:
+        - 'fniycbo'

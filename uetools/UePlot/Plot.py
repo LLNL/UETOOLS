@@ -242,7 +242,9 @@ class Plot:
         log=False,
         vessel=True,
         plates=True,
+        platecolor=None,
         lcfs=True,
+        lcfscolor='grey',
         title=None,
         grid=False,
         flip=False,
@@ -310,11 +312,11 @@ class Plot:
         # TODO: devise scheme to look for variables in memory, from
         # Forthon, from HDF5
         if lcfs is True:
-            self.plotlcfs(ax, flip)
+            self.plotlcfs(ax, flip, color=lcfscolor)
         if vessel is True:
             self.plotvessel(ax, flip)
         if plates is True:
-            self.plotplates(ax, flip)
+            self.plotplates(ax, flip, color=platecolor)
         ax.autoscale_view()
         ax.set_title(title)
         ax.set_xlim(xlim)
@@ -504,7 +506,7 @@ class Plot:
             pass
 
 
-    def plotplates(self, ax, flip=False):
+    def plotplates(self, ax, flip=False, color=None):
         """Plot plates on ax"""
         from uedge import com, bbb, grd
 
@@ -513,18 +515,27 @@ class Plot:
             ax.plot(grd.rplate2, self.checkusn(grd.zplate2, flip), "r-", linewidth=1.5)
         except:
             pass
+        if color is None:
+            p1c = 'b'
+            p2c = 'r'
+        else:
+            p1c = color
+            p2c = color
+        
         try:
             if self.get("rplate1") is not None:
                 ax.plot(
                     self.get("rplate1"),
                     self.checkusn(self.get("zplate1"), flip),
-                    "b-",
+                    "-",
+                    color=p1c,
                     linewidth=1.5,
                 )
                 ax.plot(
                     self.get("rplate2"),
                     self.checkusn(self.get("zplate2"), flip),
-                    "r-",
+                    "-",
+                    color=p2c,
                     linewidth=1.5,
                 )
         except:
@@ -684,7 +695,10 @@ class Plot:
         labels=True,
         vessel=False,
         plates=False,
+        latecolor='k',
         lcfs=True,
+        lcfscolor='grey',
+        plotgrid=False,
         **kwargs
     ):
         from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
@@ -703,6 +717,9 @@ class Plot:
             
         else:
             f = ax.get_figure()
+        if plotgrid is True:
+            self.plotmesh(linewidth=0.02, vessel=vessel, plates=plates,
+                flip=flip, lcfs=lcfs, ax=ax)
 
         rm = self.get("rm")
         zm = self.get("zm")
@@ -772,3 +789,83 @@ class Plot:
             ax.clabel(CS, fontsize=9, inline=False, fmt='% 1.2e')
 
         return f
+
+
+    def LFSleg_polprof(self, var, ax=None, irad=3, wrad =2, figsize=(7,5), color='r', 
+        ylim=None, ylabel='', alpha=0.05, plottype='plot', **kwargs):
+        """ Plots the poloidal profile of var between X-point and target """
+        from matplotlib.pyplot import subplots, Figure
+        from numpy import amin, amax
+
+        if ax is None:  # Create figure if no axis supplied
+            f, ax = subplots(figsize=figsize)
+        elif ax is Figure:
+            ax = ax.get_axes()[0]
+
+
+        ixpt2 = self.get('ixpt2')[0]
+        xcs = self.get('xcs')
+        iysptrx = self.get('iysptrx')
+        ny = self.get('ny')
+        # Poloidal distance of X-point
+        xcsXpt = 0.5*sum(xcs[ixpt2:ixpt2+2])
+        
+        # Shade the region that spans wrad flux-tubes to each side of irad
+        ax.fill_between(
+            xcs[ixpt2:-1] - xcsXpt, 
+            amin( var[ixpt2:-1, iysptrx+irad-wrad : iysptrx + irad+wrad], axis=1),
+            amax( var[ixpt2:-1, iysptrx+irad-wrad : iysptrx + irad+wrad], axis=1),
+            color = color,
+            alpha = alpha
+        )
+
+        # Plot irad
+        getattr(ax, plottype)( 
+                xcs[ixpt2:-1] - xcsXpt, 
+                var[ixpt2:-1, iysptrx+irad], 
+                color=color, **kwargs
+        )
+
+        ax.set_xlim(0, 1.04*(xcs[-2] - xcsXpt))
+        if ylim is None:
+            ax.autoscale(axis='y')
+        else:
+            ax.set_ylim(ylim)
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel('Poloidal distance from X-point along LFS leg')
+
+
+        return ax.get_figure()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -19,9 +19,11 @@ class Database:
         """
         
         """
-        from os import getcwd
-        from os.path import isfile, isdir
+        from os import getcwd 
+        from os.path import isfile, isdir, exists
 
+        if not exists(database):
+            raise ValueError('Folder {} does not exist!'.format(database))
         self.cwd = getcwd()
         self.cases = {}
         self.dbidentifier = dbidentifier
@@ -82,7 +84,7 @@ class Database:
         self.sortvar = variable
         self.sortlocation = location
 
-        # Make sort location more advanced
+        # Make sort location more advance
         if self.sortlocation == "midplane":
             self.ixmp = self.get("ixmp")[0]
             self.iysptrx = self.get("iysptrx")[0]
@@ -96,8 +98,9 @@ class Database:
                 )
             )
         order = self.get(self.sortvar)
-        for ind in self.sortlocation:
-            order = order[:, ind]
+        if len(order.shape)>1:
+            for ind in self.sortlocation:
+                order = order[:, ind]
         order = argsort(order)
         if increasing is False:
             order = order[::-1]
@@ -108,8 +111,9 @@ class Database:
         self.cases = neworder
 
         self.scanvar = self.get(self.sortvar)
-        for ind in self.sortlocation:
-            self.scanvar = self.scanvar[:, ind]
+        if self.sortlocation is not None:
+            for ind in self.sortlocation:
+                self.scanvar = self.scanvar[:, ind]
 
     def create_database(self, path, database):
         import os
@@ -144,7 +148,10 @@ class Database:
                             casekey = "{}/{}".format(subdir, db.replace(\
                                 ".hdf5", ""))
                         self.cases[casekey] = Case(
-                            "{}/{}".format(parent, db), inplace=True, database=database
+                            "{}/{}".format(parent, db), 
+                            inplace=True, 
+                            database=database,
+                            verbose=False
                         )
                 # No database found, store location where input is
                 # Changing dirs while executing walk breaks the call
@@ -197,6 +204,25 @@ class Database:
             print("Case #{} does not exist".format(index))
             return
 
+    def get_closest_key(self, target, var, index=None):
+        from numpy import ndarray, where
+        vararr = self.get(var)
+        if (index is None) and (len(vararr.shape) >1):
+            raise KeyError('Must define index for multi-species array')
+        elif isinstance(index, int):
+            vararr = vararr[:, index]
+        elif isinstance(index, (tuple, ndarray, list)):
+            for i in index:
+                vararr = vararr[:, i]
+        icase = where( abs(vararr - target) == abs(vararr - target).min())[0][0]
+        return list(self.cases.keys())[icase]
+        
+
+    def get_closest(self, target, var, index=None):
+        return self.cases[self.get_closest_key(target, var, index)]
+        
+
+
     def teITsep(self, **kwargs):
         return self.plotITsep(self.get("te") / 1.602e-19, **kwargs)
 
@@ -219,8 +245,10 @@ class Database:
     def plotOMP(self, var, **kwargs):
         return self.plotscan(var, (self.ixmp, self.iysptrx + 1), **kwargs)
 
-    def plotscan(self, var, location, **kwargs):
-        return self.plotvar(self.scanvar, var[:, location[0], location[1]], **kwargs)
+    def plotscan(self, var, location=(), **kwargs):
+        for index in location:
+            var = var[:, index]
+        return self.plotvar(self.scanvar, var, **kwargs)
 
     def plotvar(self, xvar, yvar, ax=None, **kwargs):
         """Plots yvar as a function of xvar for all cases"""

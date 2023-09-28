@@ -268,6 +268,18 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 print("Must specify data file when inplace=True! Aborting.")
                 return
 
+        self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
+            in ['uppersn', 'snull'])
+        if self.snull:
+            self.ixpt1 = self.get('ixpt1')[0]
+            self.ixpt2 = self.get('ixpt2')[0]
+            self.iysptrx = self.get('iysptrx')
+        self.nx = self.get('nx')
+        self.ny = self.get('ny')
+        self.ixmp = self.get('ixmp')
+#        self.ixm1 = self.get('ixm1')
+#        self.ixp1 = self.get('ixp1')
+
         # Initialize parent classes
         super().__init__(**kwargs)
 

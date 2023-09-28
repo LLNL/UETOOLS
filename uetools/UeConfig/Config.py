@@ -10,6 +10,11 @@ class Config(Lookup):
 
         # True if succeeds
         self.configured = False
+        try:
+            self.verbose
+            verbose = self.verbose
+        except:
+            pass
 
         searchpath = path.expanduser("~")
         super().__init__()
