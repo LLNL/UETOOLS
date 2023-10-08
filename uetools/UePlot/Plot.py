@@ -139,6 +139,7 @@ class Plot:
         logy=False,
         color="k",
         watermark=True,
+        label='',
         **kwargs
     ):
         """Plots y as function of x"""

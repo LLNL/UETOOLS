@@ -67,7 +67,7 @@ class ADAS:
             
         i_charge = int(self.get('ziin')[i_idx])
         if i_charge > 0:
-            tname += str(i_charge)+'+'
+            tname += str(i_charge)+'p'
         else:
             tname += str(i_charge)
             
