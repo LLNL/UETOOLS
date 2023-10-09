@@ -99,8 +99,7 @@ class PostProcessors:
         ]:
             setattr(modules[__name__], var, self.get(var))       
 
-
-        # Get flux-limit factor
+        # Set up necessary arrays
         den = zeros((misotope, self.get('nchstate')) + self.get('ne').shape )
         gradt = zeros((misotope, self.get('nchstate')) + self.get('ne').shape )
         gradp = zeros((misotope, self.get('nchstate')) + self.get('ne').shape )
@@ -112,12 +111,14 @@ class PostProcessors:
         upi_volmsor = zeros(self.get('ne').shape + (sum(natomic),))
         taudeff = zeros(self.get('ne').shape + (sum(natomic),))
 
+        # Get necessary data
         ni = self.get('ni')
         den[0, 0] = self.xvert(self.get('ne'))
         den[1, 0] = self.xvert(ni[:, :, 0])
         tempa = self.xvert(self.get('te'))
         tif = self.xvert(self.get('ti'))
 
+        # Get flux-limit factor
         ltmax = minimum(    abs(tempa/(rrv*gtex + cutlo)),
                             abs(tif/(rrv*gtix + cutlo)),
                             abs(den[0, 0]*tempa/(rrv*gpex + cutlo))
@@ -143,10 +144,14 @@ class PostProcessors:
 #            axis=2
 #        )
         ifld = 0
+        # Loop over the different impurity species
         for misa in range(2, misotope):
+            # Loop over each impurity species charge state
             for nz in range(natomic[misa]):
                 ifld += 1
+                # Skip neutral atoms
                 ifld += (self.get('ziin')[ifld] < 1e-10)
+                # Calculate the hydrogen-impurity scattering rate
                 den[misa, nz] = self.xvert(ni[:, :, ifld])
                 zeffv = self.xvert(self.get('zeff'))
                 gradt[misa, nz] = rrv*gtix
@@ -163,6 +168,7 @@ class PostProcessors:
                     (1+0.285*z0)/(den[0, 0] * (1+0.24*z0) * \
                     (1+0.93*z0) + cutlo)
 
+                # Store the components of the force-balance equation
                 upi_gradp[:,:,ifld] = -gradp[misa, nz]/ (den[misa,nz] + cutlo)
                 upi_gradp[:,:,ifld] *= (taudeff[:,:,ifld]/mi[0])
                 upi_alfe[:,:,ifld] = alfe[ifld]*gradt[0, 0] 
@@ -174,7 +180,7 @@ class PostProcessors:
                 upi_volmsor[:,:,ifld] = volmsor[:, :, ifld] / \
                     (den[misa, nz] * vol + cutlo)
                 upi_volmsor[:,:,ifld] *= (taudeff[:,:,ifld]/mi[0])
-
+                # Solve force-balance equation for impurity velocity
                 upi[:, :, ifld] = up[:, :, 0] + upi_gradp[:,:,ifld] + \
                     upi_alfe[:,:,ifld] + upi_betai[:,:,ifld] + \
                     upi_ex[:,:,ifld] + upi_volmsor[:,:,ifld]
