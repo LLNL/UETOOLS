@@ -575,6 +575,63 @@ class Plot:
         vertices.set_alpha( [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask])
         return f
 
+
+    def quiver(
+        self,
+        pol, 
+        rad,
+        orthogonal=False,
+        color='k',
+        alpha=False,
+        width=3e-3,
+        headwidth=3,
+        headlength=2,
+        flip=False,
+        plates=False,
+        vessel=False,
+        lcfs=True,
+        linewidth=0.1,
+        scale=2.5e5,
+        scale_units='inches',
+        **kwargs
+    ):
+        f = self.grid(plates=plates, lcfs=lcfs, vessel=vessel, linewidth=linewidth)
+        ax = f.get_axes()[0]
+        # Check whether coords are given as poloidal or radial
+        if orthogonal is False:
+            x = pol * self.eastnormaln[0] + rad * self.northnormaln[0]
+            y = pol * self.eastnormaln[1] + rad * self.northnormaln[1]
+        else:
+            x = pol
+            y = rad
+        magnitude = (pol**2 + rad**2)**0.5
+
+        magnitude=magnitude[1:-1, 1:-1]
+        magnitude /= magnitude.max()
+
+        rm = self.get("rm")[:, :, 0]
+        zm = self.get("zm")[:, :, 0]
+        ax.quiver(
+            rm[1:-1, 1:-1].ravel(), 
+            zm[1:-1, 1:-1].ravel(), 
+            x[1:-1,1:-1].ravel(), 
+            y[1:-1, 1:-1].ravel(),
+            pivot='mid',
+            color=color,
+            alpha=magnitude,
+            width=width,
+            headwidth=headwidth,
+            headlength=headlength,
+            headaxislength=headlength,
+            scale=scale,
+            scale_units=scale_units,
+            **kwargs
+        )
+        return f
+
+        
+        
+
     def streamline(
         self,
         pol,
