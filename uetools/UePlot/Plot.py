@@ -582,7 +582,6 @@ class Plot:
         rad,
         orthogonal=False,
         color='k',
-        alpha=False,
         width=3e-3,
         headwidth=3,
         headlength=2,
@@ -591,8 +590,8 @@ class Plot:
         vessel=False,
         lcfs=True,
         linewidth=0.1,
-        scale=2.5e5,
-        scale_units='inches',
+        alpha=True,
+        uniformsize=False,
         **kwargs
     ):
 
@@ -607,9 +606,15 @@ class Plot:
             x = pol
             y = rad
         magnitude = (pol**2 + rad**2)**0.5
+        if uniformsize is True:
+            x /= magnitude
+            y /= magnitude
 
         magnitude=magnitude[1:-1, 1:-1]
         magnitude /= magnitude.max()
+        if alpha is False:
+            magnitude = magnitude ** 0        
+
 
         rm = self.get("rm")[:, :, 0]
         zm = self.get("zm")[:, :, 0]
@@ -625,8 +630,6 @@ class Plot:
             headwidth=headwidth,
             headlength=headlength,
             headaxislength=headlength,
-            scale=scale,
-            scale_units=scale_units,
             **kwargs
         )
 
