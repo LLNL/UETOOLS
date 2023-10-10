@@ -595,7 +595,9 @@ class Plot:
         scale_units='inches',
         **kwargs
     ):
-        f = self.grid(plates=plates, lcfs=lcfs, vessel=vessel, linewidth=linewidth)
+
+        f = self.grid(plates=plates, lcfs=lcfs, vessel=vessel, 
+            linewidth=linewidth)
         ax = f.get_axes()[0]
         # Check whether coords are given as poloidal or radial
         if orthogonal is False:
@@ -627,11 +629,10 @@ class Plot:
             scale_units=scale_units,
             **kwargs
         )
+
         return f
 
         
-        
-
     def streamline(
         self,
         pol,
@@ -690,12 +691,6 @@ class Plot:
             rm.min() : rm.max() : resolution[0], zm.min() : zm.max() : resolution[1]
         ]
 
-        # Previous implementation, which (incorrectly) assumed values to
-        # be given for cell-centers
-        #        xinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
-        #            x[1:-1,1:-1].ravel(), (gx, gy))
-        #        yinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
-        #            y[1:-1,1:-1].ravel(), (gx, gy))
         xinterp = griddata(
             (self.sxmid[1, 0, 1:-1, 1:-1].ravel(), 
             self.sxmid[1, 1, 1:-1, 1:-1].ravel()), x[1:-1, 1:-1].ravel(),
