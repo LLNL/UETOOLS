@@ -28,19 +28,20 @@ class Config(Lookup):
             else:
                 config = safe_load(Path("{}/.uedgerc".format(searchpath)).read_text())
 
-        for dirpath in ["aphdir", "apidir"]:
-            packobj = self.getpackobj(dirpath)
-            try:
-                strlen = len(packobj.getpyobject(dirpath)[0])
-                packobj.getpyobject(dirpath)[0] = config[dirpath].ljust(strlen)
-            except:
-                print(
-                    'Required path "{}" not found in .uedgerc. Aborting!'.format(
-                        dirpath
+        if self.inplace is False:
+            for dirpath in ["aphdir", "apidir"]:
+                packobj = self.getpackobj(dirpath)
+                try:
+                    strlen = len(packobj.getpyobject(dirpath)[0])
+                    packobj.getpyobject(dirpath)[0] = config[dirpath].ljust(strlen)
+                except:
+                    print(
+                        'Required path "{}" not found in .uedgerc. Aborting!'.format(
+                            dirpath
+                        )
                     )
-                )
-                return False
-        # NOTE: what other information to write/store?
+                    return False
+            # NOTE: what other information to write/store?
         return True
 
     def createuedgerc(self):

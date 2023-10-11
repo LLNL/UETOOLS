@@ -1,7 +1,10 @@
 class Lookup:
     def getpackage(self, var, verbose=True, **kwargs):
         """Returns the package name of variable"""
-        from Forthon import package, packageobject
+        try:
+            from Forthon import package, packageobject
+        except:
+            pass
 
         ret = []
         for packagestr in package():
@@ -18,7 +21,10 @@ class Lookup:
 
     def getpackobj(self, var, verbose=True, **kwargs):
         """Returns the package object of variable"""
-        from Forthon import package, packageobject
+        try:
+            from Forthon import package, packageobject
+        except:
+            pass
 
         ret = []
         for packagestr in package():
@@ -128,7 +134,10 @@ class Lookup:
 
     def searchvarname(self, string):
         """Returns all variables whose name contains string"""
-        from Forthon import package, packageobject
+        try:
+            from Forthon import package, packageobject
+        except:
+            pass
 
         ret = []
         for pack in package():
@@ -146,7 +155,10 @@ class Lookup:
         Looks for the supplied string under Group, Attributes, and
         Comment in the about output for all variables.
         """
-        from Forthon import package, packageobject
+        try:
+            from Forthon import package, packageobject
+        except:
+            pass
 
         ret = []
         for pack in package():

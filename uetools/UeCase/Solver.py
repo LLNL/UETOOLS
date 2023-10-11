@@ -1,9 +1,17 @@
 # Package setting up solvers, time-stepping, etc
 # Holm10 Dec 10 2022, based on rundt.py
-from Forthon import packageobject
 import os
-from uedge.rundt import UeRun
 from copy import deepcopy
+try:
+    from Forthon import packageobject
+except:
+    pass
+try:
+    from uedge.rundt import UeRun
+except:
+    # Dummy class for standalone evaluation
+    class UeRun:
+        pass
 
 
 class Solver(UeRun):

@@ -6,7 +6,10 @@ class Tracker():
         """ Records the attributes, packages, and hashes of all UEDGE variables
 
         """
-        from Forthon import package, packageobject
+        try:
+            from Forthon import package, packageobject
+        except:
+            pass
         # Create object for storing variables
         self.uevars = {'undef':{}, 'input': {}}
         # Loop through UEDGE packages
@@ -37,7 +40,10 @@ class Tracker():
                             packageobject(pkg).getpyobject(var)))]
 
     def gather_changes(self, vardict, changes=None, key=None):
-        from Forthon import packageobject
+        try:
+            from Forthon import packageobject
+        except:
+            pass
         """ Recursively checks for changes in all variables in vardict 
 
         

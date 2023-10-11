@@ -163,7 +163,10 @@ class Save:
         
         Calls self.save(**kwargs)
         """
-        from Forthon import package, packageobject
+        try:
+            from Forthon import package, packageobject
+        except:
+            pass
         from h5py import File
 
         self.save(savefname, **kwargs)

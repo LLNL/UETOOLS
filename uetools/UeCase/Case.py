@@ -1,4 +1,3 @@
-from Forthon import packageobject
 from .CasePlot import Caseplot
 from .Solver import Solver
 from .Save import Save
@@ -12,7 +11,14 @@ from uetools.UeUtils.ConvergeStep import ConvergeStep
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
-from uedge import bbb, com, aph, api, svr, __version__
+try:
+    from uedge import bbb, com, aph, api, svr, __version__
+except:
+    __version__ = 'N/A'
+try:
+    from Forthon import packageobject
+except:
+    pass
 
 # TODO: Where/how to define impurity files and paths?
 # TODO: make yaml read/write/get/set case-insensitive
@@ -167,7 +173,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.verbose = verbose
         self.restored_from_hdf5 = False
         self.uetoolsversion = "1.0"  # UEtools version
-        self.allocate = packageobject("bbb").getpyobject("allocate")
+        try:
+            self.allocate = packageobject("bbb").getpyobject("allocate")
+        except:
+            pass
         self.filename = filename
         self.inplace = inplace
         self.userdifffname = None
@@ -175,9 +184,12 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.hdf5case = None
         self.database = database
         self.pyver = __version__
-        self.uedge_ver = (
-            packageobject("bbb").getpyobject("uedge_ver")[0].strip().decode("UTF-8")
-        )
+        try:
+            self.uedge_ver = (
+                packageobject("bbb").getpyobject("uedge_ver")[0].strip().decode("UTF-8")
+            )
+        except:
+            self.uedge_ver = 'unknown'
 
         try:
             self.user = getlogin()
@@ -258,9 +270,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             if exists(self.filename):
                 try:
                     self.hdf5case = self.openhdf5(self.filename, "r")
-                except:
+                except Exception as err:
                     print("Unable to open {}. Aborting.".format(self.filename))
-                    return
+                    raise err
             self.load_inplace()
             if not self.configcase(verbose=verbose):
                 return

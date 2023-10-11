@@ -3,7 +3,10 @@ class Convert:
     def write_py(self, fname):
         """ Writes a standalone Python input file for the Case
         """
-        from Forthon import package, packageobject
+        try:
+            from Forthon import package, packageobject
+        except:
+            pass
 
         def recursive_lineread(dictobj, lines=None, fails=None):
             """ Recusively parses setup variables to input lines """
@@ -192,7 +195,10 @@ class Convert:
 
 
     def py2yaml(self, fnamepy, fnameyaml, blockseparator='===='):
-        from Forthon import package
+        try:
+            from Forthon import package
+        except:
+            pass
         from yaml import dump
         yamlinput = {}
         packages = package()

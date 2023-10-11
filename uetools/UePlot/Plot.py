@@ -128,12 +128,21 @@ class Plot:
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         """Creates a poly collection and records boundaries"""
         from matplotlib.collections import PolyCollection
-        from uedge import com
+        try:
+            from uedge import com
+        except:
+            pass
         from numpy import concatenate
 
         if setparams is True:
-            self.nx = rm.shape[0] - 2
-            self.ny = rm.shape[1] - 2
+            try:
+                self.nx
+            except:
+                self.nx = rm.shape[0] - 2
+            try:
+                self.ny
+            except:
+                self.ny = rm.shape[1] - 2
             ixpt1 = self.get("ixpt1")[0]
             ixpt2 = self.get("ixpt2")[0]
             iysptrx = self.get("iysptrx")
@@ -262,8 +271,10 @@ class Plot:
         from matplotlib.collections import PolyCollection
         from copy import deepcopy
         from numpy import array
-        from uedge import com, bbb, grd
-
+        try:
+            from uedge import com, bbb, grd
+        except:
+            pass
         try:
             self.vertices
         except:
@@ -338,7 +349,10 @@ class Plot:
 
     def plotlcfs(self, ax, flip=False, color="grey", linewidth=0.5, **kwargs):
         """Plots LCFS on ax"""
-        from uedge import com, bbb, grd
+        try:
+            from uedge import com, bbb, grd
+        except:
+            pass
         from numpy import int64
         plotted = False
         try:
@@ -481,7 +495,10 @@ class Plot:
 
     def plotvessel(self, ax, flip=False):
         """Plots vessel on ax"""
-        from uedge import com, bbb, grd
+        try:
+            from uedge import com, bbb, grd
+        except:
+            pass
 
         try:
             ax.plot(com.xlim, self.checkusn(com.ylim, flip), "k-", linewidth=3)
@@ -508,7 +525,10 @@ class Plot:
 
     def plotplates(self, ax, flip=False, color=None):
         """Plot plates on ax"""
-        from uedge import com, bbb, grd
+        try:
+            from uedge import com, bbb, grd
+        except:
+            pass
 
         try:
             ax.plot(grd.rplate1, self.checkusn(grd.zplate1, flip), "b-", linewidth=1.5)
@@ -543,7 +563,6 @@ class Plot:
 
     def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
         """Adds metadata to figure"""
-        from uedge import __version__
         from time import ctime
 
         label = '{}, case "{}"\n'.format(ctime(), self.casename)
