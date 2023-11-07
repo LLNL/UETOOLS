@@ -2,6 +2,7 @@ class ConvergeStep:
     def conv_step(self, increment, name, var, ivar=None, stop=None, b0=False, **kwargs):
         from copy import deepcopy
         from numpy import ndarray
+        from uedge import bbb
 
         if isinstance(self.get(var), ndarray) and (ivar is None):
             print("No index for var specified. Aborting!")
