@@ -127,7 +127,8 @@ class Save:
         except:
             pass
 
-    def save(self, savefname, group=None, append=False, pickle=False, **kwargs):
+    def save(self, savefname, group=None, append=False, pickle=False, 
+            postprocess=True, **kwargs):
         """Saves HDF5 file containing UeCase data
 
         Arguments
@@ -142,10 +143,16 @@ class Save:
             all data stored in UeCase is written
         """
         from h5py import File
+        from Forthon import packageobject
 
         if self.inplace:
             print("Data read from file, no data to save. Aborting.")
             return
+        if postprocess is True:
+            bbb = packageobject('bbb')
+            bbb.engbal(self.get('pcoree') + self.get('pcorei'))
+            bbb.plateflux()
+            bbb.wallflux()
         # Check and store any changes since case last saved/read
         self.record_changes()       
         # Open file for writing
