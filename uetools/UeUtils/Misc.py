@@ -79,3 +79,54 @@ class Misc():
 
         self.setue('phis', phis)
         self.setue('phi', phis)
+
+
+    def hdf5struct(self, fname, pre=''):
+        from h5py import File, _hl
+        def typestr(var):
+            for vt in ['int', 'float', 'bytes']:
+                if vt in str(type(var)):
+                    return vt
+            return type(var)
+
+        def h5_tree(val, pre=''):
+            items = len(val)
+            for key, val in val.items():
+                items -= 1
+                if items == 0:
+                    # the last item
+                    if type(val) == _hl.group.Group:
+                        print('{}└── {}'.format(pre, key))
+                        h5_tree(val, pre+'    ')
+                    else:
+                        try:
+                            len(val)
+                            if len(val.shape) == 1:
+                                descr = '({})'.format(len(val))
+                            else:
+                                descr = val.shape
+                            print('{}└── {} {}'.format(pre, key, descr))
+                        except:
+                            print('{}└── {} {}'.format(pre, key, typestr(val[()])))
+                else:
+                    if type(val) == _hl.group.Group:
+                        print('{}├── {}'.format(pre, key))
+                        h5_tree(val, pre+'│   ')
+                    else:
+                        try:
+                            len(val)
+                            if len(val.shape) == 1:
+                                descr = '({})'.format(len(val))
+                            else:
+                                descr = val.shape
+                            print('{}├── {} {}'.format(pre, key, descr))
+                        except:
+                            print('{}├── {} {}'.format(pre, key, typestr(val[()])))
+
+        if type(fname) == _hl.group.Group:
+            h5_tree(fname)
+        else:
+            with File(fname, 'r') as h5file:
+                print(h5file)
+                h5_tree(h5file)
+
