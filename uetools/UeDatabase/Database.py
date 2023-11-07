@@ -252,10 +252,12 @@ class Database:
 
     def plotvar(self, xvar, yvar, ax=None, **kwargs):
         """Plots yvar as a function of xvar for all cases"""
-        from matplotlib.pyplot import subplots
+        from matplotlib.pyplot import subplots, Figure
 
         if ax is None:
             f, ax = subplots()
+        elif ax is Figure:
+            ax = f.get_axes()[0]
 
         try:
             kwargs["marker"]
