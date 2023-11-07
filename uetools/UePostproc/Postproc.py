@@ -198,3 +198,64 @@ class PostProcessors:
 
         return upi, self.forcebalance
                  
+
+
+    def pradpltwl(self):
+        from numpy import zeros, pi, cos
+        from math import atan2
+
+        ny = self.get('ny')
+        nx = self.get('nx')
+        nxpt = self.get('nxpt')
+        ixlb = self.get('ixlb')
+        ixrb = self.get('ixrb')
+        rm = self.get('rm')
+        zm = self.get('zm')
+        sx = self.get('sx')
+        angfx = self.get('angfx')
+        vol = self.get('vol')
+        eeli = self.get('eeli')
+        ebind = self.get('ebind')
+        ev = self.get('ev')
+        psor = self.get('psor')
+        erlrc = self.get('erlrc')
+        isimpon = self.get('isimpon')
+        # Initialize arrays
+        self.pwr_pltz = zeros((ny+2, 2*nxpt)) 
+        self.pwr_plth = zeros((ny+2, 2*nxpt)) 
+        self.pwr_wallz = zeros((nx+2))
+        self.pwr_wallh = zeros((nx+2))
+        self.pwr_pfwallz = zeros(((nx+2)*nxpt)) 
+        self.pwr_pfwallh = zeros(((nx+2)*nxpt)) 
+        if (isimpon > 0):
+            prdu = self.get('prad')
+        else:
+            prdu = zeros((nx+2, ny+2))
+        nj = self.get('nxomit')
+        for ip in range(0, 2*nxpt):
+            ixv = (1-(ip % 2))*ixlb[0] + (ip % 2)*(ixrb[0]+1)
+            print(ixv)
+            for iyv in range(1, ny+1):
+                for iy in range(1, ny+1):
+                    for ix in range(1, nx+1):
+                        theta_ray1 = atan2( 
+                                zm[ixv+nj, iyv, 1]-zm[ix+nj, iy, 0],
+                                rm[ixv+nj, iyv, 1]-rm[ix+nj, iy, 0]
+                            )
+                        theta_ray2 = atan2(
+                                zm[ixv+nj, iyv, 3]-zm[ix+nj, iy, 0],
+                                rm[ixv+nj, iyv, 3]-rm[ix+nj, iy, 0]
+                            )
+                        if ((ix==10) and (iy==10) and (iyv==10)):
+                            print(theta_ray1, theta_ray2)
+                        dthgy = abs(theta_ray1-theta_ray2)
+                        frth = min(dthgy, 2*pi-dthgy)/(2*pi)
+                        sxo = sx[ixv, iyv]/cos(angfx[ixv, iyv])
+                        if ((ix==10) and (iy==10) and (iyv==10)):
+                            print(dthgy, frth, sxo)
+                        self.pwr_pltz[iyv, ip] += prdu[ix,iy]*vol[ix,iy]*frth/sxo
+                        self.pwr_plth[iyv, ip] += ((eeli[ix,iy] - ebind*ev)*psor[ix,iy,0]+erlrc[ix, iy]) * frth/sxo
+        self.pwr_pltz[0, ip] = self.pwr_pltz[1, ip]
+        self.pwr_pltz[-1, ip] = self.pwr_pltz[-2, ip]
+        self.pwr_plth[0, ip] = self.pwr_plth[1, ip]
+        self.pwr_plth[-1, ip] = self.pwr_plth[-2, ip]
