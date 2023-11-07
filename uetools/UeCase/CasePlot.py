@@ -257,7 +257,8 @@ class Caseplot(Plot):
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline("fngx", "fngy", s, surfnorm, **kwargs)
 
-    def plot_driftdirection(self, ax=None, width=0.02, color='k', **kwargs):
+    def plot_driftdirection(self, ax=None, width=0.02, color='k', flip=False,
+        **kwargs):
         ''' Plots the drift direction on the requested axis '''
         from numpy import sum, mean
         if ax is None:
@@ -267,11 +268,15 @@ class Caseplot(Plot):
         rad = (self.get('vycb'))[:,:,0]
         x0 = mean(self.get('rm')[self.get(\
             'ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
-        y0 = mean(self.get('zm')[self.get(\
-            'ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
+        zm = self.get('zm')
+        if flip is True:
+            zm = -zm + self.disp 
+        y0 = mean(zm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
 
         x = pol * self.eastnormaln[0] + rad * self.northnormaln[0]
         y = pol * self.eastnormaln[1] + rad * self.northnormaln[1]
+        if flip is True:
+            y *= -1
         x = sum(x)
         y = sum(y)
         norm = max(abs(x), abs(y))
