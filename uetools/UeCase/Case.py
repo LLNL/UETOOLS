@@ -710,11 +710,18 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         # TODO: Find a way to catch user-specified and radially varying
         #       diffusive coefficients when reading from file: userdifffname
         #       and radialdifffname attributes not available!
+        # TODO: Add mist.dat as an optional parameter/etc to allow changing
+        #       the name/path to the data file
         def setinputrecursive(dictobj, group=[]):
             # NOTE: Something in this function is SLOOOW
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
                 if group[-1] not in ["userdifffname", "radialdifffname"]:
+                    # Avoid overwriting grid path when restoring from HDF5
+                    if (group[-1]=='GridFileName') and\
+                        (self.restored_from_hdf5 is True):
+                        return
+
                     # Circumvent the padding with nulls for strings
                     try:
                         dictobj = dictobj.ljust(len(self.getue(group[-2])[group[-1]]))
