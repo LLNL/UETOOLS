@@ -13,6 +13,7 @@ class Database:
         sortvar="ne",
         sortlocation="midplane",
         rerun=False,
+        rerun_dir=None,
         meshplot_setup=False,
         readinput=False,
     ):
@@ -29,6 +30,7 @@ class Database:
         self.dbidentifier = dbidentifier
         self.datbasename = database
         self.rerun = rerun
+        self.rerun_dir = rerun_dir
         self.readinput = readinput
         self.create_database(database, not meshplot_setup)
         # TODO: Store commonly used grid locations
@@ -116,11 +118,13 @@ class Database:
                 self.scanvar = self.scanvar[:, ind]
 
     def create_database(self, path, database):
-        import os
+        from  os.path import join, exists
+        from os import walk
+        from pathlib import Path
         from tqdm import tqdm
 
         createdb = []
-        for parent, dirs, files in os.walk(path):
+        for parent, dirs, files in walk(path):
             if "ignore" in parent:
                 continue
             subdir = parent.split("/")[-1]
@@ -158,29 +162,40 @@ class Database:
                 elif ("input.yaml" in files) and self.readinput:
                     createdb.append(parent)
             else:
-                if "input.yaml" in files:
-                    createdb.append(parent)
+                # Tries to restore cases from file
+                createdb.append((parent, databases))
+#                print(parent, databases) 
+#                if "input.yaml" in files:
+#                    createdb.append(parent)
         # Now, create and read the files
         if len(createdb) > 0:
             print("===== CREATING NEW CASE DUMPS =====")
-            for newdbfolder in tqdm(createdb):
-                subdir = newdbfolder.split("/")[-1]
-                identifier = f"{subdir}/{subdir}{self.dbidentifier}"
+            for dbfolder in createdb:
+                if self.rerun_dir is not None:
+                    subdir = dbfolder[0].split('/')
+                    _ = subdir.pop(0)
+                    subdir = '/'.join(subdir)                    
+                    newdbfolder = join(self.rerun_dir, subdir)
+                else:
+                    newdbfolder = dbfolder[0]
+                    subdir = newdbfolder.split("/")[-1]
 
-                yaml_file = os.path.join(newdbfolder, "input.yaml")
-                hdf5_file = os.path.join(
-                    newdbfolder, f"{subdir}{self.dbidentifier}.hdf5"
-                )
-
-                # Load the case from YAML, save as HDF5
-                #
-                # Note: This modifies the global UEDGE state, so the
-                #       result may depend in surprising ways on the
-                #       order that Cases are loaded.
-                Case(yaml_file, verbose=False).save(hdf5_file)
-
-                # Re-open HDF5 file
-                self.cases[identifier] = Case(hdf5_file, inplace=True, verbose=False)
+                for case in dbfolder[1]:
+                    scase = case.replace('.hdf5','')
+                    identifier = f"{subdir}/{scase}{self.dbidentifier}"
+                    hdf5_file = join(
+                        newdbfolder, 
+                        f"{scase}.hdf5"
+                    )
+                    # Re-open HDF5 file
+                    savefolder = '/'.join(hdf5_file.split('/')[:-1])
+                    if not exists(savefolder):
+                        Path(savefolder).mkdir(\
+                            parents=True, exist_ok=True
+                        )
+                    Case(join(dbfolder[0], case), 
+                        verbose=False).save(hdf5_file)
+                    self.cases[identifier] = Case(hdf5_file, inplace=True, verbose=False)
 
     def get(self, var, **kwargs):
         """Returns an array of var for all cases
