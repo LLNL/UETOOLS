@@ -697,10 +697,18 @@ class Case(
         except:
             pass
         # TODO: tidy up casename definition
-        try:
-            self.casename = setup.pop("casename")
-        except:
-            pass
+        if 'casename' in kwargs:
+            self.casename = kwargs['casename']
+        else:
+            try:
+                self.casename = setup.pop("casename")
+            except:
+                pass
+        if self.casename is None:
+            self.casename = 'casename'
+        if isinstance(self.casename, bytes):
+            self.casename = self.casename.decode("UTF-8")
+
         try:
             self.savefname = setup.pop("savefile")
         except:
@@ -709,10 +717,6 @@ class Case(
             detected = setup.pop("detected")
         except:
             pass
-        if self.casename is None:
-            self.casename = casename
-        if isinstance(self.casename, bytes):
-            self.casename = self.casename.decode("UTF-8")
 
         # TODO: Find a way to catch user-specified and radially varying
         #       diffusive coefficients when reading from file: userdifffname

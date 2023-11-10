@@ -88,7 +88,10 @@ class Tracker():
         # Get list of all variables written to setup block
         setupvars = self.get_bottomkeys(self.varinput['setup'])
         # Get a list of all input variables changed since save/read
-        changedvars = self.gather_changes(self.uevars['input']) 
+        changedvars = None
+        if 'input' in self.uevars:
+            changedvars = self.gather_changes(self.uevars['input'])
+
         # Changes detected
         if changedvars is not None:
             # Assert dictionary for detected changed variables exist
