@@ -1,4 +1,4 @@
-from typing import Tuple, Callable, TypeVar
+from typing import Tuple, Callable, TypeVar, List, Dict, Optional
 from pathlib import Path
 import random
 import uuid
@@ -278,9 +278,11 @@ class Campaign:
         # No simulations currently running or queued
         self.in_progress = {}
 
-    def closest_state(self) -> dict:
-        """
-        Return information about the state that is closest to the target
+    def closest_state(self) -> Optional[Dict]:
+        """ Return information about the converged state that is
+        closest to the target
+
+        May return None if no states have converged
         """
         closest = None
         for state in self.states.values():
@@ -294,7 +296,10 @@ class Campaign:
         """
         Return a measure of the closest distance to the target
         """
-        return self.closest_state()["distance"]
+        state = self.closest_state()
+        if state is None:
+            return float('inf')
+        return state["distance"]
 
     def fraction_progress(self) -> float:
         """
@@ -369,7 +374,7 @@ class Campaign:
         # Choose a starting dataset, preferring those that are close
         # to the target
 
-        def choose(states: list[T], weight_fn: Callable[[T], float]) -> T:
+        def choose(states: List[T], weight_fn: Callable[[T], float]) -> T:
             """
             Choose a random case using a function to calculate the weight
             """
@@ -381,6 +386,7 @@ class Campaign:
                 r -= weight
                 if r <= 0.0:
                     return state
+            return states_list[0]
 
         state = choose(
             list(self.states.values()),
@@ -490,7 +496,7 @@ class Campaign:
         self.in_progress[output_file] = new_run
         return new_run
 
-    def check_async(self) -> list[dict]:
+    def check_async(self) -> List[Dict]:
         """
         Check if any asyncronous jobs have finished. If so,
         move them from `in_progress` to the `states` dictionary,
@@ -530,7 +536,7 @@ class Campaign:
         delay: float = 0.5,
         output: str = "term",
         bar_length: int = 20,
-        save_file: str = None,
+        save_file: Optional[str] = None,
     ):
         """
         Run UEDGE simulations asyncronously until the target is reached
