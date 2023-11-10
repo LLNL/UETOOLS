@@ -21,7 +21,7 @@ elif sys.version_info >= (3,5):
 setup(
     name='UeTools',
     version='0.1.0',
-    packages=['uetools','uetools.UeGui','uetools.UeCase','uetools.UePlot'],
+    packages=['uetools','uetools.UeCase','uetools.UePlot'],
     maintainer='Bill Meyer',
     maintainer_email='meyer8@llnl.gov',
     description="LLNL Uedge tools",
