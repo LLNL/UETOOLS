@@ -20,13 +20,17 @@ class Solver(UeRun):
 
     def exmain(self):
         #        self.exmain_evals = self.get('exmain_evals') + 1
-        original_wd = os.getcwd()
-        try:
-            # Run in case directory
-            os.chdir(self.location)
+        if self.restored_from_hdf5 is False:
+            original_wd = os.getcwd()
+            try:
+                # Run in case directory
+                os.chdir(self.location)
+                packageobject("bbb").getpyobject("exmain")()
+            finally:
+                os.chdir(original_wd)
+        else:
             packageobject("bbb").getpyobject("exmain")()
-        finally:
-            os.chdir(original_wd)
+            
 
     def takestep(self, **kwargs):
         """
