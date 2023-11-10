@@ -19,8 +19,9 @@ class Plot:
                 return
 
         # TODO: figure out why createpolycollection bogs down Datbase?
-        if self.database is not True:
-            self.createvertices(rm, zm)
+#        if self.database is not True:
+#            self.createvertices(rm, zm)
+        self.createvertices(rm, zm)
         super().__init__(*args, **kwargs)
         return
 
@@ -771,7 +772,9 @@ class Plot:
         plates=False,
         latecolor='k',
         lcfs=True,
+        gridlinewidth=0.01,
         lcfscolor='grey',
+        gridlinecolor='k',
         plotgrid=False,
         **kwargs
     ):
@@ -782,8 +785,8 @@ class Plot:
         from copy import deepcopy
 
         if ax is None:
-            f = self.plotmesh(linewidth=0.02, vessel=vessel, plates=plates,
-                flip=flip, lcfs=lcfs)
+            f = self.plotmesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
+                flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor)
             ax = f.get_axes()[0]
         elif isinstance(ax, Figure):
             f = ax
@@ -792,8 +795,8 @@ class Plot:
         else:
             f = ax.get_figure()
         if plotgrid is True:
-            self.plotmesh(linewidth=0.02, vessel=vessel, plates=plates,
-                flip=flip, lcfs=lcfs, ax=ax)
+            self.plotmesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
+                flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor, ax=ax)
 
         rm = self.get("rm")
         zm = self.get("zm")
