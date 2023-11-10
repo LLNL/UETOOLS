@@ -86,7 +86,7 @@ class Misc():
         def typestr(var):
             for vt in ['int', 'float', 'bytes']:
                 if vt in str(type(var)):
-                    return vt
+                    return '({})'.format(vt)
             return type(var)
 
         def h5_tree(val, pre=''):
