@@ -187,7 +187,7 @@ class Case(
 
         conf = Config(verbose=verbose)
         if conf.configured is False:
-            return
+            print("WARNING: No configuration. Continuing")
         # TODO: add label attribute
         # Read from uedge.label and strip
         # Use to restore and/or save files
