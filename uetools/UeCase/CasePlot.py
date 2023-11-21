@@ -87,8 +87,8 @@ class Caseplot(Plot):
         return f
 
     # Expand the 2D plot list
-    def grid(self, **kwargs):
-        return self.plotmesh(**kwargs)
+    def grid(self, gridue=None, **kwargs):
+        return self.plotmesh(gridue, **kwargs)
 
     def heatmap(self, var, s=None, **kwargs):
         if isinstance(var, str):
