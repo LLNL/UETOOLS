@@ -19,14 +19,16 @@ class Config(Lookup):
         searchpath = path.expanduser("~")
         super().__init__()
         try:
-            config = safe_load(Path("{}/.uedgerc".format(searchpath)).read_text())
+            config = safe_load(Path("{}/.uetoolsrc".format(searchpath)).read_text())
             if verbose is True:
-                print("UEDGE configuration file {}/.uedgerc found.".format(searchpath))
+                print("UEDGE configuration file {}/.uetoolsrc found.".format(searchpath))
         except:
-            if self.createuedgerc() is False:
-                return False
-            else:
-                config = safe_load(Path("{}/.uedgerc".format(searchpath)).read_text())
+            print("No UETOOLS config file found: Configure file by calling Case.CreateConfig()")
+            return True
+#            if self.createuedgerc() is False:
+#                return False
+#            else:
+#                config = safe_load(Path("{}/.uetoolsrc".format(searchpath)).read_text())
 
         if self.inplace is False:
             for dirpath in ["aphdir", "apidir"]:
@@ -36,7 +38,7 @@ class Config(Lookup):
                     packobj.getpyobject(dirpath)[0] = config[dirpath].ljust(strlen)
                 except:
                     print(
-                        'Required path "{}" not found in .uedgerc. Aborting!'.format(
+                        'Required path "{}" not found in .uetoolsrc. Aborting!'.format(
                             dirpath
                         )
                     )
@@ -44,7 +46,7 @@ class Config(Lookup):
             # NOTE: what other information to write/store?
         return True
 
-    def createuedgerc(self):
+    def CreateConfig(self):
         from os import path
         from yaml import dump
 
@@ -53,7 +55,7 @@ class Config(Lookup):
         yes = ["yes", "y"]
         no = ["no", "n"]
         print("UEDGE config file not found!")
-        print("Create it here? [y/n]")
+        print("Create it at {}? [y/n]".format(searchpath))
         try:
             # Note: This can fail in subprocess
             create = input()
@@ -72,13 +74,13 @@ class Config(Lookup):
                         paths[dirpath] = path.abspath(defpath)
                         print("    Path defined successfully!")
         else:
-            print("Please create .uedgerc manually in your home directory")
+            print("Please create .uetoolsrc manually in your home directory")
             print("Aborting!")
             self.configured = False
             return False
-        with open("{}/.uedgerc".format(searchpath), "w") as file:
+        with open("{}/.uetoolsrc".format(searchpath), "w") as file:
             dump(paths, file)
-        print("UEDGE config file .uedgerc successfully created!")
+        print("UEDGE config file {}.uetoolsrc successfully created!".format(searchpath))
 
     def configured(self):
         return self.configured
