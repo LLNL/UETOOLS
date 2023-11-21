@@ -268,6 +268,7 @@ class Plot:
         rm, zm - radial and horizontal nodes
         """
         from matplotlib.pyplot import figure, Figure
+        from h5py import File
         from matplotlib.colors import LogNorm
         from matplotlib.collections import PolyCollection
         from copy import deepcopy
@@ -282,8 +283,16 @@ class Plot:
             self.createvertices(self.get("rm"), self.get("zm"))
     
         if z is not None:
-            if len(z.shape) != 2:
-                raise ValueError('Array to be plotted must be two-dimensional!')    
+            # Assume this is a path to a grid file
+            if isinstance(z, str):
+                # Read data into local vars to be used to create vertices later
+                with File(z) as f:
+                    rm = f['grid/com/rm'][()]
+                    zm = f['grid/com/zm'][()]
+                    z = None
+            else:
+                if len(z.shape) != 2:
+                    raise ValueError('Array to be plotted must be two-dimensional!')    
 
         if ax is None:
             f = figure(title, figsize=figsize)
@@ -615,7 +624,7 @@ class Plot:
         **kwargs
     ):
 
-        f = self.grid(plates=plates, lcfs=lcfs, vessel=vessel, 
+        f = self.plotmesh(plates=plates, lcfs=lcfs, vessel=vessel, 
             linewidth=linewidth)
         ax = f.get_axes()[0]
         # Check whether coords are given as poloidal or radial
