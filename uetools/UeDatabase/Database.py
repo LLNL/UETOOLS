@@ -33,6 +33,12 @@ class Database:
         self.rerun_dir = rerun_dir
         self.readinput = readinput
         self.create_database(database, not meshplot_setup)
+        self.ixmp = self.get("ixmp")[0]
+        self.iysptrx = self.get("iysptrx")[0]
+        self.ixpt1 = self.get("ixpt1")[0][0]
+        self.ixpt2 = self.get("ixpt2")[0][0]
+        self.nx = self.get("nx")[0]
+        self.ny = self.get("ny")[0]
         # TODO: Store commonly used grid locations
         # TODO: Account for different grids
 
@@ -75,35 +81,39 @@ class Database:
         with open("{}.db".format(savename.split(".")[0]), "wb") as f:
             dump(self, f)
 
-    def sort(self, variable, location, increasing=True):
+    def sort(self, variable, location, increasing=True, varname=''):
         """ Sorts cases according to variable at location
 
         Note: This works because python dict preserves the order
         of insertion (since python 3.7).
         """
-        from numpy import argsort, where
+        from numpy import argsort, where, ndarray
 
-        self.sortvar = variable
-        self.sortlocation = location
+        if isinstance(variable, str):
+            self.sortvar = variable
+            self.sortlocation = location
 
-        # Make sort location more advance
-        if self.sortlocation == "midplane":
-            self.ixmp = self.get("ixmp")[0]
-            self.iysptrx = self.get("iysptrx")[0]
-            self.sortlocation = (self.ixmp, self.iysptrx + 1)
-        elif isinstance(self.sortlocation, int):
-            self.sortlocation = [self.sortlocation]
-        elif isinstance(self.sortlocation, str):
-            print(
-                'Sort location option "{}" not recognized. Aborting'.format(
-                    self.sortlocation
+            # Make sort location more advance
+            if self.sortlocation == "midplane":
+                self.sortlocation = (self.ixmp, self.iysptrx + 1)
+            elif isinstance(self.sortlocation, int):
+                self.sortlocation = [self.sortlocation]
+            elif isinstance(self.sortlocation, str):
+                print(
+                    'Sort location option "{}" not recognized. Aborting'.format(
+                        self.sortlocation
+                    )
                 )
-            )
-        order = self.get(self.sortvar)
-        if len(order.shape)>1:
-            for ind in self.sortlocation:
-                order = order[:, ind]
-        order = argsort(order)
+            order = self.get(self.sortvar)
+            # Gets the correct indices
+            if len(order.shape)>1:
+                for ind in self.sortlocation:
+                    order = order[:, ind]
+            order = argsort(order)
+        elif isinstance(variable, (list, ndarray)):
+            self.sortvar = varname
+            order = argsort(variable)
+
         if increasing is False:
             order = order[::-1]
         neworder = {}
@@ -112,10 +122,14 @@ class Database:
             neworder[key] = self.cases[key]
         self.cases = neworder
 
-        self.scanvar = self.get(self.sortvar)
-        if self.sortlocation is not None:
-            for ind in self.sortlocation:
-                self.scanvar = self.scanvar[:, ind]
+        if isinstance(variable, str):
+            self.scanvar = self.get(self.sortvar)
+            if self.sortlocation is not None:
+                for ind in self.sortlocation:
+                    self.scanvar = self.scanvar[:, ind]
+        elif isinstance(variable, (list, ndarray)):
+            self.scanvar = variable[order] 
+
 
     def create_database(self, path, database):
         from  os.path import join, exists
@@ -221,7 +235,10 @@ class Database:
 
     def get_closest_key(self, target, var, index=None):
         from numpy import ndarray, where
-        vararr = self.get(var)
+        if isinstance(var, str):
+            vararr = self.get(var)
+        elif isinstance(var, (list, ndarray)):
+            vararr = var
         if (index is None) and (len(vararr.shape) >1):
             raise KeyError('Must define index for multi-species array')
         elif isinstance(index, int):
@@ -288,6 +305,7 @@ class Database:
             kwargs["color"] = "k"
 
         ax.plot(xvar, yvar, **kwargs)
+        ax.set_xlabel(self.sortvar)
 
         return ax.get_figure()
 
