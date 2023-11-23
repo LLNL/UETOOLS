@@ -774,6 +774,7 @@ class Plot:
         flip=False,
         levels=14,
         linewidth=0.5,
+        interplcfs=1,
         mask=True,
         ax=None,
         labels=True,
@@ -787,7 +788,7 @@ class Plot:
         plotgrid=False,
         **kwargs
     ):
-        from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
+        from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num, concatenate
         from scipy.interpolate import griddata, bisplrep
         from matplotlib.patches import Polygon
         from matplotlib.pyplot import subplots, Figure
@@ -811,6 +812,9 @@ class Plot:
         zm = self.get("zm")
         nx = self.get("nx")
         ny = self.get("ny")
+        ixpt1 = self.get("ixpt1")[0]
+        ixpt2 = self.get("ixpt2")[0]
+        iysptrx = self.get("iysptrx")
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             if flip is True:
                 zm = -zm + self.disp
@@ -849,15 +853,57 @@ class Plot:
             rm.min() : rm.max() : resolution[0], zm.min() : zm.max() : resolution[1]
         ]
 
+        if interplcfs == 1:
+            # Fix for LCFS - no interpolation knows about the LCFS
+            xtrax = rm[ixpt2, iysptrx, 4]
+            xtray = zm[ixpt2, iysptrx, 4]
+            d0 = (  (rm[ixpt2, iysptrx, 0] - xtrax)**2 + 
+                    (zm[ixpt2, iysptrx, 0] - xtray)**2)**0.5
+            d1 = (  (rm[ixpt1, iysptrx, 0] - xtrax)**2 + 
+                    (zm[ixpt1, iysptrx, 0] - xtray)**2)**0.5
+            varp1 = var[ixpt1, iysptrx]
+            xtraz = (d0*var[ixpt2, iysptrx] + d1*varp1)/(d0 + d1)
+            orig = (concatenate((rm[:, :, 0].ravel(), array((xtrax,)))),
+                    concatenate((zm[:, :, 0].ravel(), array((xtray,)))))
+            fullvar = concatenate((var.ravel(), array((xtraz,))))
+
+        elif interplcfs == 2:
+            # Fix for LCFS - no interpolation knows about the LCFS
+            xtrax, xtray, xtraz = [], [], []
+            for i in range(ixpt1+1, ixpt2+1):
+                xtrax.append(rm[i, iysptrx, 4])
+                xtray.append(zm[i, iysptrx, 4])
+                d0 = (  (rm[i, iysptrx, 0] - xtrax[-1])**2 + 
+                        (zm[i, iysptrx, 0] - xtray[-1])**2)**0.5
+                if i == ixpt2:
+                    d1 = (  (rm[ixpt1, iysptrx, 0] - xtrax[-1])**2 + 
+                            (zm[ixpt1, iysptrx, 0] - xtray[-1])**2)**0.5
+                    varp1 = var[ixpt1, iysptrx]
+                else:
+                    d1 = (  (rm[i+1, iysptrx, 0] - xtrax[-1])**2 + 
+                            (zm[i+1, iysptrx, 0] - xtray[-1])**2)**0.5
+                    varp1 = var[i+1, iysptrx]
+                xtraz.append( (d0*var[i, iysptrx] + d1*varp1)/\
+                        (d0 + d1))
+            orig = (concatenate((rm[:, :, 0].ravel(), array(xtrax))),
+                    concatenate((zm[:, :, 0].ravel(), array(xtray))))
+            fullvar = concatenate((var.ravel(), array(xtraz)))
+
+        else:
+            orig = (rm[:, :, 0].ravel(), zm[:, :, 0].ravel())
+            fullvar = var.ravel()
+            
+
         # Previous implementation, which (incorrectly) assumed values to
         # be given for cell-centers
         #        xinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
         #            x[1:-1,1:-1].ravel(), (gx, gy))
         #        yinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
         #            y[1:-1,1:-1].ravel(), (gx, gy))
-        varinterp = griddata(
-            (rm[1:-1, 1:-1, 0].ravel(), zm[1:-1, 1:-1, 0].ravel()), 
-            var[1:-1, 1:-1].ravel(), (gx, gy),
+        varinterp = griddata( orig,
+            fullvar, (gx, gy), method='cubic'
+#            (rm[1:-1, 1:-1, 0].ravel(), zm[1:-1, 1:-1, 0].ravel()), 
+#            var[1:-1, 1:-1].ravel(), (gx, gy)
         )
 
         if mask is True:
