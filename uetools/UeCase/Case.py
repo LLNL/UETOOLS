@@ -810,12 +810,15 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 elif self.getue("isbohmcalc") == 2:
                     print("  Radial diffusivities read from HDF5 file")
                     self.radialdifffname = setupfile
+            # NOTE: the below coding looks for diffusivities in the 
+            # input file: should probably look somewhere else. Remove
+            # for the time being
             # See if diffusivities unset despite being user-defined
             # If yes, try looking for them in the case being restored
-            if (self.getue("isbohmcalc") in [0, 1]) and (self.userdifffname is None):
-                self.userdifffname = self.filename
-            elif (self.getue("isbohmcalc") == 2) and (self.radialdifffname is None):
-                self.radialdifffname = self.filename
+#            if (self.getue("isbohmcalc") in [0, 1]) and (self.userdifffname is None):
+#                self.userdifffname = self.filename
+#            elif (self.getue("isbohmcalc") == 2) and (self.radialdifffname is None):
+#                self.radialdifffname = self.filename
 
             if self.userdifffname:
                 try:
