@@ -855,8 +855,8 @@ class Plot:
 
         if interplcfs == 1:
             # Fix for LCFS - no interpolation knows about the LCFS
-            xtrax = rm[ixpt2, iysptrx, 4]
-            xtray = zm[ixpt2, iysptrx, 4]
+            xtrax = 0.5*(rm[ixpt2, iysptrx, 4] + rm[ixpt2, iysptrx, 2])
+            xtray = 0.5*(zm[ixpt2, iysptrx, 4] + zm[ixpt2, iysptrx, 2])
             d0 = (  (rm[ixpt2, iysptrx, 0] - xtrax)**2 + 
                     (zm[ixpt2, iysptrx, 0] - xtray)**2)**0.5
             d1 = (  (rm[ixpt1, iysptrx, 0] - xtrax)**2 + 
