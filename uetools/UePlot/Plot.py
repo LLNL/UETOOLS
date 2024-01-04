@@ -786,6 +786,8 @@ class Plot:
         lcfscolor='grey',
         gridlinecolor='k',
         plotgrid=False,
+        xlim=(None,None),
+        ylim=(None,None),
         **kwargs
     ):
         from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num, concatenate
@@ -917,6 +919,10 @@ class Plot:
                 gx, gy, varinterp, levels=levels, linewidths=linewidth, 
                 colors=color, **kwargs
         )
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        ax.set_xlabel("R [m]")
+        ax.set_ylabel("Z [m]")
         if labels is True:
             ax.clabel(CS, fontsize=9, inline=False, fmt='% 1.2e')
 
