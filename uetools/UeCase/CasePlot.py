@@ -3,13 +3,6 @@ from uetools.UePlot import Plot
 
 
 class Caseplot(Plot):
-    def __init__(self, *args, **kwargs):
-        # Calculate distances along targets
-        self.otdistance = self.get("yyrb")
-        self.itdistance = self.get("yylb")
-        super().__init__(*args, **kwargs)
-        return
-
     # TODO: implement profile plots
 
     # TODO: fix this function
@@ -36,31 +29,67 @@ class Caseplot(Plot):
         return dist - dsep
 
     def it(self, variable, marksep=True, staggered=False, **kwargs):
-        # Exchange YYC for working radialdistance
         fig = self.plotprofile(
-            self.itdistance[1:-1], variable[0 ** staggered, 1:-1], **kwargs
+            self.get('yylb')[1:-1], variable[0 ** staggered, 1:-1], **kwargs
         )
         # Add Sep location if requested
         if marksep is True:
-            fig.get_axes()[0].axvline(0, color="g", linewidth=1)
+            fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
         return fig
 
     def ot(self, variable, marksep=True, **kwargs):
-        # Exchange YYC for working radialdistance
-        fig = self.plotprofile(self.otdistance[1:-1], variable[-2, 1:-1], **kwargs)
+        fig = self.plotprofile(self.get('yyrb')[1:-1], variable[-2, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
-            fig.get_axes()[0].axvline(0, color="g", linewidth=1)
+            fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
         return fig
 
-    def omp(self):
-        return
+    def omp(self, variable, marksep=True, **kwargs):
+        fig = self.plotprofile(self.get('yyc')[1:-1], variable[self.get('ixmp'), 1:-1], **kwargs)
+        # Add Sep location if requested
+        if marksep is True:
+            fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
+        return fig
 
     def imp(self):
         return
 
-    def row(self):
-        return
+    def row(self, variable, ix, marksep=True, **kwargs):
+        fig = self.plotprofile(self.get('yyc')[1:-1], variable[ix, 1:-1], **kwargs)
+        # Add Sep location if requested
+        if marksep is True:
+            fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
+        return fig
+
+    def ft(self, variable, iy, markxpts=True, **kwargs):
+        from numpy import concatenate
+        # Check if we are in the PFR
+        ixpt1 = self.get('ixpt1')[0]
+        ixpt2 = self.get('ixpt2')[0]
+        if (self.get('ixp1')[ixpt1, iy] - ixpt1) == 1:
+            x = self.lcon[1:-1, iy]
+            fig = self.plotprofile(x, variable[1:-1, iy], **kwargs)
+            # Add Sep location if requested
+            if markxpts is True:
+                xpt1 = 0.5*sum(self.lcon[ixpt1:ixpt1+2, iy])
+                xpt2 = 0.5*sum(self.lcon[ixpt2:ixpt2+2, iy])
+                fig.get_axes()[0].axvline(xpt1, color="grey", linewidth=1)
+                fig.get_axes()[0].axvline(xpt2, color="grey", linewidth=1)
+        else:
+            xpt = self.lcon[ixpt1, iy]  
+            x = concatenate((self.lcon[:ixpt1+1, iy], self.lcon[ixpt2+1:, iy]+xpt))
+            y = concatenate((variable[:ixpt1+1, iy], variable[ixpt2+1:, iy]))
+            fig = self.plotprofile(x, y, **kwargs)
+            if markxpts is True:
+                xpt = 0.5*(self.lcon[ixpt1,iy] + self.lcon[ixpt2+1, iy])
+                fig.get_axes()[0].axvline(xpt, color="grey", linewidth=1)
+
+        return fig
+
+    def sep(self, variable, markxpts=True, **kwargs):
+        return self.ft(variable, self.get('iysptrx')+1, markxpts=markxpts, **kwargs)
+        
+
 
     def neOT(self, s=None, **kwargs):
         f = self.ot(self.get('ne', s), **kwargs)
@@ -85,6 +114,31 @@ class Caseplot(Plot):
         f.get_axes()[0].set_ylabel(r'$\rm T_i^{LFS-t}~[eV]$')
         f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
         return f
+
+    def neIT(self, s=None, **kwargs):
+        f = self.it(self.get('ne', s), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm n_e^{HFS-t}~[m^{-3}]$')
+        f.get_axes()[0].set_xlabel('Distance along HFS-t [m]')
+        return f
+
+    def teIT(self, s=None, **kwargs):
+        f = self.it(self.get('te', s)/self.get('ev'), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm T_e^{HFS-t}~[eV]$')
+        f.get_axes()[0].set_xlabel('Distance along HFS-t [m]')
+        return f
+
+    def niIT(self, s=None, **kwargs):
+        f = self.it(self.get('ni', s), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm n_i^{HFS-t}~[m^{-3}]$')
+        f.get_axes()[0].set_xlabel('Distance along HFS-t [m]')
+        return f
+
+    def tiIT(self, s=None, **kwargs):
+        f = self.it(self.get('ti', s)/self.get('ev'), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm T_i^{HFS-t}~[eV]$')
+        f.get_axes()[0].set_xlabel('Distance along HFS-t [m]')
+        return f
+
 
     # Expand the 2D plot list
     def grid(self, gridue=None, **kwargs):
