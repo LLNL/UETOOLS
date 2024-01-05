@@ -209,7 +209,7 @@ class Plot:
         if ax is None:  # Create figure if no axis supplied
             f = figure(title, figsize=figsize)
             ax = f.add_subplot()
-        elif ax is Figure:
+        elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
         # Switch to identify requested plot type
         if logx and logy:
@@ -621,6 +621,8 @@ class Plot:
         linewidth=0.1,
         alpha=True,
         uniformsize=False,
+        xlim=(None, None),
+        ylim=(None, None),
         **kwargs
     ):
 
@@ -636,8 +638,8 @@ class Plot:
             y = rad
         magnitude = (pol**2 + rad**2)**0.5
         if uniformsize is True:
-            x /= magnitude
-            y /= magnitude
+            x /= (magnitude + 1e-20)
+            y /= (magnitude + 1e-20)
 
         magnitude=magnitude[1:-1, 1:-1]
         magnitude /= magnitude.max()
@@ -661,6 +663,10 @@ class Plot:
             headaxislength=headlength,
             **kwargs
         )
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        ax.set_xlabel("R [m]")
+        ax.set_ylabel("Z [m]")
 
         return f
 
@@ -676,6 +682,8 @@ class Plot:
         maxlength=0.4,
         mask=True,
         density=2,
+        xlim=(None, None),
+        ylim=(None, None),
         **kwargs
     ):
         from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
@@ -762,6 +770,11 @@ class Plot:
             **kwargs
         )
 
+        ax = f.get_axes()[0]
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        ax.set_xlabel("R [m]")
+        ax.set_ylabel("Z [m]")
         return f
 
 
