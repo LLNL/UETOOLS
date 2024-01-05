@@ -1,7 +1,18 @@
 
 
 class Misc():
+    def __init__(self, *args, **kwargs):
+        from numpy import cumsum
+        # Calc and store connection lengths
+        self.lcon = cumsum(1/(self.get('rr')*self.get('gx')), axis=0)
+        # No connlen for core cells
+        self.lcon[self.ixpt1+1:self.ixpt2+1,:self.iysptrx+1] = 0
+        self.lcon[self.ixpt2+1:, :self.iysptrx+1] = cumsum(1/(self.get('rr')*self.get('gx'))[self.ixpt2+1:,:self.iysptrx+1], axis=0)
+        super().__init__(*args, **kwargs)
+        return
 
+
+    
 
     def about_setup(self):
         """ Function outputting data about setup """
