@@ -198,7 +198,337 @@ class PostProcessors:
 
         return upi, self.forcebalance
                  
+    def calc_momentum_balance(self):
+        """ Calculates the momentum and force-balance terms based on rdmom_res_up_v8.py
+        originally written by Tom Rognlin, Menglong Zhao and Filippo Scotti
 
+        A script that computes components of partial_up/partial_t,
+        Units of terms = [m/s**2] = (vpar/time) i.e. acceleration.
+        
+        8 components correspond to array names:
+        (fmoxv,floyv,pridxv,efieldfv,thermfv,momfricv,momizv,momcxrecv)
+        Index associated with the component names above: (1,2,3,4,5,6,7,8).
+
+        Right-hand side of total momentum eqn is up_net(ix,iy,ifld).
+        Amplitude order of up_net components are in ordcmpname
+
+        """
+        from numpy import zeros,abs,empty,int
+        from sys import modules
+        self.momentum ={"momentum":{},"force":{},"amplitude":{},"rank":{}}
+
+        # Load all variables necessary to the local namespace
+        for var in ['ev', 'misotope', 'natomic', 'mi', 'zi', 'rrv', 'gpex', 
+            'gpix', 'gtex', 'gtix', 'pri', 'netap', 'qe', 'fqp', 'sx',
+            'alfe', 'loglambda', 'betai', 'ex', 'vol', 'up', 'volmsor',
+            'pondomfpari_use','nx','ny','nusp','ixm1','ixp1','fmix','fmixy',
+            'gxf','volv','ni','uu','fmiy','cpiup','qe','frici','fricnrl',
+            'cfmsor','msor','msorxr','psor','psorxr','iysptrx','dx','rr',
+            'nuiz','iigsp','cfneut','nm','cfupcx','nurc','nucx','fnix',
+            'fniy',
+        ]:
+            setattr(modules[__name__], var, self.get(var))       
+
+        # Set up necessary arrays
+        # Components of momentum eqn
+        fmox = zeros((nx+2,ny+2,nusp))
+        fmoxconv = zeros((nx+2,ny+2,nusp))
+        fmoxvis = zeros((nx+2,ny+2,nusp))
+        fmoy = zeros((nx+2,ny+2,nusp))
+        pridx = zeros((nx+2,ny+2,nusp))
+        efieldf = zeros((nx+2,ny+2,nusp))
+        thermf = zeros((nx+2,ny+2,nusp))
+        momfric = zeros((nx+2,ny+2,nusp))
+        momiz = zeros((nx+2,ny+2,nusp))
+        momcxrec = zeros((nx+2,ny+2,nusp))
+        sxv = zeros((nx+2,ny+2))
+
+        # Components of upar eqn
+        fmoxv = zeros((nx+2,ny+2,nusp))
+        fmoyv = zeros((nx+2,ny+2,nusp))
+        pridxv = zeros((nx+2,ny+2,nusp))
+        efieldfv = zeros((nx+2,ny+2,nusp))
+        thermfv = zeros((nx+2,ny+2,nusp))
+        momfricv = zeros((nx+2,ny+2,nusp))
+        momizv = zeros((nx+2,ny+2,nusp))
+        momcxrecv = zeros((nx+2,ny+2,nusp))
+
+       
+
+        # Sum of components
+        up_net = zeros((nx+2,ny+2,nusp))
+        mom_net = zeros((nx+2,ny+2,nusp))
+
+        xparrb = zeros((nx+2,ny+2))    # parallel distance from right bdry
+
+        # Compute components of momentum equation; these are resmo/volv
+        for iis in range(nusp):  # loop over all momentum eqns
+            for iy in range(1,ny+1):
+                for ix in range(1,nx):
+                    ix1 = ixm1[ix,iy]
+                    ix2 = ixp1[ix,iy]
+                    vratio = sx[ix,iy]/(gxf[ix,iy]*volv[ix,iy])
+            
+                    fmox[ix,iy,iis] = ( -(fmix[ix2,iy,iis] - fmixy[ix2,iy,iis]) + \
+                                (fmix[ix, iy,iis] - fmixy[ix, iy,iis]) )/volv[ix,iy]
+                    sxv[ix,iy] = 0.5*(sx[ix1,iy]+sx[ix,iy])
+                    sxv[ix2,iy] = 0.5*(sx[ix,iy]+sx[ix2,iy])
+                    fmoxconv[ix,iy,iis] =mi[iis]*(-ni[ix2,iy,iis]*uu[ix2,iy,iis]*up[ix2,iy,iis]* \
+                                                                        sxv[ix2,iy] \
+                                +ni[ix,iy,iis]*uu[ix,iy,iis]*up[ix,iy,iis]*sxv[ix,iy])/ \
+                                                                            volv[ix,iy]
+                    fmoxvis[ix,iy,iis] = fmox[ix,iy,iis] - fmoxconv[ix,iy,iis]
+
+                    fmoy[ix,iy,iis] = ( -fmiy[ix,iy,iis] + fmiy[ix,iy-1,iis])/volv[ix,iy]
+
+                    pridx[ix,iy,iis] = -cpiup[iis]*gpix[ix,iy,iis]*rrv[ix,iy]*vratio
+
+                    efieldf[ix,iy,iis] =  qe*zi[iis]*0.5*(ni[ix2,iy,iis]+ni[ix,iy,iis])* \
+                                                ex[ix,iy]*rrv[ix,iy]*vratio
+
+                    thermf[ix,iy,iis] = frici[ix,iy,iis]*vratio
+
+                    momfric[ix,iy,iis] = fricnrl[ix,iy,iis]
+
+                    momiz[ix,iy,iis] = cfmsor*msor[ix,iy,iis]/volv[ix,iy]
+
+                    momcxrec[ix,iy,iis] = cfmsor*msorxr[ix,iy,iis]/volv[ix,iy]
+
+        # For hydrogen ion (iis=0) and atoms (iis=1), charge-exchange terms given below:
+        #iigsp - 1  ... python indexing
+        for iy in range(1,ny+1):
+            for ix in range(1,nx):
+                ix2 = ixp1[ix,iy]
+                momiz[ix,iy,0] = cfneut*0.25*(nuiz[ix,iy,0]+nuiz[ix2,iy,0])* \
+                                        (nm[ix,iy,iigsp-1]+nm[ix2,iy,iigsp-1])* \
+                                                            up[ix,iy,iigsp-1]
+                momcxrec[ix,iy,0] = cfneut*cfupcx*0.25* \
+                                        (nucx[ix,iy,0]+nucx[ix2,iy,0])* \
+                                        (nm[ix,iy,iigsp-1]+nm[ix2,iy,iigsp-1])* \
+                                            (up[ix,iy,iigsp-1]-up[ix,iy,0]) - \
+                                cfneut*0.25*(nurc[ix,iy,0]+nurc[ix2,iy,0])* \
+                                            (nm[ix,iy,0]+nm[ix2,iy,0])* \
+                                                up[ix,iy,0]
+                momiz[ix,iy,1] = -momiz[ix,iy,0]
+                momcxrec[ix,iy,1] = - momcxrec[ix,iy,0]
+
+        # Add all terms from the momentum density equation
+        mom_net = fmox+fmoy+pridx+efieldf+thermf+momfric+momiz+momcxrec
+
+        self.momentum['momentum']['fmox'] = fmox
+        self.momentum['momentum']['fmoy'] = fmoy
+        self.momentum['momentum']['pridx'] = pridx
+        self.momentum['momentum']['efieldf'] = efieldf
+        self.momentum['momentum']['thermf'] = thermf
+        self.momentum['momentum']['momfric'] = momfric
+        self.momentum['momentum']['momiz'] = momiz
+        self.momentum['momentum']['momcxrec'] = momcxrec
+        self.momentum['momentum']['mom_net'] = mom_net
+
+        ###############################################################################
+        ################ next compute  components for partial(v_par)/partial_t ########
+        # Compute components of vpar equation                                  ########
+        # Note: because of staggered up mesh wrt ni mesh, when adding the contribution
+        # from mi*up*dn/dt, must average over 2 poloidal cells; should still conserve
+        # up because each 2 cells in simple 50/50 average is in steady-state.
+
+        for iis in range(nusp):  # loop over all momentum eqns
+            for iy in range(1,ny+1):
+                for ix in range(1,nx):
+                    ix1 = ixm1[ix,iy]
+                    ix2 = ixp1[ix,iy]
+                    nbar = 0.5*(ni[ix,iy,iis]+ni[ix2,iy,iis])
+            
+                    # Explicitly showning fnix(ix,iy,ifld) even though it cancels
+                    fmoxv[ix,iy,iis] = ( fmox[ix,iy,iis]/mi[iis] \
+                                - up[ix,iy,iis]*0.5*(fnix[ix1,iy,iis]-fnix[ix ,iy,iis] \
+                                                    +fnix[ix ,iy,iis]-fnix[ix2,iy,iis]) )\
+                                                                            /nbar
+
+                    fmoyv[ix,iy,iis] = ( fmoy[ix,iy,iis]/mi[iis] \
+                                -up[ix,iy,iis]*0.5*(-fniy[ix ,iy,iis]+fniy[ix ,iy-1,iis] \
+                                                    -fniy[ix2,iy,iis]+fniy[ix2,iy-1,iis]) )\
+                                                                            /nbar
+
+                    pridxv[ix,iy,iis] = pridx[ix,iy,iis]/(mi[iis]*nbar)
+
+                    efieldfv[ix,iy,iis] =  efieldf[ix,iy,iis]/(mi[iis]*nbar)
+
+                    thermfv[ix,iy,iis] = thermf[ix,iy,iis]/(mi[iis]*nbar)
+
+                    momfricv[ix,iy,iis] = momfric[ix,iy,iis]/(mi[iis]*nbar)
+
+                    momizv[ix,iy,iis] = momiz[ix,iy,iis]/(mi[iis]*nbar) \
+                                -up[ix,iy,iis]*0.5*(psor[ix,iy,iis]+psor[ix2,iy,iis])/nbar
+
+                    momcxrecv[ix,iy,iis] = momcxrec[ix,iy,iis]/(mi[iis]*nbar) \
+                                    -up[ix,iy,iis]*0.5*(psorxr[ix,iy,iis]+psorxr[ix2,iy,iis])\
+                                                                            /nbar
+
+        # For hydrogen ion (is=1) and atoms (is=2), charge-exchange terms given below:
+        for iis in range(2):
+            for iy in range(1,ny+1):
+                for ix in range(1,nx):
+                    ix2 = ixp1[ix,iy]
+                    nbar = 0.5*(ni[ix,iy,iis]+ni[ix2,iy,iis])
+                    momizv[ix,iy,iis] = momiz[ix,iy,iis]/(mi[iis]*nbar) \
+                                -up[ix,iy,iis]*0.5*(psor[ix,iy,iis]+psor[ix2,iy,iis])/nbar
+
+                    momcxrecv[ix,iy,iis] = momcxrec[ix,iy,iis]/(mi[iis]*nbar) \
+                            -up[ix,iy,iis]*0.5*(psorxr[ix,iy,iis]+psorxr[ix2,iy,iis])/nbar
+
+        # Add all terms from the momentum energy density equation
+        up_net = fmoxv+fmoyv+pridxv+efieldfv+thermfv+momfricv+momizv+momcxrecv
+
+        self.momentum['force']['fmoxv'] = fmoxv
+        self.momentum['force']['fmoyv'] = fmoyv
+        self.momentum['force']['pridxv'] = pridxv
+        self.momentum['force']['efieldfv'] = efieldfv
+        self.momentum['force']['thermfv'] = thermfv
+        self.momentum['force']['momfricv'] = momfricv
+        self.momentum['force']['momizv'] = momizv
+        self.momentum['force']['momcxrecv'] = momcxrecv
+        self.momentum['force']['up_net'] = up_net
+
+        # Compute absolute values
+        afmoxv = abs(fmoxv)
+        afmoyv = abs(fmoyv)
+        apridxv = abs(pridxv)
+        aefieldfv = abs(efieldfv)
+        athermfv = abs(thermfv)
+        amomfricv = abs(momfricv)
+        amomizv = abs(momizv)
+        amomcxrecv = abs(momcxrecv)
+
+        self.momentum['amplitude']['afmoxv'] = afmoxv
+        self.momentum['amplitude']['afmoyv'] = afmoyv
+        self.momentum['amplitude']['apridxv'] = apridxv
+        self.momentum['amplitude']['aefieldfv'] = aefieldfv
+        self.momentum['amplitude']['athermfv'] = athermfv
+        self.momentum['amplitude']['amomfricv'] = amomfricv
+        self.momentum['amplitude']['amomizv'] = amomizv
+        self.momentum['amplitude']['amomcxrecv'] = amomcxrecv
+
+
+        cmpname = empty(8,dtype=('U',9)) #component name
+        maxcomp = zeros((nx+2,ny+2,nusp))  # Maxim component amplitude code
+        ordcmpname = empty((nx+2,ny+2,nusp,8),dtype=('U',9)) #cmp order by name
+        ordcmpidx = zeros((nx+2,ny+2,nusp,8),dtype=int)      #cmp order by index
+
+        #this can be simplified...
+        for iis in range(nusp):   #identify max component
+            for iy in range(1,ny+1):
+                for ix in range(1,nx):
+                    ordcmpidx[ix,iy,iis,0] = 1
+                    ordcmpname[ix,iy,iis,0] = "fmoxv"
+                    mxc = afmoxv[ix,iy,iis]
+                    if (afmoyv[ix,iy,iis] > mxc):
+                        ordcmpidx[ix,iy,iis,0] = 2
+                        ordcmpname[ix,iy,iis,0] = "fmoyv"
+                        mxc = afmoyv[ix,iy,iis]
+                    if (apridxv[ix,iy,iis] > mxc): 
+                        ordcmpidx[ix,iy,iis,0] = 3
+                        ordcmpname[ix,iy,iis,0] = "pridxv"
+                        mxc = apridxv[ix,iy,iis]
+                    if (aefieldfv[ix,iy,iis] > mxc):
+                        ordcmpidx[ix,iy,iis,0] = 4
+                        ordcmpname[ix,iy,iis,0] = "efieldfv"
+                        mxc = aefieldfv[ix,iy,iis]
+                    if (athermfv[ix,iy,iis] > mxc):
+                        ordcmpidx[ix,iy,iis,0] = 5
+                        ordcmpname[ix,iy,iis,0] = "thermfv"
+                        mxc = athermfv[ix,iy,iis]
+                    if (amomfricv[ix,iy,iis] > mxc):
+                        ordcmpidx[ix,iy,iis,0] = 6
+                        ordcmpname[ix,iy,iis,0] = "momfricv"
+                        mxc = amomfricv[ix,iy,iis]
+                    if (amomizv[ix,iy,iis] > mxc):
+                        ordcmpidx[ix,iy,iis,0] = 7
+                        ordcmpname[ix,iy,iis,0] = "momizv"
+                        mxc = amomizv[ix,iy,iis]
+                    if (amomcxrecv[ix,iy,iis] > mxc):
+                        ordcmpidx[ix,iy,iis,0] = 8
+                        ordcmpname[ix,iy,iis,0] = "momcxrecv"
+                        mxc = amomcxrecv[ix,iy,iis]
+                    maxcomp[ix,iy,iis] = mxc
+
+        for iis in range(nusp):   #identify second largest component
+            for iy in range(1,ny+1):
+                for ix in range(1,nx):
+                    maxval = 0.
+                    if (ordcmpidx[ix,iy,iis,0] != 1):
+                        maxval = afmoxv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 1
+                        ordcmpname[ix,iy,iis,1] = "fmoxv"
+                    if (ordcmpidx[ix,iy,iis,0] != 2 and maxval<afmoyv[ix,iy,iis]):
+                        maxval = afmoyv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 2
+                        ordcmpname[ix,iy,iis,1] = "fmoyv"
+                    if (ordcmpidx[ix,iy,iis,0] != 3 and maxval<apridxv[ix,iy,iis]):
+                        maxval = apridxv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 3
+                        ordcmpname[ix,iy,iis,1] = "pridxv"
+                    if (ordcmpidx[ix,iy,iis,0] != 4 and maxval<aefieldfv[ix,iy,iis]):
+                        maxval = aefieldfv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 4
+                        ordcmpname[ix,iy,iis,1] = "efieldfv"
+                    if (ordcmpidx[ix,iy,iis,0] != 5 and maxval<athermfv[ix,iy,iis]):
+                        maxval = athermfv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 5
+                        ordcmpname[ix,iy,iis,1] = "thermfv"
+                    if (ordcmpidx[ix,iy,iis,0] != 6 and maxval<amomfricv[ix,iy,iis]):
+                        maxval = amomfricv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 6
+                        ordcmpname[ix,iy,iis,1] = "momfricv"
+                    if (ordcmpidx[ix,iy,iis,0] != 7 and maxval<amomizv[ix,iy,iis]):
+                        maxval = amomizv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 7
+                        ordcmpname[ix,iy,iis,1] = "momizv"
+                    if (ordcmpidx[ix,iy,iis,0] != 8 and maxval<amomcxrecv[ix,iy,iis]):
+                        maxval = amomcxrecv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,1] = 8
+                        ordcmpname[ix,iy,iis,1] = "momcxrecv"
+
+        for iis in range(nusp):   #identify third largest component
+            for iy in range(1,ny+1):
+                for ix in range(1,nx):
+                    maxval = 0.
+                    if (ordcmpidx[ix,iy,iis,0] != 1 and ordcmpidx[ix,iy,iis,1] != 1):
+                        maxval = afmoxv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,2] = 1
+                        ordcmpname[ix,iy,iis,2] = "fmoxv"
+                    if (ordcmpidx[ix,iy,iis,0] != 2 and ordcmpidx[ix,iy,iis,1] != 2 and maxval<afmoyv[ix,iy,iis]):
+                        maxval = afmoyv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,2] = 2
+                        ordcmpname[ix,iy,iis,2] = "fmoyv"
+                    if (ordcmpidx[ix,iy,iis,0] != 3 and ordcmpidx[ix,iy,iis,1] != 3 and maxval<apridxv[ix,iy,iis]):
+                        maxval = apridxv[ix,iy,iis] 
+                        ordcmpidx[ix,iy,iis,2] = 3
+                        ordcmpname[ix,iy,iis,2] = "pridxv"
+                    if (ordcmpidx[ix,iy,iis,0] != 4 and ordcmpidx[ix,iy,iis,1] != 4 and maxval<aefieldfv[ix,iy,iis]):
+                        maxval = aefieldfv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,2] = 4
+                        ordcmpname[ix,iy,iis,2] = "efieldfv"
+                    if (ordcmpidx[ix,iy,iis,0] != 5 and ordcmpidx[ix,iy,iis,1] != 5 and maxval<athermfv[ix,iy,iis]):
+                        maxval = athermfv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,2] = 5
+                        ordcmpname[ix,iy,iis,2] = "thermfv"
+                    if (ordcmpidx[ix,iy,iis,0] != 6 and ordcmpidx[ix,iy,iis,1] != 6 and maxval<amomfricv[ix,iy,iis]):
+                        maxval = amomfricv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,2] = 6
+                        ordcmpname[ix,iy,iis,2] = "momfricv"
+                    if (ordcmpidx[ix,iy,iis,0] != 7 and ordcmpidx[ix,iy,iis,1] != 7 and maxval<amomizv[ix,iy,iis]):
+                        maxval = amomizv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,2] = 7
+                        ordcmpname[ix,iy,iis,2] = "momizv"
+                    if (ordcmpidx[ix,iy,iis,1] != 8 and ordcmpidx[ix,iy,iis,2] != 8 and maxval<amomcxrecv[ix,iy,iis]):
+                        maxval = amomcxrecv[ix,iy,iis]
+                        ordcmpidx[ix,iy,iis,2] = 8
+                        ordcmpname[ix,iy,iis,2] = "momcxrecv"
+
+        self.momentum['rank']['ordcmpidx'] = ordcmpidx
+        self.momentum['rank']['ordcmpname'] = ordcmpname
+        self.momentum['rank']['maxcomp'] = maxcomp
 
     def pradpltwl(self):
         from numpy import zeros, pi, cos
