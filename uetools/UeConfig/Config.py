@@ -21,9 +21,10 @@ class Config(Lookup):
         try:
             config = safe_load(Path("{}/.uetoolsrc".format(searchpath)).read_text())
             if verbose is True:
-                print("UEDGE configuration file {}/.uetoolsrc found.".format(searchpath))
+                print("UEDGE configuration file {}/.uetoolsrc read.".format(searchpath))
         except:
             print("No UETOOLS config file found: Configure file by calling Case.CreateConfig()")
+            print("Alternatively, manually create the .uetoolsrc configuration YAML in your home directory.")
             return True
 #            if self.createuedgerc() is False:
 #                return False
@@ -37,12 +38,13 @@ class Config(Lookup):
                     strlen = len(packobj.getpyobject(dirpath)[0])
                     packobj.getpyobject(dirpath)[0] = config[dirpath].ljust(strlen)
                 except:
-                    print(
-                        'Required path "{}" not found in .uetoolsrc. Aborting!'.format(
-                            dirpath
-                        )
-                    )
-                    return False
+#                    print(
+#                        'Required path "{}" not found in .uetoolsrc. Aborting!'.format(
+#                            dirpath
+#                        )
+#                    )
+                    pass
+#                    return False
             # NOTE: what other information to write/store?
         return True
 
