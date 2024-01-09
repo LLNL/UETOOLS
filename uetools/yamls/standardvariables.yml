@@ -60,6 +60,8 @@ grid:
         - 'gxf'
         - 'gy'
         - 'gyf'
+        - 'rr'
+        - 'rrv'
     grd:
         - 'nplate1'
         - 'rplate1'
