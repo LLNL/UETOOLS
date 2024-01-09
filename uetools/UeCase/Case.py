@@ -8,6 +8,7 @@ from uetools.UeUtils.Convert import Convert
 from uetools.UeUtils.RadTransp import RadTransp
 from uetools.UeUtils.Interpolate import Interpolate
 from uetools.UeUtils.ConvergeStep import ConvergeStep
+from uetools.UeUtils.AboutSetup import AboutSetup
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
@@ -26,7 +27,8 @@ except:
 # TODO: implement divergence plotting/calculation
 
 class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS, 
-    RadTransp, Interpolate, Convert, Tracker, Config, Caseplot, Solver
+    RadTransp, Interpolate, Convert, Tracker, Config, Caseplot, Solver,
+    AboutSetup
 ):
     """ UEDGE Case container object.
 
@@ -220,7 +222,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if self.inplace is False:
             self.get = self.get_memory
             self.getue = self.getue_memory
-            self.set = self.set_memory
+#            self.set = self.set_memory
             self.setue = self.setue_memory
             try:
                 # Get the directory containing the input file
@@ -246,6 +248,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
             # Read YAML to get variables to be read/stored/used
             if variableyamlfile is None:  # No YAML variable file requested
+                # TODO: make variableyamlfile an option for uetoolsrc
                 # Use default: find package location and package YAMLs
                 variableyamlpath = "{}/{}".format(
                     uetools.__path__[0], "yamls/standardvariables.yml"
@@ -328,9 +331,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                     retvar = retvar[:, :, s]
         return retvar
 
-    def set_memory(self, variable, **kwargs):
-        """Returns pointer to variable that can be modified"""
-        return self.getue_memory(variable, cp=False, **kwargs)
+#    def set_memory(self, variable, **kwargs):
+#        """Returns pointer to variable that can be modified"""
+#        return self.getue_memory(variable, cp=False, **kwargs)
 
     def get_memory(self, variable, s=None, **kwargs):
         """Returns variable
