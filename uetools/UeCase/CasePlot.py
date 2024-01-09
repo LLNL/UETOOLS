@@ -115,6 +115,12 @@ class Caseplot(Plot):
         f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
         return f
 
+    def ngOT(self, s=None, **kwargs):
+        f = self.ot(self.get('ng', s), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm n_i^{LFS-t}~[m^{-3}]$')
+        f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
+        return f
+
     def neIT(self, s=None, **kwargs):
         f = self.it(self.get('ne', s), **kwargs)
         f.get_axes()[0].set_ylabel(r'$\rm n_e^{HFS-t}~[m^{-3}]$')
@@ -138,6 +144,13 @@ class Caseplot(Plot):
         f.get_axes()[0].set_ylabel(r'$\rm T_i^{HFS-t}~[eV]$')
         f.get_axes()[0].set_xlabel('Distance along HFS-t [m]')
         return f
+
+    def ngIT(self, s=None, **kwargs):
+        f = self.it(self.get('ng', s), **kwargs)
+        f.get_axes()[0].set_ylabel(r'$\rm n_i^{LFS-t}~[m^{-3}]$')
+        f.get_axes()[0].set_xlabel('Distance along LFS-t [m]')
+        return f
+
 
 
     # Expand the 2D plot list
