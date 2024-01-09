@@ -2,27 +2,22 @@
 
 class Misc():
     def __init__(self, *args, **kwargs):
+        """ Stores connection length in Case.lcon """
         from numpy import cumsum
-        # Calc and store connection lengths
-        self.lcon = cumsum(1/(self.get('rr')*self.get('gx')), axis=0)
-        # No connlen for core cells
-        self.lcon[self.ixpt1+1:self.ixpt2+1,:self.iysptrx+1] = 0
-        self.lcon[self.ixpt2+1:, :self.iysptrx+1] = cumsum(1/(self.get('rr')*self.get('gx'))[self.ixpt2+1:,:self.iysptrx+1], axis=0)
+        try:
+            # Calc and store connection lengths
+            self.lcon = cumsum(1/(self.get('rr')*self.get('gx')+1e-20), axis=0)
+            # No connlen for core cells
+            self.lcon[self.ixpt1+1:self.ixpt2+1,:self.iysptrx+1] = 0
+            self.lcon[self.ixpt2+1:, :self.iysptrx+1] = \
+                cumsum(1/(self.get('rr')*self.get('gx')+1e-20)[\
+                self.ixpt2+1:,:self.iysptrx+1], axis=0
+            )
+        except:
+            pass
         super().__init__(*args, **kwargs)
         return
-
-
-    
-
-    def about_setup(self):
-        """ Function outputting data about setup """
-
-        nisp = self.get('nisp')
-        ngsp = self.get('ngsp')
-        nhsp = self.get('nhsp')
-        nhgsp = self.get('nhgsp')
-    
-
+ 
 
     def smooth_curve(self, x, y, s=1, **kwargs):
         """ Returns smoothed x and y data """
