@@ -12,8 +12,9 @@ from uetools.UeUtils.AboutSetup import AboutSetup
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
+from uedge import bbb, com, aph, api, svr
 try:
-    from uedge import bbb, com, aph, api, svr, __version__
+    from uedge import __version__
 except:
     __version__ = 'N/A'
 try:

@@ -801,6 +801,7 @@ class Plot:
         plotgrid=False,
         xlim=(None,None),
         ylim=(None,None),
+        method='linear',
         **kwargs
     ):
         from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num, concatenate
@@ -916,7 +917,7 @@ class Plot:
         #        yinterp = griddata( (rm[1:-1,1:-1,0].ravel(), zm[1:-1,1:-1,0].ravel()),
         #            y[1:-1,1:-1].ravel(), (gx, gy))
         varinterp = griddata( orig,
-            fullvar, (gx, gy), method='cubic'
+            fullvar, (gx, gy), method=method
 #            (rm[1:-1, 1:-1, 0].ravel(), zm[1:-1, 1:-1, 0].ravel()), 
 #            var[1:-1, 1:-1].ravel(), (gx, gy)
         )
