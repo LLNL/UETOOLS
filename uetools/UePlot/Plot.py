@@ -111,9 +111,9 @@ class Plot:
             x, y, color=color, **kwargs
         )
         self.dumpfig.get_axes()[iax].set_xlim(xlim)
-        self.dumpfig.get_axes()[iax].set_ylim(xlim)
+        self.dumpfig.get_axes()[iax].set_ylim(ylim)
         self.dumpfig.get_axes()[iax].set_xlabel(xlabel)
-        self.dumpfig.get_axes()[iax].set_ylabel(xlabel)
+        self.dumpfig.get_axes()[iax].set_ylabel(ylabel)
 
     def savefig(self, fname, **kwargs):
         from matplotlib.pyplot import fignum_exists
