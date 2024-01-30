@@ -142,7 +142,7 @@ class Lookup:
         ret = []
         for pack in package():
             for var in packageobject(pack).varlist():
-                if string in var:
+                if string.lower() in var.lower():
                     ret.append(var)
         if len(ret) == 0:
             return None
@@ -165,7 +165,7 @@ class Lookup:
             for var in packageobject(pack).varlist():
                 attrs = self.aboutdict(var)
                 for attr in ["Group", "Attributes", "Comment"]:
-                    if string in attrs[attr]:
+                    if string.lower() in str(attrs[attr]).lower():
                         ret.append(var)
         if len(ret) == 0:
             return None
