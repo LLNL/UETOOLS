@@ -297,7 +297,7 @@ class Plot:
         if ax is None:
             f = figure(title, figsize=figsize)
             ax = f.add_subplot()
-        if ax is Figure:
+        if isinstance(ax, Figure):
             ax = ax.get_axes()[0]
         if (rm is None) or (zm is None):
             # Use stored PolyCollection
