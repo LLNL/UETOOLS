@@ -138,6 +138,7 @@ differencing:
     methg: 66
 
 recycling:
+    isoldalbarea: 0
     recycp: [0.95, 0.01]
     recycw:
         1: 1.e-4
