@@ -86,6 +86,18 @@ class Misc():
         self.setue('phis', phis)
         self.setue('phi', phis)
 
+    def get_detected_changes(self, savefile):
+        from h5py import File
+        from os.path import exists
+        if not exists(savefile):
+            raise ValueError(f"File {savefile} does not exist.")
+        with File(savefile, 'r') as f:
+            try: 
+                detected = f['setup/detected']
+            except:
+                raise KeyError(f"File {savefile} is not a UETOOLS save")
+            for key, item in detected.items():
+                print(key)
 
     def hdf5struct(self, fname, pre=''):
         from h5py import File, _hl
