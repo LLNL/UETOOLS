@@ -289,6 +289,7 @@ class GridSnull:
 
 class IndexGridPatch:
     """ Object containing data for topological patch """
+    # TODO: Radial interpolation according to midplane/PFR PSIN?
     def __init__(self, nxl, nxu, nyl, nyu, savedata, radtransp, *args, **kwargs):
         """ Set up the required interpolators """
         from numpy import linspace

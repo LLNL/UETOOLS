@@ -78,6 +78,8 @@ class Tracker():
             
             
 
+    # TODO: avoid purging changed variables between saves?
+
     def record_changes(self):
         """ Stores changed variables to self.varinput['setup']['detected'] """
         # NOTE

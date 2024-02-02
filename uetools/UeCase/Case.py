@@ -808,6 +808,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(setupfile))
+                # TODO: check whether diffusivities are read when
+                # isbohmcalc=1: I don't believe so!
                 if self.getue("isbohmcalc") in [0, 1]:
                     print("  User-specified diffusivities read from HDF5 file")
                     self.userdifffname = setupfile
