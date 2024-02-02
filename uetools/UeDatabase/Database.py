@@ -23,8 +23,6 @@ class Database:
         from os import getcwd 
         from os.path import isfile, isdir, exists
 
-        if not exists(database):
-            raise ValueError('Folder {} does not exist!'.format(database))
         self.cwd = getcwd()
         self.cases = {}
         self.dbidentifier = dbidentifier
@@ -81,6 +79,15 @@ class Database:
         with open("{}.db".format(savename.split(".")[0]), "wb") as f:
             dump(self, f)
 
+    def concatenate(self, database):
+        """ Absorbs the cases of another database into this one """
+        for case in database.cases:
+            self.cases.append(case)
+        # Re-sort cases based on original sorting parameters
+        self.sort(self.sortvar, self.sortlocation, self.increasesortm,
+            self.origvarname)
+
+
     def sort(self, variable, location, increasing=True, varname=''):
         """ Sorts cases according to variable at location
 
@@ -88,7 +95,10 @@ class Database:
         of insertion (since python 3.7).
         """
         from numpy import argsort, where, ndarray
+        from copy import deepcopy
 
+        self.increasesort = deepcopy(increasing)
+        self.origvarname = deepcopy(varname)
         if isinstance(variable, str):
             self.sortvar = variable
             self.sortlocation = location
@@ -132,84 +142,94 @@ class Database:
 
 
     def create_database(self, path, database):
-        from  os.path import join, exists
+        from  os.path import join, exists, isdir, isfile
         from os import walk
         from pathlib import Path
         from tqdm import tqdm
 
         createdb = []
-        for parent, dirs, files in walk(path):
-            if "ignore" in parent:
-                continue
-            subdir = parent.split("/")[-1]
-            databases = [db for db in files if self.is_case("{}/{}".format(parent, db))]
-            if self.rerun is False:
-                # HDF5s identified
-                if len(databases) == 1:
-                    # Verify all necessary data is present
-                    if len(subdir) == 0:
-                        casekey = databases[0].replace(".hdf5", "")
+        databases = {}
+        filelist = []
+        # Gather all files to be stored in database based on path
+        if isinstance(path, list):
+            # List of files to be included in database
+            filelist = list(path)
+        elif isdir(path):
+            # Path is directory, recursively get all files
+            for parent, dirs, files in walk(path):
+                if "ignore" in parent:
+                    continue
+                casefiles = [db for db in files if self.is_case( \
+                                "{}/{}".format(parent, db))]
+                if len(files) > 0:
+                    databases[parent] = casefiles
+            for parent, files in databases.items():
+                for file in files:
+                    if parent == '.':
+                        filelist.append(file)
                     else:
-                        casekey = "{}/{}".format(subdir, databases[0].replace(\
-                            ".hdf5", ""))
-                    self.cases[casekey] = Case(
-                        "{}/{}".format(parent, databases[0]),
+                        filelist.append('/'.join([parent, file]))
+        elif isfile(path):
+            with open(path) as file:
+                for line in file:
+                    filelist.append(line.strip())
+        else:
+            raise ValueError('Folder/file "{}" does not exist!'.format(path))
+        if self.rerun is False:
+            for file in filelist:
+                # NOTE: This should never happen, as any yamls are removed
+                # by is_case function
+                if ("input.yaml" in file) and self.readinput:
+                    createdb.append(file)
+                else:
+                    self.cases[file.replace(".hdf5", "")] = Case(
+                        file,
                         inplace=True,
                         verbose=False,
                         database=database,
                     )
-                elif len(databases) > 1: 
-                    for db in databases:
-                        if len(subdir) == 0:
-                            casekey = db.replace(".hdf5", "")
-                        else:
-                            casekey = "{}/{}".format(subdir, db.replace(\
-                                ".hdf5", ""))
-                        self.cases[casekey] = Case(
-                            "{}/{}".format(parent, db), 
-                            inplace=True, 
-                            database=database,
-                            verbose=False
-                        )
-                # No database found, store location where input is
-                # Changing dirs while executing walk breaks the call
-                elif ("input.yaml" in files) and self.readinput:
-                    createdb.append(parent)
-            else:
-                # Tries to restore cases from file
-                createdb.append((parent, databases))
-#                print(parent, databases) 
-#                if "input.yaml" in files:
-#                    createdb.append(parent)
-        # Now, create and read the files
+        else:
+            # Tries to restore cases from file
+            for file in filelist:
+                createdb.append(file)
+        # Now, create and read any files not created
         if len(createdb) > 0:
+            # TODO: Converge each file in a separate subprocess!
             print("===== CREATING NEW CASE DUMPS =====")
-            for dbfolder in createdb:
+            for file in createdb:
                 if self.rerun_dir is not None:
-                    subdir = dbfolder[0].split('/')
-                    _ = subdir.pop(0)
-                    subdir = '/'.join(subdir)                    
+                    subdir = '/'.join((file.split('/'))[1:-1])
                     newdbfolder = join(self.rerun_dir, subdir)
                 else:
-                    newdbfolder = dbfolder[0]
+                    newdbfolder = '/'.join(file.split('/')[:-1])
                     subdir = newdbfolder.split("/")[-1]
-
-                for case in dbfolder[1]:
-                    scase = case.replace('.hdf5','')
-                    identifier = f"{subdir}/{scase}{self.dbidentifier}"
-                    hdf5_file = join(
-                        newdbfolder, 
-                        f"{scase}.hdf5"
-                    )
-                    # Re-open HDF5 file
-                    savefolder = '/'.join(hdf5_file.split('/')[:-1])
-                    if not exists(savefolder):
-                        Path(savefolder).mkdir(\
-                            parents=True, exist_ok=True
-                        )
-                    Case(join(dbfolder[0], case), 
-                        verbose=False).save(hdf5_file)
-                    self.cases[identifier] = Case(hdf5_file, inplace=True, verbose=False)
+                if len(subdir) == 0:
+                    subdir = '.'
+                if len(newdbfolder) == 0:
+                    newdbfolder = '.'
+                scase = file.split('/')[-1].replace(".hdf5", "")
+                identifier = f"{subdir}/{scase}{self.dbidentifier}"
+                # TODO: Cannot overwrite in-place: might be good 
+                # that it fails, might also be good to make it work. 
+                # problem seems to be the save file is open during the 
+                # evaluation of the function, although it shouldn't be...
+                hdf5_file = join(
+                    newdbfolder, 
+                    f"{scase}{self.dbidentifier}.hdf5"
+                )
+                savefolder = '/'.join(hdf5_file.split('/')[:-1])
+                Path(savefolder).mkdir(\
+                    parents=True, exist_ok=True
+                )
+                print(file)
+                c=Case(file, verbose=False)
+                c.save(hdf5_file)
+                self.cases[identifier] = Case(
+                        hdf5_file, 
+                        inplace=True, 
+                        verbose=False
+                )
+                return
 
     def get(self, var, **kwargs):
         """Returns an array of var for all cases
