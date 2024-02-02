@@ -1,5 +1,5 @@
 class ConvergeStep:
-    def conv_step(self, increment, name, var, ivar=None, stop=None, b0=False, **kwargs):
+    def conv_step(self, increment, name, var, ivar=None, stop=None, inversestep=False, **kwargs):
         from copy import deepcopy
         from numpy import ndarray
         from uedge import bbb
@@ -24,7 +24,7 @@ class ConvergeStep:
             varstr = var
         while True:
             _var = self.getue(var, cp=False)
-            if (b0 is True) and (var == "b0"):
+            if inversestep is True:
                 currval = 1 / deepcopy(_var)
                 currval += increment
                 currval = 1 / currval
@@ -57,10 +57,10 @@ class ConvergeStep:
                 break
 
     def conv_step_igaso(self, increment, name, inwsor, stop=None, **kwargs):
-        self.conv_step(increment, name, "igaso", ivar=inwsor, stop=None, **kwargs)
+        self.conv_step(increment, name, "igaso", ivar=inwsor, stop=stop, **kwargs)
 
     def conv_step_ncore(self, increment, name, iisp=0, stop=None, **kwargs):
-        self.conv_step(increment, name, "ncore", ivar=iisp, stop=None, **kwargs)
+        self.conv_step(increment, name, "ncore", ivar=iisp, stop=stop, **kwargs)
 
-    def conv_b0(self, name, increment=0.03, stop=1, **kwargs):
+    def conv_step_b0(self, name, increment=0.03, stop=1, **kwargs):
         self.conv_step(increment, name, "b0", stop=stop, b0=True)
