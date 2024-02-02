@@ -99,23 +99,29 @@ class Misc():
             for key, item in detected.items():
                 print(key)
 
-    def hdf5struct(self, fname, pre=''):
+    def hdf5struct(self, fname, depth=None, pre='', group=None):
         from h5py import File, _hl
+        from copy import deepcopy
         def typestr(var):
             for vt in ['int', 'float', 'bytes']:
                 if vt in str(type(var)):
                     return '({})'.format(vt)
             return type(var)
-
-        def h5_tree(val, pre=''):
+        if depth is None:
+            depth=1000
+        def h5_tree(val, pre='', maxdepth=1000, depth=0):
+            # TODO implement variable depth
             items = len(val)
+            depth += 1
+            if depth > maxdepth:
+                return
             for key, val in val.items():
                 items -= 1
                 if items == 0:
                     # the last item
                     if type(val) == _hl.group.Group:
                         print('{}└── {}'.format(pre, key))
-                        h5_tree(val, pre+'    ')
+                        h5_tree(val, pre+'    ', maxdepth, deepcopy(depth))
                     else:
                         try:
                             len(val)
@@ -125,11 +131,15 @@ class Misc():
                                 descr = val.shape
                             print('{}└── {} {}'.format(pre, key, descr))
                         except:
-                            print('{}└── {} {}'.format(pre, key, typestr(val[()])))
+                            print('{}└── {} {}'.format(
+                                                        pre, 
+                                                        key, 
+                                                        typestr(val[()])
+                            ))
                 else:
                     if type(val) == _hl.group.Group:
                         print('{}├── {}'.format(pre, key))
-                        h5_tree(val, pre+'│   ')
+                        h5_tree(val, pre+'│   ', maxdepth, deepcopy(depth))
                     else:
                         try:
                             len(val)
@@ -137,14 +147,25 @@ class Misc():
                                 descr = '({})'.format(len(val))
                             else:
                                 descr = val.shape
-                            print('{}├── {} {}'.format(pre, key, descr))
+                            print('{}├── {} {}'.format(
+                                                        pre, 
+                                                        key, 
+                                                        descr
+                            ))
                         except:
-                            print('{}├── {} {}'.format(pre, key, typestr(val[()])))
+                            print('{}├── {} {}'.format( pre, 
+                                                        key, 
+                                                        typestr(val[()])
+                            ))
 
         if type(fname) == _hl.group.Group:
-            h5_tree(fname)
+            h5_tree(fname, maxdepth=depth)
         else:
             with File(fname, 'r') as h5file:
                 print(h5file)
-                h5_tree(h5file)
+                if group is not None:
+                    print(group)
+                    h5_tree(h5file[group], maxdepth=depth)
+                else:
+                    h5_tree(h5file, maxdepth=depth)
 
