@@ -5,6 +5,6 @@ try:
 except:
     print('No UEDGE install found. Importing UEDGE Toolbox in standalone mode')
 from .UeCase import Case
-from .UeDatabase import Database, restoredb
+from .UeDatabase import Database
 from . import UeCase
 from . import UeConfig

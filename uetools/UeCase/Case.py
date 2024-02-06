@@ -124,7 +124,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         casename=None,
         assign=True,
         verbose=True,
-        database=False,
+#        database=False,
         **kwargs,
     ):
         """Initializes the UeCase object.
@@ -185,7 +185,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.userdifffname = None
         self.radialdifffname = None
         self.hdf5case = None
-        self.database = database
+#        self.database = database
         self.pyver = __version__
         try:
             self.uedge_ver = (

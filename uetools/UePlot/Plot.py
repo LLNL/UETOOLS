@@ -18,9 +18,6 @@ class Plot:
             except:
                 return
 
-        # TODO: figure out why createpolycollection bogs down Datbase?
-#        if self.database is not True:
-#            self.createvertices(rm, zm)
         self.createvertices(rm, zm)
         super().__init__(*args, **kwargs)
         return
