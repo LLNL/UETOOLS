@@ -14,15 +14,12 @@ class Database(DB_1DPlots, DB_2DPlots):
     def __init__(
         self,
         database,
-        savedbname=None,
         dbidentifier="_UeDB",
         sortvar="ne",
         sortspecies=None,
         sortlocation="OMPsep",
         rerun=False,
         rerun_dir=None,
-        meshplot_setup=False,
-        readinput=False,
     ):
         """
         
@@ -36,8 +33,7 @@ class Database(DB_1DPlots, DB_2DPlots):
         self.datbasename = database
         self.rerun = rerun
         self.rerun_dir = rerun_dir
-        self.readinput = readinput
-        self.create_database(database)#, not meshplot_setup)
+        self.create_database(database)
         self.ixmp = self.get("ixmp")[0]
         self.iysptrx = self.get("iysptrx")[0]
         self.ixpt1 = self.get("ixpt1")[0][0]
@@ -52,10 +48,6 @@ class Database(DB_1DPlots, DB_2DPlots):
             self.sort(sortvar, sortlocation, species=sortspecies)
         except Exception as e:
             print(f"Error while sorting: {e}")
-
-        # Save if requested
-        if savedbname is not None:
-            self.save(savedbname)
 
     def is_case(self, filename: str) -> bool:
         """
@@ -78,13 +70,6 @@ class Database(DB_1DPlots, DB_2DPlots):
             return True
         except:
             return False
-
-    def save(self, savename: str):
-        """ Save the database to a pickle file"""
-        from pickle import dump
-
-        with open("{}.db".format(savename.split(".")[0]), "wb") as f:
-            dump(self, f)
 
     def concatenate(self, database):
         """ Absorbs the cases of another database into this one """
@@ -237,14 +222,11 @@ class Database(DB_1DPlots, DB_2DPlots):
             for file in filelist:
                 # NOTE: This should never happen, as any yamls are removed
                 # by is_case function
-                if ("input.yaml" in file) and self.readinput:
-                    createdb.append(file)
-                else:
-                    self.cases[file.replace(".hdf5", "")] = Case(
-                        file,
-                        inplace=True,
-                        verbose=False,
-                    )
+                self.cases[file.replace(".hdf5", "")] = Case(
+                    file,
+                    inplace=True,
+                    verbose=False,
+                )
         else:
             # Tries to restore cases from file
             for file in filelist:
