@@ -17,7 +17,8 @@ class Database(DB_1DPlots, DB_2DPlots):
         savedbname=None,
         dbidentifier="_UeDB",
         sortvar="ne",
-        sortlocation="midplane",
+        sortspecies=None,
+        sortlocation="OMPsep",
         rerun=False,
         rerun_dir=None,
         meshplot_setup=False,
@@ -48,7 +49,7 @@ class Database(DB_1DPlots, DB_2DPlots):
 
         # Sort here
         try:
-            self.sort(sortvar, sortlocation)
+            self.sort(sortvar, sortlocation, species=sortspecies)
         except Exception as e:
             print(f"Error while sorting: {e}")
 
@@ -95,11 +96,11 @@ class Database(DB_1DPlots, DB_2DPlots):
             for key, case in database.cases.items():
                 self.cases[key] = case
         # Re-sort cases based on original sorting parameters
-        self.sort(self.sortvar, self.sortlocation, self.increasesort,
-            self.origvarname)
+        self.sort(self.sortvar, self.sortlocation, self.increasesort, 
+            self.sortspecies, self.origvarname)
 
 
-    def sort(self, variable, location, increasing=True, varname=''):
+    def sort(self, variable, location="OMPsep", increasing=True, species=None, varname=''):
         """ Sorts cases according to variable at location
 
         Note: This works because python dict preserves the order
@@ -110,46 +111,85 @@ class Database(DB_1DPlots, DB_2DPlots):
 
         self.increasesort = deepcopy(increasing)
         self.origvarname = deepcopy(varname)
+        self.sortspecies = species
+        # Request sort based on case values
         if isinstance(variable, str):
             self.sortvar = variable
             self.sortlocation = location
-
-            # Make sort location more advance
-            if self.sortlocation == "midplane":
-                self.sortlocation = (self.ixmp, self.iysptrx + 1)
+            # Check for valid keyword locations
+            if self.sortlocation in ["OMPsep", "OTsep", "ITsep", 
+                    "ITmax", "OTmax", "ITmin", "OTmin"]:
+                pass
+            # Assert sort location to be list for later use
             elif isinstance(self.sortlocation, int):
                 self.sortlocation = [self.sortlocation]
+            # Raise error if not OK
             elif isinstance(self.sortlocation, str):
-                print(
+                raise ValueError(
                     'Sort location option "{}" not recognized. Aborting'.format(
                         self.sortlocation
                     )
                 )
+            # Get the array to sort
             order = self.get(self.sortvar)
-            # Gets the correct indices
+            # Get the correct species index
+            if len(order.shape) == 4:
+                order = order[:,:,:,species]
+            # 2D arrays: sort by location
             if len(order.shape)>1:
-                for ind in self.sortlocation:
-                    order = order[:, ind]
-            order = argsort(order)
+                # Keyword sorting location
+                if isinstance(self.sortlocation, str):
+                    order_index = []
+                    # Loop through each case
+                    for i in range(len(order)):
+                        # Get helpers
+                        case = self.getcase(i)
+                        ixmp = case.get('ixmp')
+                        iysptrx = case.get('iysptrx')
+                        # For each case, access keyword location value
+                        if self.sortlocation == "OMPsep":
+                            order_index.append(order[i, ixmp, iysptrx+1])
+                        elif self.sortlocation == "OTsep":
+                            order_index.append(order[i, -2, iysptrx+1])
+                        elif self.sortlocation == "OTmax":
+                            order_index.append(max(order[i, -2]))
+                        elif self.sortlocation == "OTmin":
+                            order_index.append(min(order[i, -2]))
+                        elif self.sortlocation == "ITsep":
+                            order_index.append(order[i, 1, iysptrx+1])
+                        elif self.sortlocation == "ITmax":
+                            order_index.append(max(order[i, 1]))
+                        elif self.sortlocation == "ITmin":
+                            order_index.append(min(order[i, 1]))
+                    # Get ordered index list
+                    order = argsort(order_index)
+                    # Get ordered values
+                    order_index = [order_index[x] for x in order]
+                # Sorting by given location
+                else:
+                    # Get non-keyword location values
+                    for ind in self.sortlocation:
+                        order = order[:, ind]
+                    order_index = deepcopy(order)
+                    order = argsort(order)
+                    order_index = [order_index[x] for x in order]
+        # Sort by supplied list of values
         elif isinstance(variable, (list, ndarray)):
             self.sortvar = varname
             order = argsort(variable)
-
+            order_index = [variable[x] for x in order]
+        # Sort in decreasing order if increasing is False
         if increasing is False:
             order = order[::-1]
+            order_index = order_index[::-1]
+        # Re-order the case dictionary
         neworder = {}
         for i in order:
             key = list(self.cases.keys())[i]
             neworder[key] = self.cases[key]
         self.cases = neworder
+        self.scanvar = order_index
 
-        if isinstance(variable, str):
-            self.scanvar = self.get(self.sortvar)
-            if self.sortlocation is not None:
-                for ind in self.sortlocation:
-                    self.scanvar = self.scanvar[:, ind]
-        elif isinstance(variable, (list, ndarray)):
-            self.scanvar = variable[order] 
 
     def closedb(self):
         for key, case in self.cases.items():
