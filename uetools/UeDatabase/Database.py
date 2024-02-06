@@ -1,4 +1,6 @@
 from uetools import Case
+from uetools.UeDatabase.DB_1Dplots import DB_1DPlots
+from uetools.UeDatabase.DB_2Dplots import DB_2DPlots
 
 def rewrite_case(restorefile, savefile):
     """ Process target function """
@@ -8,10 +10,7 @@ def rewrite_case(restorefile, savefile):
     del c
 
 
-class Database:
-    # NOTE For some reason, it takes forever to create/restore Database
-    # whenever polycollections are included. The pickle size is only
-    # 26M, no reason for the long runtime...
+class Database(DB_1DPlots, DB_2DPlots):
     def __init__(
         self,
         database,
@@ -37,7 +36,7 @@ class Database:
         self.rerun = rerun
         self.rerun_dir = rerun_dir
         self.readinput = readinput
-        self.create_database(database, not meshplot_setup)
+        self.create_database(database)#, not meshplot_setup)
         self.ixmp = self.get("ixmp")[0]
         self.iysptrx = self.get("iysptrx")[0]
         self.ixpt1 = self.get("ixpt1")[0][0]
@@ -88,10 +87,15 @@ class Database:
 
     def concatenate(self, database):
         """ Absorbs the cases of another database into this one """
-        for case in database.cases:
-            self.cases.append(case)
+        if isinstance(database, list):
+            for db in database:
+                for key, case in db.cases.items():
+                    self.cases[key] = case
+        else:
+            for key, case in database.cases.items():
+                self.cases[key] = case
         # Re-sort cases based on original sorting parameters
-        self.sort(self.sortvar, self.sortlocation, self.increasesortm,
+        self.sort(self.sortvar, self.sortlocation, self.increasesort,
             self.origvarname)
 
 
@@ -151,7 +155,7 @@ class Database:
         for key, case in self.cases.items():
             case.hdf5case.close()
 
-    def create_database(self, path, database):
+    def create_database(self, path):#, database):
         from  os.path import join, exists, isdir, isfile
         from os import walk
         from pathlib import Path
@@ -184,7 +188,9 @@ class Database:
         elif isfile(path):
             with open(path) as file:
                 for line in file:
-                    filelist.append(line.strip())
+                    plainline = line.split("#")[0].strip()
+                    if len(plainline) > 0:
+                        filelist.append(plainline)
         else:
             raise ValueError('Folder/file "{}" does not exist!'.format(path))
         if self.rerun is False:
@@ -198,7 +204,6 @@ class Database:
                         file,
                         inplace=True,
                         verbose=False,
-                        database=database,
                     )
         else:
             # Tries to restore cases from file
@@ -222,10 +227,6 @@ class Database:
                     newdbfolder = '.'
                 scase = file.split('/')[-1].replace(".hdf5", "")
                 identifier = f"{subdir}/{scase}{self.dbidentifier}"
-                # TODO: Cannot overwrite in-place: might be good 
-                # that it fails, might also be good to make it work. 
-                # problem seems to be the save file is open during the 
-                # evaluation of the function, although it shouldn't be...
                 hdf5_file = join(
                     newdbfolder, 
                     f"{scase}{self.dbidentifier}.hdf5"
@@ -293,137 +294,3 @@ class Database:
         return self.cases[self.get_closest_key(target, var, index)]
         
 
-
-    def teITsep(self, **kwargs):
-        return self.plotITsep(self.get("te") / 1.602e-19, **kwargs)
-
-    def teOTsep(self, **kwargs):
-        return self.plotOTsep(self.get("te") / 1.602e-19, **kwargs)
-
-    def plotITsep(self, var, **kwargs):
-        return self.plotscan(var, (1, self.iysptrx + 1), **kwargs)
-
-    def plotOTsep(self, var, **kwargs):
-        return self.plotscan(var, (-2, self.iysptrx + 1), **kwargs)
-
-    def plotOTmax(self, var, inds=(None, None), **kwargs):
-        from numpy import max
-
-        return self.plotvar(
-            self.scanvar, max(var[:, -2, slice(*inds)], axis=1), **kwargs
-        )
-
-    def plotOMP(self, var, **kwargs):
-        return self.plotscan(var, (self.ixmp, self.iysptrx + 1), **kwargs)
-
-    def plotscan(self, var, location=(), **kwargs):
-        for index in location:
-            var = var[:, index]
-        return self.plotvar(self.scanvar, var, **kwargs)
-
-    def plotvar(self, xvar, yvar, ax=None, **kwargs):
-        """Plots yvar as a function of xvar for all cases"""
-        from matplotlib.pyplot import subplots, Figure
-
-        if ax is None:
-            f, ax = subplots()
-        elif ax is Figure:
-            ax = f.get_axes()[0]
-
-        try:
-            kwargs["marker"]
-        except:
-            kwargs["marker"] = "."
-        try:
-            kwargs["linestyle"]
-        except:
-            kwargs["linestyle"] = ""
-        try:
-            kwargs["color"]
-        except:
-            kwargs["color"] = "k"
-
-        ax.plot(xvar, yvar, **kwargs)
-        ax.set_xlabel(self.sortvar)
-
-        return ax.get_figure()
-
-    def ne_2Dseries(self, **kwargs):
-        return self.plot_2Dseries(self.get("ne"), **kwargs)
-
-    def te_2Dseries(self, **kwargs):
-        self.plot_2Dseries(self.get("te") / 1.602e-19, **kwargs)
-
-    def plot_2Dseries(self, vararray, **kwargs):
-        """Returns a series of figures to scroll through"""
-        from matplotlib.pyplot import subplots, ion, ioff
-        from matplotlib.widgets import Slider, RangeSlider
-
-        ioff()
-        f, ax = subplots(figsize=(7, 8))
-
-        try:
-            kwargs["zrange"]
-            origrange = kwargs["zrange"]
-        except:
-            kwargs["zrange"] = (
-                vararray[1:-1, 1:-1, :].min(),
-                vararray[1:-1, 1:-1, :].max(),
-            )
-            origrange = kwargs["zrange"]
-
-        c = self.getcase(0)
-        cbar, verts = c.plotmesh(
-            vararray[0], ax=ax, watermark=False, interactive=True, **kwargs
-        )
-        f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
-        f.axes[1].set_position([0.7, 0.13, 0.82, 0.85])
-        slice_position = f.add_axes([0.1, 0.02, 0.65, 0.04])
-        slice_slider = Slider(
-            slice_position,
-            self.sortvar,
-            self.scanvar.min(),
-            self.scanvar.max(),
-            valstep=self.scanvar,
-        )
-        zrange_position = f.add_axes([0.85, 0.13, 0.04, 0.85])
-        zrange_slider = RangeSlider(
-            zrange_position,
-            "",
-            vararray[1:-1, 1:-1, :].min(),
-            vararray[1:-1, 1:-1, :].max(),
-            valinit=(origrange),
-            orientation="vertical",
-        )
-
-        def update(val):
-            from numpy import where
-
-            slce = slice_slider.val
-            index = where(self.scanvar == slce)[0][0]
-            verts.set_array(
-                vararray[index, 1:-1, 1:-1].reshape(
-                    self.getcase(index).get("nx") * self.getcase(index).get("ny")
-                )
-            )
-            verts.set_clim(zrange_slider.val)
-
-        slice_slider.on_changed(update)
-        zrange_slider.on_changed(update)
-
-        f.show()
-        ion()
-        return f, slice_slider, zrange_slider
-
-    def animation(self):
-        """Creates an animation from a series of figures"""
-        print("TBD")
-
-
-def restoredb(restorename):
-    """Restore a database"""
-    from pickle import load
-
-    with open(restorename, "rb") as f:
-        db = load(f)
-    return db
