@@ -615,13 +615,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         from h5pickle import File, Group
         from os.path import exists
 
-        if exists(fname):
-            savefile = File(fname, "r")
-        else:
-            raise OSError('File "{}" not found!'.format(fname))
-        setup = savefile["setup"]
-        ret = dict()
-
         def recursive_read_hdf5_setup(ret, setup, group=[]):
             if len(group) > 0:
                 for subgroup in group:
@@ -635,8 +628,13 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                     recursive_read_hdf5_setup(ret, content, group + [name])
                 else:
                     ret[name] = content[()]
-
-        recursive_read_hdf5_setup(ret, setup)
+        ret = dict()
+        if not exists(fname):
+            raise OSError('File "{}" not found!'.format(fname))
+        else:
+            with File(fname, "r") as savefile:
+                recursive_read_hdf5_setup(ret, savefile["setup"])
+            del savefile
         return ret
 
     def setinput(

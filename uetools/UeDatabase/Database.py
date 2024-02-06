@@ -1,5 +1,12 @@
 from uetools import Case
 
+def rewrite_case(restorefile, savefile):
+    """ Process target function """
+    from uetools import Case
+    c=Case(restorefile, verbose=False)
+    c.save(savefile)
+    del c
+
 
 class Database:
     # NOTE For some reason, it takes forever to create/restore Database
@@ -140,12 +147,17 @@ class Database:
         elif isinstance(variable, (list, ndarray)):
             self.scanvar = variable[order] 
 
+    def closedb(self):
+        for key, case in self.cases.items():
+            case.hdf5case.close()
 
     def create_database(self, path, database):
         from  os.path import join, exists, isdir, isfile
         from os import walk
         from pathlib import Path
         from tqdm import tqdm
+        from multiprocessing import Process
+
 
         createdb = []
         databases = {}
@@ -194,7 +206,8 @@ class Database:
                 createdb.append(file)
         # Now, create and read any files not created
         if len(createdb) > 0:
-            # TODO: Converge each file in a separate subprocess!
+            cases = []
+            dbcases = []
             print("===== CREATING NEW CASE DUMPS =====")
             for file in createdb:
                 if self.rerun_dir is not None:
@@ -221,15 +234,21 @@ class Database:
                 Path(savefolder).mkdir(\
                     parents=True, exist_ok=True
                 )
-                print(file)
-                c=Case(file, verbose=False)
-                c.save(hdf5_file)
-                self.cases[identifier] = Case(
-                        hdf5_file, 
+                cases.append(Process(
+                        target=rewrite_case, 
+                        args=(file, hdf5_file), 
+                        kwargs=()
+                ))
+                cases[-1].start()
+                dbcases.append((identifier, hdf5_file))
+            for case in cases:
+                case.join()
+            for dbcase in dbcases:
+                self.cases[dbcase[0]] = Case(
+                        dbcase[1], 
                         inplace=True, 
                         verbose=False
                 )
-                return
 
     def get(self, var, **kwargs):
         """Returns an array of var for all cases
