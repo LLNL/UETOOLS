@@ -54,13 +54,13 @@ class DB_1DPlots():
     def tgOTsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
             ylabel="$\mathrm{{T_{{g={},sep}}^{{OT}}~[eV]}}$".format(species)
-        return self.plotOTsep(self.get("tg")[:,:,:,species]/bbb.ev, 
+        return self.plotOTsep(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
     def tgITsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
             ylabel="$\mathrm{{T_{{g={},sep}}^{{IT}}~[eV]}}$".format(species)
-        return self.plotITsep(self.get("tg")[:,:,:,species]/bbb.ev, 
+        return self.plotITsep(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
 
@@ -117,17 +117,45 @@ class DB_1DPlots():
     def tgOTmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
             ylabel="$\mathrm{{T_{{g={},max}}^{{OT}}~[eV]}}$".format(species)
-        return self.plotOTmax(self.get("tg")[:,:,:,species]/bbb.ev, 
+        return self.plotOTmax(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
     def tgITmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
             ylabel="$\mathrm{{T_{{g={},max}}^{{IT}}~[eV]}}$".format(species)
-        return self.plotITmax(self.get("tg")[:,:,:,species]/bbb.ev, 
+        return self.plotITmax(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
 
+    def tiOMP(self, ylabel="$\mathrm{T_{i,sep}^{OMP}~[eV]}$", **kwargs):
+        return self.plotOMP(self.get("ti")/1.602e-19, ylabel=ylabel, **kwargs)
+        
+    def teOMP(self, ylabel="$\mathrm{T_{e,sep}^{OMP}~[eV]}$", **kwargs):
+        return self.plotOMP(self.get("te")/1.602e-19, ylabel=ylabel, **kwargs)
+        
+    def tgOMP(self, ylabel=None, species=None, **kwargs):
+        if ylabel is None:
+            ylabel = "$\mathrm{{T_{{g={},sep}}^{{OMP}}~[eV]}$".format(species)
+        return self.plotOMP(self.get("tg")[:,:,:,species]/1.602e-19, ylabel=ylabel, **kwargs)
 
+ 
+    def niOMP(self, ylabel=None, species=None, **kwargs):
+        if ylabel is None:
+            ylabel = "$\mathrm{{n_{{i={},sep}}^{{OMP}}~[m^{{-3}}]}}$".format(species)
+        return self.plotOMP(self.get("ni")[:,:,:,species], ylabel=ylabel, **kwargs)
+        
+    def neOMP(self, ylabel="$\mathrm{n_{e,sep}^{OMP}~[m^{-3}]}}$", **kwargs):
+        return self.plotOMP(self.get("ne"), ylabel=ylabel, **kwargs)
+        
+    def ngOMP(self, ylabel=None, species=None, **kwargs):
+        if ylabel is None:
+            ylabel = "$\mathrm{{n_{{g={},sep}}^{{OMP}}~[m^{{-3}}]}}$".format(species)
+        return self.plotOMP(self.get("ng")[:,:,:,species], ylabel=ylabel, **kwargs)
+
+               
+
+
+    # TODO: generalize to account for different grid sizes
     def plotITsep(self, var, **kwargs):
         return self.plotscan(var, (1, self.iysptrx + 1), **kwargs)
 
@@ -138,25 +166,26 @@ class DB_1DPlots():
         from numpy import max
 
         return self.plotvar(
-            self.scanvar, max(var[:, 1, slice(*inds)], axis=1), **kwargs
+            self.sortvalues, max(var[:, 1, slice(*inds)], axis=1), **kwargs
         )
 
     def plotOTmax(self, var, inds=(None, None), **kwargs):
         from numpy import max
 
         return self.plotvar(
-            self.scanvar, max(var[:, -2, slice(*inds)], axis=1), **kwargs
+            self.sortvalues, max(var[:, -2, slice(*inds)], axis=1), **kwargs
         )
 
-    def plotOMP(self, var, **kwargs):
-        return self.plotscan(var, (self.ixmp, self.iysptrx + 1), **kwargs)
+    def plotOMP(self, var, ylabel=None, **kwargs):
+        return self.plotscan(var, (self.ixmp, self.iysptrx + 1), ylabel=ylabel, **kwargs)
 
     def plotscan(self, var, location=(), **kwargs):
         for index in location:
             var = var[:, index]
-        return self.plotvar(self.scanvar, var, **kwargs)
+        return self.plotvar(self.sortvalues, var, **kwargs)
 
-    def plotvar(self, xvar, yvar, ax=None, xlabel=None, ylabel='', **kwargs):
+    def plotvar(self, xvar, yvar, ax=None, xlabel=None, ylabel=None, 
+            marker=".", linestyle="", color="k", **kwargs):
         """Plots yvar as a function of xvar for all cases"""
         from matplotlib.pyplot import subplots, Figure
 
@@ -165,22 +194,10 @@ class DB_1DPlots():
         elif ax is Figure:
             ax = f.get_axes()[0]
 
-        try:
-            kwargs["marker"]
-        except:
-            kwargs["marker"] = "."
-        try:
-            kwargs["linestyle"]
-        except:
-            kwargs["linestyle"] = ""
-        try:
-            kwargs["color"]
-        except:
-            kwargs["color"] = "k"
-
-        ax.plot(xvar, yvar, **kwargs)
+        ax.plot(xvar, yvar, marker=marker, linestyle=linestyle, color=color, 
+            **kwargs)
         if xlabel is None:
-            ax.set_xlabel(self.sortvar)
+            ax.set_xlabel(self.sortlabel)
         else:
             ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)

@@ -48,9 +48,9 @@ class  DB_2DPlots:
         slice_slider = Slider(
             slice_position,
             self.sortvar,
-            self.scanvar.min(),
-            self.scanvar.max(),
-            valstep=self.scanvar,
+            self.sortvalues.min(),
+            self.sortvalues.max(),
+            valstep=self.sortvalues,
         )
         zrange_position = f.add_axes([0.85, 0.13, 0.04, 0.85])
         zrange_slider = RangeSlider(
@@ -66,7 +66,7 @@ class  DB_2DPlots:
             from numpy import where
 
             slce = slice_slider.val
-            index = where(self.scanvar == slce)[0][0]
+            index = where(self.sortvalues == slce)[0][0]
             verts.set_array(
                 vararray[index, 1:-1, 1:-1].reshape(
                     self.getcase(index).get("nx") * self.getcase(index).get("ny")

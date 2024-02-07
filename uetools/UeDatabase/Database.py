@@ -19,7 +19,7 @@ class Database(DB_1DPlots, DB_2DPlots):
         sortspecies=None,
         sortlocation="OMPsep",
         rerun=False,
-        rerun_dir=None,
+        rerun_dir="UeDB_rerun",
     ):
         """
         
@@ -85,13 +85,13 @@ class Database(DB_1DPlots, DB_2DPlots):
             self.sortspecies, self.origvarname)
 
 
-    def sort(self, variable, location="OMPsep", increasing=True, species=None, varname=''):
+    def sort(self, variable, location="OMPsep", increasing=True, species=None, varname=None):
         """ Sorts cases according to variable at location
 
         Note: This works because python dict preserves the order
         of insertion (since python 3.7).
         """
-        from numpy import argsort, where, ndarray
+        from numpy import argsort, where, ndarray, array
         from copy import deepcopy
 
         self.increasesort = deepcopy(increasing)
@@ -160,7 +160,10 @@ class Database(DB_1DPlots, DB_2DPlots):
                     order_index = [order_index[x] for x in order]
         # Sort by supplied list of values
         elif isinstance(variable, (list, ndarray)):
-            self.sortvar = varname
+            if varname is None:
+                self.sortlabel = ""
+            else:
+                self.sortlabel = varname
             order = argsort(variable)
             order_index = [variable[x] for x in order]
         # Sort in decreasing order if increasing is False
@@ -173,7 +176,8 @@ class Database(DB_1DPlots, DB_2DPlots):
             key = list(self.cases.keys())[i]
             neworder[key] = self.cases[key]
         self.cases = neworder
-        self.scanvar = order_index
+        self.sortvalues = array(order_index)
+        self.sortlabel = "{} {}".format(self.sortlocation, self.sortvar)
 
 
     def closedb(self):
@@ -295,24 +299,32 @@ class Database(DB_1DPlots, DB_2DPlots):
             print("Case #{} does not exist".format(index))
             return
 
-    def get_closest_key(self, target, var, index=None):
+    def get_closest_key(self, target, var=None, index=None, species=None):
         from numpy import ndarray, where
-        if isinstance(var, str):
-            vararr = self.get(var)
-        elif isinstance(var, (list, ndarray)):
-            vararr = var
-        if (index is None) and (len(vararr.shape) >1):
-            raise KeyError('Must define index for multi-species array')
-        elif isinstance(index, int):
-            vararr = vararr[:, index]
-        elif isinstance(index, (tuple, ndarray, list)):
-            for i in index:
-                vararr = vararr[:, i]
+        if var is None:
+            vararr = self.sortvalues
+        else:
+            if isinstance(var, str):
+                vararr = self.get(var)
+            elif isinstance(var, (list, ndarray)):
+                vararr = var
+            if len(vararr.shape)==4:
+                if species is None:
+                    raise ValueError('Must define species to use for multi-species array')
+                else:
+                    vararr = vararr[:,:,:,species]
+            if (index is None) and (len(vararr.shape) >1):
+                raise KeyError('Must define index for multi-dimensional array')
+            elif isinstance(index, int):
+                vararr = vararr[:, index]
+            elif isinstance(index, (tuple, ndarray, list)):
+                for i in index:
+                    vararr = vararr[:, i]
         icase = where( abs(vararr - target) == abs(vararr - target).min())[0][0]
         return list(self.cases.keys())[icase]
         
 
-    def get_closest(self, target, var, index=None):
-        return self.cases[self.get_closest_key(target, var, index)]
+    def get_closest(self, target, var=None, index=None, species=None):
+        return self.cases[self.get_closest_key(target, var, index, species)]
         
 
