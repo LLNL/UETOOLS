@@ -99,7 +99,7 @@ class Misc():
             for key, item in detected.items():
                 print(key)
 
-    def hdf5struct(self, fname, depth=None, pre='', group=None):
+    def hdf5tree(self, fname, depth=None, pre='', group=None):
         from h5py import File, _hl
         from copy import deepcopy
         def typestr(var):
@@ -168,4 +168,42 @@ class Misc():
                     h5_tree(h5file[group], maxdepth=depth)
                 else:
                     h5_tree(h5file, maxdepth=depth)
+
+
+    def hdf5search(self, file, var):
+        """ Searches file and returns value of var """
+        from h5py import File, Group
+
+        ret = None
+        # Iterate through all dictionary entries
+        if isinstance(file, str):
+            with File(file) as f:
+                for key, varval in f.items():
+                    # If there is a nested dict, traverse down recursively
+                    if key == var:
+                        return varval[()]
+                    elif isinstance(varval, Group):
+                        ret = self.hdf5search(varval, var)
+                        if ret is not None:
+                            return ret
+                    # The YAML can define which indices to set: this catches and
+                    # passes on any such instances
+                    else:
+                        continue
+        else:
+            for key, varval in file.items():
+                # If there is a nested dict, traverse down recursively
+                if key == var:
+                    return varval[()]
+                elif isinstance(varval, Group):
+                    ret = self.hdf5search(varval, var)
+                    if ret is not None:
+                        return ret
+                # The YAML can define which indices to set: this catches and
+                # passes on any such instances
+                else:
+                    continue
+        return ret
+               
+
 
