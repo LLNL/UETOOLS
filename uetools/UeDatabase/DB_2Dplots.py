@@ -3,13 +3,13 @@
 class  DB_2DPlots:
 
     def ng_2Dseries(self, species, **kwargs):
-        return self.plot_2Dseries(self.get("ng")[:,:,species], **kwargs)
+        return self.plot_2Dseries(self.get("ng")[:,:,:,species], **kwargs)
 
     def tg_2Dseries(self, species, **kwargs):
-        self.plot_2Dseries(self.get("tg")[:,:,species] / 1.602e-19, **kwargs)
+        self.plot_2Dseries(self.get("tg")[:,:,:,species] / 1.602e-19, **kwargs)
 
     def ni_2Dseries(self, species, **kwargs):
-        return self.plot_2Dseries(self.get("ni")[:,:,species], **kwargs)
+        return self.plot_2Dseries(self.get("ni")[:,:,:,species], **kwargs)
 
     def ti_2Dseries(self, **kwargs):
         self.plot_2Dseries(self.get("ti") / 1.602e-19, **kwargs)
