@@ -124,7 +124,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         casename=None,
         assign=True,
         verbose=True,
-#        database=False,
+        savefile=None,
+        diff_file=None,
         **kwargs,
     ):
         """Initializes the UeCase object.
@@ -173,6 +174,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
         # Initialize parameters
         self.casename = casename
+        self.savefile = savefile
         self.verbose = verbose
         self.restored_from_hdf5 = False
         self.uetoolsversion = "1.0"  # UEtools version
@@ -182,10 +184,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             pass
         self.filename = filename
         self.inplace = inplace
-        self.userdifffname = None
-        self.radialdifffname = None
+        self.diff_file = diff_file
         self.hdf5case = None
-#        self.database = database
         self.pyver = __version__
         try:
             self.uedge_ver = (
@@ -208,6 +208,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.omitvars = [
             "userdifffname",
             "radialdifffname",
+            "diff_file",
             "casename",
             "commands",
             "savefile",
@@ -223,7 +224,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if self.inplace is False:
             self.get = self.get_memory
             self.getue = self.getue_memory
-#            self.set = self.set_memory
             self.setue = self.setue_memory
             try:
                 # Get the directory containing the input file
@@ -259,7 +259,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             self.varinput = self.readyaml(variableyamlpath)  # Read to memory
 
             if self.filename is not None:
-                self.restore_input(self.filename)
+                self.restore_input(self.filename, self.savefile)
             else:
                 self.reload()
                 self.get_uevars()
@@ -331,10 +331,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 if s is not None:
                     retvar = retvar[:, :, s]
         return retvar
-
-#    def set_memory(self, variable, **kwargs):
-#        """Returns pointer to variable that can be modified"""
-#        return self.getue_memory(variable, cp=False, **kwargs)
 
     def get_memory(self, variable, s=None, **kwargs):
         """Returns variable
@@ -641,7 +637,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self,
         setupfile=None,
         restore=True,
-        savefname=None,
+        savefile=None,
         readinput=True,
         restoresave=False,
         **kwargs,
@@ -667,7 +663,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         from collections import OrderedDict
         from copy import deepcopy
         from numpy import array
-
+        # Extract user-supplied casename and diff_file
+        casename = deepcopy(self.casename)
+        diff_file = deepcopy(self.diff_file)
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
@@ -676,12 +674,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 setupfile = "{}.yaml".format(self.casename)
             try:
                 self.varinput["setup"] = self.readyaml(setupfile)
-                if "savefile" in self.varinput["setup"].keys():
-                    savefname = self.varinput["setup"]["savefile"]
             except:
                 self.varinput["setup"] = self.read_hdf5_setup(setupfile)
                 self.restored_from_hdf5 = True
-                savefname = setupfile
                 self.setue("GridFileName", setupfile)
                 self.setue("isgriduehdf5", 1)
         setup = deepcopy(self.varinput["setup"])
@@ -691,24 +686,11 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             commands = setup.pop("commands")
         except:
             pass
-        # TODO: tidy up casename definition
-        try:
-            self.casename = setup.pop("casename")
-        except:
-            pass
-        try:
-            self.savefname = setup.pop("savefile")
-        except:
-            pass
         try:
             detected = setup.pop('detected')
         except:
             pass
-        if self.casename is None:
-            self.casename = casename
-        if isinstance(self.casename, bytes):
-            self.casename = self.casename.decode("UTF-8")
-
+        # TODO: deal with aphdir/apidir
         # TODO: Find a way to catch user-specified and radially varying
         #       diffusive coefficients when reading from file: userdifffname
         #       and radialdifffname attributes not available!
@@ -718,18 +700,16 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             # NOTE: Something in this function is SLOOOW
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
-                if group[-1] not in ["userdifffname", "radialdifffname"]:
+                if group[-1] not in self.omitvars:
                     # Avoid overwriting grid path when restoring from HDF5
                     if (group[-1]=='GridFileName') and\
                         (self.restored_from_hdf5 is True):
                         return
-
                     # Circumvent the padding with nulls for strings
                     try:
                         dictobj = dictobj.ljust(len(self.getue(group[-2])[group[-1]]))
                     except:
                         pass
-
                     # Set all other parameters
                     if isinstance(dictobj, list):
                         # Set whole array, given a list
@@ -800,77 +780,78 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 setinputrecursive(detected)
             except:
                 pass
-
+            if isinstance(self.casename, bytes):
+                self.casename = self.casename.decode("UTF-8")
             if self.restored_from_hdf5 is True:
                 print("=================================================")
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(setupfile))
-                # TODO: check whether diffusivities are read when
-                # isbohmcalc=1: I don't believe so!
-                if self.getue("isbohmcalc") in [0, 1]:
-                    print("  User-specified diffusivities read from HDF5 file")
-                    self.userdifffname = setupfile
-                elif self.getue("isbohmcalc") == 2:
-                    print("  Radial diffusivities read from HDF5 file")
-                    self.radialdifffname = setupfile
-            # NOTE: the below coding looks for diffusivities in the 
-            # input file: should probably look somewhere else. Remove
-            # for the time being
-            # See if diffusivities unset despite being user-defined
-            # If yes, try looking for them in the case being restored
-#            if (self.getue("isbohmcalc") in [0, 1]) and (self.userdifffname is None):
-#                self.userdifffname = self.filename
-#            elif (self.getue("isbohmcalc") == 2) and (self.radialdifffname is None):
-#                self.radialdifffname = self.filename
+                self.diff_file = setupfile
 
-            if self.userdifffname:
-                try:
-                    self.setuserdiff(self.userdifffname)
+            # Override with diff_file maually defined diff_file upon
+            if diff_file is not None:
+                self.diff_file = diff_file
+            # Otherwise, try setting accoridng to input
+            else:
+                # diff_file takes precedence
+                if self.diff_file is None:
+                    # if diff_file not set, override using old diffusion files
+                    # userdifffname takes precedence over radialdifffile
+                    # if both are present
+                    if hasattr(self, "radialdifffname"):
+                        if (self.radialdifffname is not None) \
+                            and (self.radialdifffname is not False
+                        ):
+                            self.diff_file = self.radialdifffname
+                        del self.radialdifffname
+                    if hasattr(self, "userdifffname"):
+                        if (self.userdifffname is not None) \
+                            and (self.userdifffname is not False
+                        ):
+                            self.diff_file = self.userdifffname
+                        del self.userdifffname
+            # Set diffusivities based on file if model requires profiles
+            if self.getue("isbohmcalc") == 0:
+                print("  User-specified diffusivities read from HDF5 file")
+                try: 
+                    self.setuserdiff(self.diff_file)
                 except Exception as e:
                     print(
-                        f"WARNING: failed to read diffusivities from {self.userdifffname}: {e}"
+                        f"WARNING: failed to read diffusivities "+\
+                            "from {self.diff_file}: {e}"
                     )
-            if self.radialdifffname:
+            elif self.getue("isbohmcalc") == 2:
+                print("  Radial diffusivities read from HDF5 file")
                 try:
-                    self.setradialdiff(self.radialdifffname)
+                    self.setradialdiff(self.diff_file)
                 except Exception as e:
                     print(
-                        f"WARNING: failed to read radial diffusivities from {self.radialdifffname}: {e}"
+                        f"WARNING: failed to read radial diffusivities "+\
+                            "from {self.diff_file}: {e}"
                     )
-
+        if casename is not None:
+            self.casename = casename
+        if savefile is not None:
+            self.savefile = savefile
         # TODO: Can this mess be made somehow prettier?
         if restoresave is True:
-            try:
-                self.load_state(savefname, **kwargs)
-            except:
-                # This can fail if the restore file is not present If
-                # the caller specified a file then they would expect
-                # it to be there but if restoresave assumed
-                # savefname = casename + .hdf5 then it may not be there
-                if savefname is None:
-                    print("WARNING: Failed to read default savefile")
-                else:
-                    raise
-            # TODO
-            # IMPLEMENT TRACKING AND CUSTOM COMMANDS HERE
-
+            if (self.savefile is None) and (self.get('restart') == 1):
+                raise ValueError("No save-file supplied!")
+            elif self.get('restart') == 1:
+                self.load_state(self.savefile, **kwargs)
         self.get_uevars()
         # NOTE: Get the hashes before running any commands. This way,
         # any changes done in external scripts etc will be registered.
         # This is useful (and necessary) to capture changes to arrays
         # being modified.
-        # TODO: verify implementation
         self.reload()
-        try:
+        if "commands" in locals():
             for command in commands:
-                exec(command)
-        except:
-            pass
-
-
-        # NOTE:  Commands are executed as part of reload: don't repeat here
-        # TODO: ensure user-changed variables are read/written here
+                try:
+                    exec(command)
+                except Exception as e:
+                    print(f"Command {command} failed: {e}")
 
     def setuserdiff(self, difffname, **kwargs):
         """Sets user-defined diffusivities
@@ -939,15 +920,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             difffile.close()
         return
 
-    def numvararr(self, variable):
-        from numpy import array, transpose
-
-        return transpose(
-            array(variable)
-            .reshape((self.get("ny") + 2, self.get("nx") + 2, self.get("numvar")))
-            .T,
-            (1, 2, 0),
-        )
 
     def populate(self, silent=True, verbose=None, **kwargs):
         """Populates all UEDGE arrays by evaluating static 'time-step'"""
@@ -993,15 +965,15 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if silent is True:
             self.setue("iprint", old_iprint)  # Restore
 
-    def restore_input(self, inputfname=None, savefname=None, populate=True, **kwargs):
+    def restore_input(self, inputfname=None, savefile=None, populate=True, **kwargs):
         """Restores a full case into memory and object."""
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
-        self.setinput(inputfname, savefname=savefname, restoresave=True, **kwargs)
+        self.setinput(inputfname, savefile=savefile, restoresave=True, **kwargs)
         if populate is True:
             self.populate(silent=True, **kwargs)
 
-    def restore_save(self, savefname, **kwargs):
-        self.load_state(savefname, **kwargs)
+    def restore_save(self, savefile, **kwargs):
+        self.load_state(savefile, **kwargs)
         self.populate(**kwargs)

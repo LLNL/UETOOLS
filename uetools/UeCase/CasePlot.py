@@ -366,12 +366,16 @@ class Caseplot(Plot):
         """Returns a series of figures to scroll through"""
         from matplotlib.pyplot import subplots, ion, ioff
         from matplotlib.widgets import Slider
+        from numpy import array, transpose
 
         ioff()
         f, ax = subplots(figsize=(7, 8))
-
-        vararray = self.numvararr((self.get("yldot") * self.get("sfscal"))[:-2])
-
+        vararray = transpose(
+            array((self.get("yldot") * self.get("sfscal"))[:-2])
+            .reshape((self.get("ny") + 2, self.get("nx") + 2, self.get("numvar")))
+            .T,
+            (1, 2, 0),
+        )
         try:
             kwargs["zrange"]
             origrange = max([abs(x) for x in kwargs["zrange"]])
