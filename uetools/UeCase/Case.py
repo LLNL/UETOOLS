@@ -814,9 +814,14 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                         ):
                             self.diff_file = self.userdifffname
                         del self.userdifffname
+            if (self.diff_file is None) and (self.getue("isbohmcalc") in [0,2]):
+                self.diff_file = self.savefile
+                print('No diffusivity-file supplied: reading from '+\
+                    'save-file "{}"'.format(self.diff_file))
             # Set diffusivities based on file if model requires profiles
             if self.getue("isbohmcalc") == 0:
-                print("  User-specified diffusivities read from HDF5 file")
+                print("  User-specified diffusivities read from HDF5 "+\
+                    'file "{}"'.format(self.diff_file))
                 try: 
                     self.setuserdiff(self.diff_file)
                 except Exception as e:
@@ -825,7 +830,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                             "from {self.diff_file}: {e}"
                     )
             elif self.getue("isbohmcalc") == 2:
-                print("  Radial diffusivities read from HDF5 file")
+                print("  Radial diffusivities read from HDF5 file "+\
+                    '"{}"'.format(self.diff_file))
                 try:
                     self.setradialdiff(self.diff_file)
                 except Exception as e:
