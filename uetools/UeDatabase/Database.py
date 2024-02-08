@@ -117,9 +117,6 @@ class Database(DB_1DPlots, DB_2DPlots):
                 )
             # Get the array to sort
             order = self.get(self.sortvar)
-            # Get the correct species index
-            if len(order.shape) == 4:
-                order = order[:,:,:,species]
             # 2D arrays: sort by location
             if len(order.shape)>1:
                 # Keyword sorting location
@@ -146,6 +143,10 @@ class Database(DB_1DPlots, DB_2DPlots):
                             order_index.append(max(order[i, 1]))
                         elif self.sortlocation == "ITmin":
                             order_index.append(min(order[i, 1]))
+                    order_index = array(order_index)
+                    # Get the correct species index
+                    if len(order_index.shape) == 2:
+                        order_index = order_index[:,species]
                     # Get ordered index list
                     order = argsort(order_index)
                     # Get ordered values
@@ -155,9 +156,18 @@ class Database(DB_1DPlots, DB_2DPlots):
                     # Get non-keyword location values
                     for ind in self.sortlocation:
                         order = order[:, ind]
+                    # Get the correct species index
+                    if len(order.shape) == 2:
+                        order = order[:,species]
                     order_index = deepcopy(order)
                     order = argsort(order)
                     order_index = [order_index[x] for x in order]
+            # 1D-array to sort
+            else:
+                order_index = deepcopy(order)
+                order = argsort(order)
+                order_index = [order_index[x] for x in order]
+                
         # Sort by supplied list of values
         elif isinstance(variable, (list, ndarray)):
             if varname is None:
