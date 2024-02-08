@@ -99,7 +99,7 @@ class Misc():
             for key, item in detected.items():
                 print(key)
 
-    def hdf5tree(self, fname, depth=None, pre='', group=None):
+    def hdf5tree(self, fname, group=None, depth=None, pre=''):
         from h5py import File, _hl
         from copy import deepcopy
         def typestr(var):
