@@ -50,8 +50,6 @@ rates:
     istabon: 10
 
 carbon:
-#    isngon:
-#        1: 1
     ngbackg:
         1: 1.e9
     ingb: 2
@@ -60,10 +58,6 @@ carbon:
     tgas:
         1: 1
     rcxighg: 0
-#    kelighi:
-#        1: 5.e-16   
-#    kelighg:
-#        1: 5.e-16   
     n0g:
         1: 1.e16
     isch_sput: 
