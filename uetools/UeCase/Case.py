@@ -415,8 +415,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if self.mutex():
             try:
                 setattr(packageobject(package), variable, value)
-            except:
-                raise KeyError("{} could not be set".format(variable))
+            except Exception as e:
+                raise KeyError("{} could not be set: {}".format(variable, e))
 
     def getue_memory(self, variable, s=None, cp=True, **kwargs):
         """Retrieves data from UEDGE variable in package.
@@ -700,7 +700,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             # NOTE: Something in this function is SLOOOW
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
-                if group[-1] not in self.omitvars:
+                if group[-1] not in self.omitvars + ['chgstate_format']:
+                    # NOTE: Not sure what to do with chgstate_format, fauls for some strange reason...
+                    # NOTE: Should not be an input, just skip for the time being
                     # Avoid overwriting grid path when restoring from HDF5
                     if (group[-1]=='GridFileName') and\
                         (self.restored_from_hdf5 is True):
@@ -776,12 +778,13 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if restore is True:
             setinputrecursive(setup)
             self.allocate()
-            try:
+            if "detected" in locals():
+                self.detected = detected
                 setinputrecursive(detected)
-            except:
-                pass
             if isinstance(self.casename, bytes):
                 self.casename = self.casename.decode("UTF-8")
+            if isinstance(self.savefile, bytes):
+                self.savefile = self.savefile.decode("UTF-8")
             if self.restored_from_hdf5 is True:
                 print("=================================================")
                 print("Restoring case from HDF5 file:")
@@ -834,7 +837,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             self.casename = casename
         if savefile is not None:
             self.savefile = savefile
-        # TODO: Can this mess be made somehow prettier?
         if restoresave is True:
             if (self.savefile is None) and (self.get('restart') == 1):
                 raise ValueError("No save-file supplied!")
@@ -846,12 +848,14 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         # This is useful (and necessary) to capture changes to arrays
         # being modified.
         self.reload()
-        if "commands" in locals():
-            for command in commands:
-                try:
-                    exec(command)
-                except Exception as e:
-                    print(f"Command {command} failed: {e}")
+        if not self.restored_from_hdf5:
+            if "commands" in locals():
+                for command in commands:
+                    try:
+                        exec(command)
+                    except Exception as e:
+                        print(f"Command {command} failed: {e}")
+        
 
     def setuserdiff(self, difffname, **kwargs):
         """Sets user-defined diffusivities
