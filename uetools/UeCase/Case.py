@@ -887,6 +887,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
         for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
             self.setue(variable, difffile["diffusivities"]["bbb"][variable][()])
+        if "fcdif" in difffile["diffusivities"]["bbb"]:
+            self.setue("fcdif", difffile["diffusivities"]["bbb"]["fcdif"][()])
+            
         difffile.close()
 
     def mutex(self, silent=False, **kwargs):
