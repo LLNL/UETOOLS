@@ -10,7 +10,9 @@ class Convert:
 
         def recursive_lineread(dictobj, lines=None, fails=None):
             """ Recusively parses setup variables to input lines """
-            # TODO: figure out why this routines believes ncore's value to be a string
+            # TODO: Implement checks on string lengths & shapes
+            #       2D arrays are being set by 1D arrays work for YAMLs
+            #       but not in python...
             if lines is None:
                 lines = []
             if fails is None:

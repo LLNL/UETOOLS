@@ -25,28 +25,17 @@ class Config(Lookup):
         except:
             print("No UETOOLS config file found: Configure file by calling Case.CreateConfig()")
             print("Alternatively, manually create the .uetoolsrc configuration YAML in your home directory.")
-            return True
-#            if self.createuedgerc() is False:
-#                return False
-#            else:
-#                config = safe_load(Path("{}/.uetoolsrc".format(searchpath)).read_text())
-
-        if self.inplace is False:
-            for dirpath in ["aphdir", "apidir"]:
-                packobj = self.getpackobj(dirpath)
-                try:
-                    strlen = len(packobj.getpyobject(dirpath)[0])
-                    packobj.getpyobject(dirpath)[0] = config[dirpath].ljust(strlen)
-                except:
-#                    print(
-#                        'Required path "{}" not found in .uetoolsrc. Aborting!'.format(
-#                            dirpath
-#                        )
-#                    )
-                    pass
-#                    return False
+        if config is not None:
+            for key, variable in config.items():
+                setattr(self, key, variable)
+#        for dirpath in ["aphdir", "apidir"]:
+#            packobj = self.getpackobj(dirpath)
+#            try:
+#                strlen = len(packobj.getpyobject(dirpath)[0])
+#                packobj.getpyobject(dirpath)[0] = config[dirpath].ljust(strlen)
+#            except:
+#                pass
             # NOTE: what other information to write/store?
-        return True
 
     def CreateConfig(self):
         from os import path

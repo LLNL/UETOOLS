@@ -126,6 +126,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         verbose=True,
         savefile=None,
         diff_file=None,
+        aphdir=None,
+        apidir=None,
         **kwargs,
     ):
         """Initializes the UeCase object.
@@ -165,7 +167,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                     filename
                 ))
 
-
+        self.configcase(verbose=verbose)
         # TODO: add label attribute
         # Read from uedge.label and strip
         # Use to restore and/or save files
@@ -175,6 +177,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         # Initialize parameters
         self.casename = casename
         self.savefile = savefile
+        self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
         self.uetoolsversion = "1.0"  # UEtools version
@@ -183,8 +186,19 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         except:
             pass
         self.filename = filename
-        self.inplace = inplace
         self.diff_file = diff_file
+        try: 
+            self.apidir
+            if apidir is not None:
+                self.apidir = aphdir
+        except:
+            self.apidir = apidir
+        try: 
+            self.aphdir
+            if aphdir is not None:
+                self.aphdir = aphdir
+        except:
+            self.aphdir = aphdir
         self.hdf5case = None
         self.pyver = __version__
         try:
@@ -232,7 +246,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 self.location = getcwd()
             self.session_id = self.getue("max_session_id") + 1
             setattr(
-                packageobject("bbb"), "max_session_id", self.getue("max_session_id") + 1
+                packageobject("bbb"), "max_session_id", 
+                self.getue("max_session_id") + 1
             )
             try:
                 self.exmain_evals = self.getue("exmain_evals")
@@ -242,8 +257,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 print('Using UEDGE version <7, deactivate mutex')
                 self.use_mutex = False
 
-            if not self.configcase(verbose=verbose):
-                return
             if assign is True:
                 self.assign()
 
@@ -278,12 +291,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                     print("Unable to open {}. Aborting.".format(self.filename))
                     raise err
             self.load_inplace()
-            if not self.configcase(verbose=verbose):
-                return
             if self.filename is None:
                 print("Must specify data file when inplace=True! Aborting.")
                 return
-
         self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
             in ['uppersn', 'snull'])
         if self.snull:
@@ -293,9 +303,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.nx = self.get('nx')
         self.ny = self.get('ny')
         self.ixmp = self.get('ixmp')
-#        self.ixm1 = self.get('ixm1')
-#        self.ixp1 = self.get('ixp1')
-
         # Initialize parent classes
         super().__init__(**kwargs)
 
@@ -309,7 +316,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             if self.mutex() is False:
                 raise Exception("Case doesn't own UEDGE memory")
             self.reload()
-            self.vertices = self.createpolycollection(self.get("rm"), self.get("zm"))
+            self.vertices = self.createpolycollection(
+                                self.get("rm"), 
+                                self.get("zm")
+                            )
 
     def get_inplace(self, variable, s=None, **kwargs):
         """Returns variable from HDF5"""
@@ -396,7 +406,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
     def getsetue_inplace(self, *args, **kwargs):
         """Placeholder to avoid getting/setting when reading inplace."""
-        raise Exception("Cannot set/get UEDGE values when reading from HDF5 file")
+        raise Exception("Cannot set/get UEDGE values when reading from "+\
+                            "HDF5 file")
 
     def setue_memory(self, variable, value, idx=None, **kwargs):
         """Sets the Forthon variable in package to data
@@ -546,7 +557,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         # Update the dict containing the package containing each variable
         for variable in self.vars.keys():
             if variable not in self.packagelist:
-                self.packagelist[variable] = self.getpackage(variable, verbose=False)
+                self.packagelist[variable] = self.getpackage(
+                                                    variable, 
+                                                    verbose=False
+                                            )
 
     def load_inplace(self, fileobj=None, group=[]):
         """Creates dictionaries necessary for accessing HDF5 data"""
@@ -566,7 +580,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
     def reinitializeplot(self, **kwargs):
         """Reinitializes the data of Subclasses for plotting"""
         # TODO: Return from UEDGE or variables?
-        self.vertices = self.createpolycollection(self.getue("rm"), self.getue("zm"))
+        self.vertices = self.createpolycollection(
+                            self.getue("rm"), 
+                            self.getue("zm")
+                        )
 
     def readyaml(self, fname, **kwargs):
         """Reads a YAML file and returns a nested dict
@@ -631,6 +648,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             with File(fname, "r") as savefile:
                 recursive_read_hdf5_setup(ret, savefile["setup"])
             del savefile
+        self.savefile = fname
         return ret
 
     def setinput(
@@ -697,7 +715,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         # TODO: Add mist.dat as an optional parameter/etc to allow changing
         #       the name/path to the data file
         def setinputrecursive(dictobj, group=[]):
-            # NOTE: Something in this function is SLOOOW
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
                 if group[-1] not in self.omitvars + ['chgstate_format']:
@@ -759,7 +776,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                         self.setue(group[-1], dictobj)
 
                 else:  # Set calls to restore diffusivities
-                    setattr(self, group[-1], dictobj)
+                    if group[-1] not in ['chgstate_format', 'savefile']:
+                        setattr(self, group[-1], dictobj)
             else:
                 for key, value in dictobj.items():
                     dictobj = setinputrecursive(value, group + [key])
@@ -791,7 +809,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(setupfile))
                 self.diff_file = setupfile
-
             # Override with diff_file maually defined diff_file upon
             if diff_file is not None:
                 self.diff_file = diff_file
@@ -843,6 +860,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             self.casename = casename
         if savefile is not None:
             self.savefile = savefile
+        if self.aphdir is not None:
+            self.setue("aphdir", self.aphdir)
+        if self.apidir is not None:
+            self.setue("apidir", self.apidir)
         if restoresave is True:
             if (self.savefile is None) and (self.get('restart') == 1):
                 raise ValueError("No save-file supplied!")
