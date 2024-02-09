@@ -776,7 +776,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                         self.setue(group[-1], dictobj)
 
                 else:  # Set calls to restore diffusivities
-                    if group[-1] not in ['chgstate_format', 'savefile']:
+                    if (group[-1]=='savefile') and \
+                        (self.restored_from_hdf5 == True):
+                        pass
+                    else:
                         setattr(self, group[-1], dictobj)
             else:
                 for key, value in dictobj.items():
