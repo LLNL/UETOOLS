@@ -28,13 +28,6 @@ class Config(Lookup):
         if config is not None:
             for key, variable in config.items():
                 setattr(self, key, variable)
-#        for dirpath in ["aphdir", "apidir"]:
-#            packobj = self.getpackobj(dirpath)
-#            try:
-#                strlen = len(packobj.getpyobject(dirpath)[0])
-#                packobj.getpyobject(dirpath)[0] = config[dirpath].ljust(strlen)
-#            except:
-#                pass
             # NOTE: what other information to write/store?
 
     def CreateConfig(self):
@@ -45,8 +38,8 @@ class Config(Lookup):
         searchpath = path.expanduser("~")
         yes = ["yes", "y"]
         no = ["no", "n"]
-        print("UEDGE config file not found!")
-        print("Create it at {}? [y/n]".format(searchpath))
+        print("Do you want to create a configuration file at "+\
+                "{}? [y/n]".format(searchpath))
         try:
             # Note: This can fail in subprocess
             create = input()
