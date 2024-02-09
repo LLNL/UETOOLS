@@ -24,6 +24,7 @@ class Convert:
                             'commands', 
                             'userdifffname',
                             'radialdifffname',
+                            'diff_file'
                 ]:
                     # Pass using fails
                     fails[key] = value
@@ -58,11 +59,18 @@ class Convert:
                                         ))
                         # Any other variable is a direct int/float, just set it
                         else:
-                            lines.append('{}.{}={}'.format(
-                                            self.getpackage(key), key, value
-                                        ))
+                            line = '{}.{}={}'.format(
+                                            self.getpackage(key), key, value)
+                            # NOTE: Lazy protection againstduplicating input
+                            # definitions for nested input decks. I have no
+                            # clue why nested decks end up in this loop 
+                            # twice... This is a makeshift solution
+                            if line not in lines:
+                                lines.append(line)
                     # Setting a non-starting index defined on separate line
                     # Create placeholder and fill later on
+                    elif len(value) > 1:
+                        lines, fails = recursive_lineread(value, lines, fails)
                     else:
                         lines.append('{}.{}[{}]={}'.format(
                                             self.getpackage(key), key, 
@@ -86,7 +94,14 @@ class Convert:
                     if isinstance(value, str):
                         value = '"{}"'.format(value)
                     # Backfill the previous line with the correct values
-                    lines[-1] = lines[-1].format(index, value)
+                    if isinstance(value, dict):
+                        subindices = [str(index)]
+                        while isinstance(value, dict):
+                            for index, value in value.items():
+                                subindices.append(str(index))
+                        lines[-1] = lines[-1].format(','.join(subindices), value)
+                    else:
+                        lines[-1] = lines[-1].format(index, value)
                 # Catch anything falling through 
                 else:
                     fails[key] = value
@@ -125,11 +140,11 @@ class Convert:
                 f.write(line)
                 f.write('\n')
             # Allocate to make space for restore variables
-            f.write('\nbbb.allocate()\n'.format(self.savefname))
+            f.write('\nbbb.allocate()\n'.format(self.savefile))
             # Restore solution: use inplace version to ensure compatibility
             # with both native UEDGE saves and UETOOLS saves
             f.write('\n# ==== RESTORE SOLUTION ====\n')
-            f.write('with File("{}") as f:\n'.format(self.savefname))
+            f.write('with File("{}") as f:\n'.format(self.savefile))
             f.write('    try:\n')
             f.write('        savegroup = f["restore/bbb"]\n')
             f.write('    except:\n')
@@ -158,26 +173,46 @@ class Convert:
                         f.write('\n')
             # If a file is used to set the radial transport coefficients,
             # manually for the whole domain, read and restore them here
-            if 'userdifffname' in fails:
-                file = fails.pop('userdifffname')
-                f.write('\n# ==== SET USER-SPECIFIED DIFFUSIVITIES ====\n')
-                f.write('f = File("{}", "r")\n'.format(file))
-                f.write('bbb.dif_use=f["diffusivities/bbb/dif_use"][()]\n')
-                f.write('bbb.kye_use=f["diffusivities/bbb/kye_use"][()]\n')
-                f.write('bbb.kyi_use=f["diffusivities/bbb/kyi_use"][()]\n')
-                f.write('bbb.tray_use=f["diffusivities/bbb/tray_use"][()]\n')
-                f.write('f.close()\n')
-            # If a file is used to set the radial transport coefficients,
-            # manually in the radial direction, uniform poloidally, read 
-            # and restore them here
-            if 'radialdifffname' in fails:
-                file = fails.pop('radialdifffname')
+            if self.diff_file is not None:
+                file = self.diff_file
                 f.write('\n# ==== SET USER-SPECIFIED DIFFUSIVITIES ====\n')
                 f.write('with File("{}", "r") as f:\n'.format(file))
-                f.write('    bbb.difniv=f["diffusivities/bbb/difniv"][()]\n')
-                f.write('    bbb.kyev=f["diffusivities/bbb/kyev"][()]\n')
-                f.write('    bbb.kyiv=f["diffusivities/bbb/kyiv"][()]\n')
-                f.write('    bbb.travisv=f["diffusivities/bbb/travisv"][()]\n')
+                f.write('    try:\n')
+                f.write('        bbb.difniv=f["diffusivities/bbb/difniv"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.kyev=f["diffusivities/bbb/kyev"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.kyiv=f["diffusivities/bbb/kyiv"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.travisv=f["diffusivities/bbb/travisv"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.dif_use=f["diffusivities/bbb/dif_use"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.kye_use=f["diffusivities/bbb/kye_use"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.kyi_use=f["diffusivities/bbb/kyi_use"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.tray_use=f["diffusivities/bbb/tray_use"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
+                f.write('    try:\n')
+                f.write('        bbb.fcdif=f["diffusivities/bbb/fcdif"][()]\n')
+                f.write('    except:\n')
+                f.write('        pass\n')
         # Check whether there still are lines that could not be parsed 
         # into the input, and output them to the promt
         if len(fails)>0:
