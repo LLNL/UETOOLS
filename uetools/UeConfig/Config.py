@@ -3,7 +3,7 @@ from uetools.UeUtils.Lookup import Lookup
 
 
 class Config(Lookup):
-    def configcase(self, verbose=True, **kwargs):
+    def configcase(self, verbose=True, new=True, **kwargs):
         from os import path
         from yaml import safe_load
         from pathlib import Path
@@ -64,6 +64,22 @@ class Config(Lookup):
                     else:
                         paths[dirpath] = path.abspath(defpath)
                         print("    Path defined successfully!")
+            print('Do you want to define a path to a YAML variable file?')
+            print('(Used to deifne the variables to be saved by UETOOLS)')
+            create = input()
+            defpath='x'
+            if (create.lower() in yes) or (len(create) == 0):
+                while not path.exists(defpath):
+                    print("Define path to variableyaml:")
+                    defpath = input()
+                    defpath = defpath.replace("~", searchpath)
+                    if path.exists(defpath) is False:
+                        print("Directory does not exist, please try again.")
+                    else:
+                        paths['variableyamlfile'] = defpath
+                        print("    Path defined successfully!")
+            else:
+                print("Using standard YAML variable file.")
         else:
             print("Please create .uetoolsrc manually in your home directory")
             print("Aborting!")
