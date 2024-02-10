@@ -260,17 +260,22 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             if assign is True:
                 self.assign()
 
+
+            
+            self.varinput = self.readyaml("{}/{}".format(
+                uetools.__path__[0], "yamls/requiredvariables.yaml"
+            ))
             # Read YAML to get variables to be read/stored/used
             if variableyamlfile is None:  # No YAML variable file requested
                 if hasattr(self, "variableyamlfile"):
-                    self.varinput = self.readyaml(self.variableyamlfile)
+                    self.varinput.update(self.readyaml(self.variableyamlfile))
                 else:
                 # Use default: find package location and package YAMLs
-                    self.varinput = self.readyaml("{}/{}".format(
-                        uetools.__path__[0], "yamls/standardvariables.yml"
-                    ))
+                    self.varinput.update(self.readyaml("{}/{}".format(
+                        uetools.__path__[0], "yamls/standardvariables.yaml"
+                    )))
             else:  # YAML specified, use user input
-                self.varinput = self.readyaml(variableyamlfile)  # Read to memory
+                self.varinput.update(self.readyaml(variableyamlfile))  # Read to memory
 
             if self.filename is not None:
                 self.restore_input(self.filename, self.savefile)

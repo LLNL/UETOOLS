@@ -1,0 +1,123 @@
+# Optional variables to be written to UETOOLS save-files
+
+species: 
+    com:
+        - 'ngsp'
+        - 'nhsp'
+        - 'nhgsp'
+        - 'nzsp'
+
+constants:
+    bbb:
+        - 'ev'
+
+centered:
+    bbb:
+        - 'ne'
+        - 'te'
+        - 'ni'
+        - 'ti'
+        - 'ng'
+        - 'tg'
+        - 'phi'
+        - 'ey'
+        - 'psorxr'
+        - 'psorxrc'
+        - 'psordis'
+        - 'psor'
+        - 'psorc'
+        - 'psorcxg'
+        - 'psorcxgc'
+        - 'psorrg'
+        - 'psorrgc'
+        - 'prad'
+        - 'pradz'
+        - 'pradhyd'
+        - 'pradcff'
+        - 'rbfbt'
+    com:
+        - 'yyc'
+        - 'xcs'
+
+staggered:
+    bbb:
+        - 'fnix'
+        - 'fniy'
+        - 'fngx'
+        - 'fngy'
+        - 'feex'
+        - 'feey'
+        - 'feix'
+        - 'feiy'
+        - 'up'
+        - 'uup'
+        - 'vy'
+        - 'vex'
+        - 'vycb'
+        - 'v2cb'
+
+boundary:
+    bbb:
+        - 'fniycbo'
+
+postprocessed:
+    bbb:
+        # ENGBAL OUTPUTS
+        - 'pvmomcx'
+        - 'ptjdote'
+        - 'peirad'
+        - 'jdote'
+        - 'pmomv'
+        - 'engerr'
+        - 'iion_tot'
+        - 'irecomb_tot'
+        - 'icxgas_tot'
+        - 'pradrc'
+        - 'pradiz'
+        - 'pradht'
+        - 'prdiss'
+        - 'pibirth'
+        - 'pbinde'
+        - 'pbindrc'
+        - 'pradzbind'
+        - 'iion'
+        - 'irecomb'
+        - 'icxgas'
+        - 'pradimpt'
+        - 'pradimp'
+        - 'pradfft'
+        - 'iion'
+        - 'irecomb'
+        - 'icxgas'
+        # PRADPLTWL OUTPUTS
+        - 'pwr_pltz'
+        - 'pwr_plth'
+        - 'pwr_wallz'
+        - 'pwr_wallh'
+        - 'pwr_pfwallz'
+        - 'pwr_pfwallh'
+        # PLATEFLUX OUTPUTS
+        - 'gdilb'
+        - 'gdirb'
+        - 'engilb'
+        - 'engirb'
+        - 'sdrrb'
+        - 'sdirb'
+        - 'sbindrb'
+        - 'sderb'
+        - 'sdtrb'
+        - 'sdrlb'
+        - 'sdilb'
+        - 'sbindlb'
+        - 'sdelb'
+        - 'sdtlb'
+        # WALLFLUX OUTPUTS
+        - 'gwalli'
+        - 'engwalli'
+        - 'swallr'
+        - 'spfwallr'
+        - 'swalli'
+        - 'swalle'
+        - 'swbind'
+        - 'swallt'
+
