@@ -778,6 +778,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                             datalist = self.getue(group[-2])
                             datalist[group[-1]] = dictobj
                             self.setue(group[-2], datalist)
+                    elif dictobj is None:
+                        print("WARNING Unset specifier in input:", group[-1])
                     else:
                         self.setue(group[-1], dictobj)
 
