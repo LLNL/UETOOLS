@@ -22,10 +22,8 @@ try:
 except:
     pass
 
-# TODO: Where/how to define impurity files and paths?
-# TODO: make yaml read/write/get/set case-insensitive
+# TODO: make yaml read/write/get/set case-insensitive?
 # TODO: Consider compression of data
-# TODO: implement divergence plotting/calculation
 
 class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS, 
     RadTransp, Interpolate, Convert, Tracker, Config, Caseplot, Solver,
@@ -35,8 +33,19 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
     Subclasses
     ----------
-    Caseplot -- contains plotting routines and widgets
     Solver -- contains time-stepping and convergence routines
+    PostProcessors -- contains useful post-processing routines
+    ConvergeStep -- iterative advancement using time-dependent solver
+    ADAS -- routines for use with ADAS atomic data files
+    RadTransp -- routines for radial transport coefficient fitting
+    Interpolate -- grid interpolation routines
+    Convert -- writes UETOOLS data to Python/YAML input file
+    Tracker -- routines for tracking changes to UEDGE input variables
+    Config -- UETOOLS configuration routines (for .uetoolsrc-file)
+    Caseplot -- plotting routines using Case object functionalities
+    Misc -- miscellaneous UETOOLS utilities
+    Save -- routines for saving and loading UEDGE states
+    AboutSetup -- utility to display information about case setup
 
     Attributes
     ----------
@@ -67,43 +76,75 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
     Methods
     -------
-    set_userdiff():
-        sets user-defined diffusion coefficients
-    save_userdiff(savefname, readvars=False):
-        saves user-defined diffusivity coefficients
-    restoreinput():
+    assign(**kwargs)
+        assignes the UEDGE memory to the Case object
+    get_inplace(variable, s=None, **kwargs)
+        returns the value of variable from HDF5 file
+    get_memory(variable, s=None, **kwargs)
+        returns the value of variable from Case memory
+    getsetue_inplace(*args, **kwargs)
+        placeholder for returning UEDGE variables when reading inplace
+    get_uememory(variable, s=None, cp=True, **kwargs)
+        returns the value of variable from UEDGE memory
+    load_inplace(fileobj=None, group=[])
+        creates the necessary dictionaries for accessing HDF5 data
+    mutex(silent=False, **kwargs)
+        returns True if UEDGE memory assigned to this Case object
+    openhdf5(fname, operation, **kwargs)
+        opens HDF5 file and returns file object
+    read_hdf5_setup(fname)
+        reads the UEDGE input deck from setup group of HDF5
+    readyaml(fname, **kwargs)
+        returns nested dict read from YAML fname
+    reload
+    restore_input(fname=None, savefile=None, populate=True, **kwargs)
         sets UEDGE input parameters according to setup attribute
-    readsetup(setupfile, restore=True):
-        reads a UEDGE input file
-    openhdf5(fname, operation):
-        returns an open h5Py File object
-    readyaml(fname):
-        returns a nested dict read from standard YAML file
-    closehdf5():
-        closes hdf5case File object
-    reinitializeplot():
-        updates the plotting-related grid parameters
-    reload(group=None):
-         reads the UEDGE parameters of variables into the UeCase object
-    getue(package, variable):
-        returns a copy of the UEDGE variable from package
-    setue(package, variable, value):
-        sets the UEDGE variable in package to data
-    get(variable, s=None):
-        returns the data stored for variable in UeCase's var
-    set_radialdiff():
-        sets the radial diffusivites
-    save(savefname, group):
-        saves UeCase variables to HDF5 file
-    savevar(savefile, groups, variable, data):
-        writes data and metadata to HDF5 file
-    readgridhdf5(savefname):
-        reads gridue data from HDF5 file
-    readgridue(gridue='gridue'):
-        reads gridue file into UEDGE and sets the case up to run on
-        a gridue grid
-    restore(savefname, **kwargs)
-        restores a UEDGE solution from HDF5
+    restore_save(savefile, **kwargs)
+        restores the UEDGE state from HDF5 savefile
+    setinput(   setupfile=None, restore=True, savefile=None, 
+                readinput=True, restoresave=False, **kwargs
+        )
+        Reads a YAML input file and sets up UEDGE case
+    set_radialdiff(fname, **kwargs)
+        sets radial diffusion coefficient profiles as defined HDF5 file
+    set_uememory(variable, value, **kwargs)
+        sets the UEDGE variable in memory to value
+    set_userdiff(fname, **kwargs)
+        sets user-defined diffusion coefficients as defined HDF5 file
+    update    
+        checks UEDGE state and updates Case variables if necessary
+
+    Variables
+    ---------
+    allocate: wrapper of UEDGE function allocate
+    aphdir: path to hydrogenic rates used by Case objects
+    apidir: path to impurity rates used by Case objects
+    casename: string identifier for case
+    diff_file: path to file containing diffusivity data
+    exmain_evals: the number of exmain evaluations perfored by UEDGE
+    filename: path to YAML input/HDF5 file read
+    get: wrapper for function to get data depending on setup
+    getue: wrapper for function to get UEDGE data depending on setup
+    hdf5case: HDF5 File object when running in inplace-mode
+    hostname: machine name for writing figure labels
+    inplace: boolean for controling case setup and behavior
+    location: cwd where data read to Case object is located
+    omitvars: special named variables to not be parsed from input YAML
+    packagelist: list of UEDGE packages available
+    pyver: version of python UEDGE package/build
+    restored_from_hdf5: boolean set to true if case read from HDF5 file
+    savefile: path to HDF5 file containing save variables
+    session_id: mutex ID of Case object
+    uedge_ver: internal UEDGE version uedge_ver
+    uetoolsversion: version of UETOOLS (internal)
+    uevars: nested dict of UEDGE packages, variables, and hashes
+    unset_variables: UEDGE variables that have not been allocated
+    use_mutex: boolean instructing Case to perform mutex if True
+    user: user name for writing to figure labels
+    varinput: nested dict of variables to be saved to save files
+    vars: data for all variables tracked by Case object
+    verbose: boolean telling Case to operate silently if Dalse
+     
 
     Side-effects
     ------------
@@ -132,25 +173,37 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
     ):
         """Initializes the UeCase object.
 
-
-
         Keyword arguments
         -----------------
         filename : str (default =  None)
-            HDF5 file where to read data from. If None, data is read
-            from UEDGE
+            Path to Case object initializer. Reads YAML input file if
+            path points to YAML file. Reads data from HDF5 file if path
+            points to HDF5 file. Reads data from memorty if None.
         inplace : bool (default = False)
             Switch whether to read data from file into UeCase memory
-            (False) or get data using file I/O at every call
+            (False) or get data using file I/O at every call (True)
         variableyamlfile : str (default = None)
             Path to YAML file containing definitions of data and
             variables to be read. If None, accesses the module defaults
-            # TODO: Use .uedgerc to define the file in question?
         assign : bool (default = True)
             Switch whether to assign the current run to the caseobject
-        verbose : bool
-            Prints additional information
-        database : bool
+        verbose : bool (default = True)
+            Silences Case object if verbose = False
+        savefile : str (default = None)
+            Path to HDF5 file containing saved UEDGE state. Redundant
+            if reading case form HDF5. Read from YAML input if 
+            available (kwarg takes precedence).
+        diff_file : str (default = None)
+            Path to HDF5 file containing diffusivity coefficients. 
+            Ignored if isbohmcalc != 0 or 2
+        aphdir : str (default = None)
+            Path to directory with hydrogenic rate files. Kwarg 
+            defintion takes precedence over input file and run command
+            files. Reads aphdir from run comand files or input if None.
+        apidir : str (default = None)
+            Path to directory with impurity rate files. Kwarg 
+            defintion takes precedence over input file and run command
+            files. Reads apidir from run comand files or input if None.
 
         """
         import uetools
@@ -231,14 +284,14 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.vars = dict()
         self.varinput = dict()
         self.packagelist = dict()
-        # TODO: add hostname, aphdir, apidir, mcfilename, aphfname
+        # TODO: add hostname, mcfilename, aphfname
 
         # Set up structure for reading/writing data
         # Load all data to object in memory
         if self.inplace is False:
             self.get = self.get_memory
-            self.getue = self.getue_memory
-            self.setue = self.setue_memory
+            self.getue = self.get_uememory
+            self.setue = self.set_uememory
             try:
                 # Get the directory containing the input file
                 self.location = os.path.dirname(abspath(self.filename))
@@ -302,20 +355,28 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 return
         self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
             in ['uppersn', 'snull'])
-        if self.snull:
-            self.ixpt1 = self.get('ixpt1')[0]
-            self.ixpt2 = self.get('ixpt2')[0]
-            self.iysptrx = self.get('iysptrx')
-        self.nx = self.get('nx')
-        self.ny = self.get('ny')
-        self.ixmp = self.get('ixmp')
+#        if self.snull:
+#            self.ixpt1 = self.get('ixpt1')[0]
+#            self.ixpt2 = self.get('ixpt2')[0]
+#            self.iysptrx = self.get('iysptrx')
+#        self.nx = self.get('nx')
+#        self.ny = self.get('ny')
+#        self.ixmp = self.get('ixmp')
         # Initialize parent classes
         super().__init__(**kwargs)
 
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
-        """Checks if UEDGE state has changed and updates if needed."""
+        """Checks if UEDGE state has changed and updates as needed.
+
+        Modifies
+        --------
+        Calls Case.reload, updates Case.vertices
+
+        Returns
+        -------
+        """
 
         if self.exmain_evals != self.getue("exmain_evals"):
             self.exmain_evals = self.getue("exmain_evals")
@@ -328,7 +389,22 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                             )
 
     def get_inplace(self, variable, s=None, **kwargs):
-        """Returns variable from HDF5"""
+        """Returns variable from HDF5 file
+
+        Arguments
+        -----------------
+        variable : str
+            Variable to return from HDF5 file
+
+        Keyword arguments
+        -----------------
+        s : int (None)
+            Species index, if variable is multi-species array
+
+        Returns
+        -------
+        ndarray containing data or None if not found
+        """
         from numpy import ndarray
         from h5py import File
         
@@ -374,9 +450,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
         Returns
         -------
-        UeCase value of variable (array/int/str/float)
+        UeCase value of variable
         """
-        # TODO: serach input too? Store input to Vars?
+        # TODO: search input too? Store input to Vars?
         from numpy import ndarray
 
         self.update()  # Update results from UEDGE if they have changed
@@ -393,7 +469,16 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         return retvar
 
     def assign(self, **kwargs):
-        """Assigns the UEDGE session to this object."""
+        """Assigns the UEDGE session to this object
+
+        Modifies
+        --------
+        UEDGE memory : bbb.session_id set to Case.session_id
+
+        Returns
+        -------
+        None
+        """
         setattr(packageobject("bbb"), "session_id", self.session_id)
         try:
             # Restore input to UEDGE
@@ -415,7 +500,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         raise Exception("Cannot set/get UEDGE values when reading from "+\
                             "HDF5 file")
 
-    def setue_memory(self, variable, value, idx=None, **kwargs):
+    def set_uememory(self, variable, value, **kwargs):
         """Sets the Forthon variable in package to data
 
         Arguments
@@ -424,6 +509,14 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             variable name
         value : array/list/float/int
             data to be written to the UEDGE variable
+
+        Modifies
+        --------
+        UEDGE memory : sets variable value to value
+
+        Returns
+        -------
+        None
         """
         try:
             package = self.packagelist[variable]
@@ -435,7 +528,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             except Exception as e:
                 raise KeyError("{} could not be set: {}".format(variable, e))
 
-    def getue_memory(self, variable, s=None, cp=True, **kwargs):
+    def get_uememory(self, variable, s=None, cp=True, **kwargs):
         """Retrieves data from UEDGE variable in package.
 
         Arguments
@@ -443,9 +536,17 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         variable : str
             variable name
 
+        Keyword arguments
+        -----------------
+        s : int (default = None)
+            species index to return if requested array is 3D species dependent
+        cp : boolean (default = True)
+            returns a copy of the values if True, a pointer to variable
+            if False
+
         Returns
         -------
-        value of UEDGE variable (array/str/int/float)
+        value of/pointer to UEDGE variable
         """
         from copy import deepcopy
         from numpy import ndarray
@@ -475,13 +576,11 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         Omits the setup file to avoid overwriting original
         setup.
 
-        TODO: Is this desired behavior?
-
         Keyword arguments
         -----------------
         group : str (default = None)
             group specifier to reload. If None, reloads all
-            variables in vars
+            variables in Case.vars
 
         Modifies
         --------
@@ -515,7 +614,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                         # Request to set array starting from index 0:
                         # just read the variable into memory
                         self.vars[group[-1]] = self.getue(group[-1])
-                    # TODO: check/verify this
                     elif isinstance(group[-1], int):
                         # Setting subarray, store variable
                         self.vars[group[-2]] = self.getue(group[-2])
@@ -569,7 +667,24 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                                             )
 
     def load_inplace(self, fileobj=None, group=[]):
-        """Creates dictionaries necessary for accessing HDF5 data"""
+        """Creates dictionaries necessary for accessing HDF5 data
+
+        Recursively reads the supplied HDF5 file and maps each variable
+        to its location in the file.
+
+        Keyword arguments
+        -----------------
+        fileobj : HDF5 File object (default = None)
+            
+        Modifies
+        --------
+        Case.vars dictionary : adds variables as keys with paths in
+            file as items.
+
+        Returns
+        -------
+        None
+        """
         from h5pickle import Group, File
 
         if fileobj is None:
@@ -583,25 +698,17 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         else:
             self.vars[fileobj.name.split("/")[-1]] = fileobj.name
 
-    def reinitializeplot(self, **kwargs):
-        """Reinitializes the data of Subclasses for plotting"""
-        # TODO: Return from UEDGE or variables?
-        self.vertices = self.createpolycollection(
-                            self.getue("rm"), 
-                            self.getue("zm")
-                        )
-
     def readyaml(self, fname, **kwargs):
         """Reads a YAML file and returns a nested dict
 
         Arguments
         ------------
         fname : str
-            path and filename of YAML file to be read
+            path to YAML file to be read
 
         Returns
         ------------
-        nested dict
+        nested dict containing YAML data
         """
         from yaml import safe_load
         from pathlib import Path
@@ -631,6 +738,20 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             raise OSError('File "{}" not found!'.format(fname))
 
     def read_hdf5_setup(self, fname):
+        """ Reads the UEDGE input deck from setup group of HDF5 
+
+        Assumes the HDF5 file was written by UETOOLS and contains
+        the necessay groups and variables.
+
+        Arguments
+        -----------------
+        fname : str
+            path to HDF5 file to read the setup from
+
+        Returns
+        -------
+        nested dict containing setup data (e.g. input file in UETOOLS type)
+        """
         from h5pickle import File, Group
         from os.path import exists
 
@@ -666,19 +787,39 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         restoresave=False,
         **kwargs,
     ):
-        """Reads YAML input file
+        """Reads input file and restores data to UEDGE memory
 
-        Reads data from file to attribute setup.
+        The working heart of the UETOOLS Case object. Contains the
+        YAML input file parser, which defines the YAML input file 
+        behavior.
 
         Arguments
         ---------
-        setupfile : str
-            path to/name of input file to be read
-
         Keyword arguments
         -----------------
+        setupfile : str (default = None)
+            Path to input file to be read. If None, looks for 
+            {Case.casename}.hdf5 and tries to restore it.
         restore : bool (default = True)
-            switch whether to set UEDGE parameters to the read data
+            Switch whether to set UEDGE parameters to the read data
+        savefile : str (default = None)
+            Path to save file to be read. If None, uses savefile as
+            specified in the input file.
+        readinput : bool (default = True)
+            Switch whether to re-read input data from file. Necessary
+            for assign to work, as it re-assigns the input data to UEDGE
+            memory without re-reading the input data in order to track
+            changes.
+        restoresave : bool (default = True)
+            Switch telling Case to call Case.load_state and populate 
+            the UEDGE memory. 
+            
+        Modifies
+        --------
+        Case memory : reads input data to Case.varinput["setup"] and
+            writes any data specified in input using special variables
+        UEDGE memory : sets UEDGE memory to correspond to the input file
+            and restores the variables based on the UEDGE state.
 
         Returns
         -------
@@ -687,22 +828,40 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         from collections import OrderedDict
         from copy import deepcopy
         from numpy import array
+        from h5py import is_hdf5
         # Extract user-supplied casename and diff_file
         casename = deepcopy(self.casename)
         diff_file = deepcopy(self.diff_file)
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
+        # TODO: check whether file is HDF5 instead of Try
         if readinput is True:
             if setupfile is None:
+                print("No setup file specified:")
+                if self.casename is None:
+                    raise ValueError("    No casename defined: aborting!")
+                else:
+                    print("    Using casename '{}'".format(self.casename))
                 setupfile = "{}.yaml".format(self.casename)
-            try:
-                self.varinput["setup"] = self.readyaml(setupfile)
-            except:
+            if is_hdf5(setupfile):
                 self.varinput["setup"] = self.read_hdf5_setup(setupfile)
                 self.restored_from_hdf5 = True
                 self.setue("GridFileName", setupfile)
                 self.setue("isgriduehdf5", 1)
+            else:
+                try:
+                    self.varinput["setup"] = self.readyaml(setupfile)
+                except Exception as e:
+                    raise ValueError(f"Input file could not be parsed: {e}")
+                
+#            try:
+#                self.varinput["setup"] = self.readyaml(setupfile)
+#            except:
+#                self.varinput["setup"] = self.read_hdf5_setup(setupfile)
+#                self.restored_from_hdf5 = True
+#                self.setue("GridFileName", setupfile)
+#                self.setue("isgriduehdf5", 1)
         setup = deepcopy(self.varinput["setup"])
 
         # Pop out groups that cannot be parsed by default
@@ -714,10 +873,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             detected = setup.pop('detected')
         except:
             pass
-        # TODO: deal with aphdir/apidir
-        # TODO: Find a way to catch user-specified and radially varying
-        #       diffusive coefficients when reading from file: userdifffname
-        #       and radialdifffname attributes not available!
         # TODO: Add mist.dat as an optional parameter/etc to allow changing
         #       the name/path to the data file
         def setinputrecursive(dictobj, group=[]):
@@ -855,17 +1010,17 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 except Exception as e:
                     print(
                         f"WARNING: failed to read diffusivities "+\
-                            "from {self.diff_file}: {e}"
+                            f"from {self.diff_file}: {e}"
                     )
             elif self.getue("isbohmcalc") == 2:
                 print("  Radial diffusivities read from HDF5 file "+\
                     '"{}"'.format(self.diff_file))
                 try:
-                    self.setradialdiff(self.diff_file)
+                    self.set_radialdiff(self.diff_file)
                 except Exception as e:
                     print(
                         f"WARNING: failed to read radial diffusivities "+\
-                            "from {self.diff_file}: {e}"
+                            f"from {self.diff_file}: {e}"
                     )
         if casename is not None:
             self.casename = casename
@@ -896,14 +1051,25 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         
 
     def setuserdiff(self, difffname, **kwargs):
-        """Sets user-defined diffusivities
+        """Sets user-defined diffusivities from HDF5 file
 
         Arguments
         ------------
         diffname : str
-            HDF5 file from where to read 'diffusivities'/'bbb'/values
+            HDF5 file from where to read 'diffusivities/bbb'-values
+
+        Modifies
+        --------
+        UEDGE memory : modifies user-defined 2D diffusivity arrays 
+            dif_use, kye_use, kyi_use, and tray_use. Also restores
+            coefficient fcdif if in file.
+
+        Returns
+        -------
+        None
         """
         from h5py import File
+        from os.path import exists
 
         # TODO: replace with save-group function call?
         # NOTE: not sure why h5pickle throws error here?
@@ -911,26 +1077,33 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
+        
 
-        try:
-            difffile = File(difffname, "r")
-        except:
-            difffile = File(self.filename, "r")
-
-        for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
-            self.setue(variable, difffile["diffusivities"]["bbb"][variable][()])
-        if "fcdif" in difffile["diffusivities"]["bbb"]:
-            self.setue("fcdif", difffile["diffusivities"]["bbb"]["fcdif"][()])
-            
-        difffile.close()
+        if not exists(difffname):
+            difffname = self.filename
+            if not exists(self.filename):
+                raise Exception("Diffusivity file not found!")
+    
+        with File(difffname) as file:
+            for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
+                self.setue(variable, file[f"diffusivities/bbb/{variable}"][()])
+            for variable in ["difni", "kye", "kye", "travis", "fcdif"]:
+                if variable in file["diffusivities/bbb"]:
+                    self.setue(variable, 
+                        file[f"diffusivities/bbb/{variable}"][()]
+                    )
 
     def mutex(self, silent=False, **kwargs):
-        """Returns bool whether case assigned to current UEDGE session.
+        """Returns True if case assigned to current UEDGE session.
 
         Keyword parameters
         ------------------
         silent : boolean (default : False)
             Switch whether to issue mutex warning or not
+
+        Returns
+        -------
+        True if Case object own UEDGE memore, False otherwise
         """
         if self.use_mutex == False:
             return True
@@ -944,30 +1117,61 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 )
             return False
 
-    def setradialdiff(self, difffname, **kwargs):
-        """Sets radially varying diffusivities
+    def set_radialdiff(self, difffname, **kwargs):
+        """Sets radially varying diffusivities from HDF5 file
 
         Arguments
         ------------
         diffname : str
-            HDF5 file from where to read 'diffusivities'/'bbb'/values
+            HDF5 file from where to read 'diffusivities/bbb'-values
+
+        Modifies
+        --------
+        UEDGE memory : radial diffusivity coefficients difniv, kyev,
+            kyiv, and travisv
+
+        Returns
+        -------
+        None
         """
+        from h5py import File
+        from os.path import exists
 
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
-        try:
-            difffile = self.openhdf5(difffname, "r")
-        except:
-            difffile = self.openhdf5(self.filename, "r")
-        for variable in ["difniv", "kyev", "kyiv", "travisv"]:
-            self.setue(variable, difffile["diffusivities"]["bbb"][variable][()])
-            difffile.close()
-        return
+        if not exists(difffname):
+            difffname = self.filename
+            if not exists(self.filename):
+                raise Exception("Diffusivity file not found!")
+        
+        with File(difffname) as file:
+            for variable in ["difniv", "kyev", "kyiv", "travisv"]:
+                self.setue(variable, file["diffusivities"]["bbb"][variable][()])
 
 
     def populate(self, silent=True, verbose=None, **kwargs):
-        """Populates all UEDGE arrays by evaluating static 'time-step'"""
+        """ Populates all UEDGE arrays by evaluating static 'time-step'
+
+        Outputs prompt assessing whether case is converged or not.
+
+        Keyword arguments
+        -----------------
+        silent : bool (default = True)
+            Tells Case object to silence UEDGE exmain writes.
+        verbose : bool (default = None)
+            Tells Case to output UETOOLS prompts if True. If 
+            verbose = None, uses Case.verbose default.
+
+        Modifies
+        --------
+        UEDGE memory : updates all UEDGE array to correspond to 
+            restored state
+
+        Returns
+        -------
+        None
+        """
         from copy import deepcopy
         import os
 
@@ -1010,15 +1214,56 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if silent is True:
             self.setue("iprint", old_iprint)  # Restore
 
-    def restore_input(self, inputfname=None, savefile=None, populate=True, **kwargs):
-        """Restores a full case into memory and object."""
+    def restore_input(self, inputfname=None, savefile=None, 
+        populate=True, **kwargs):
+        """ Restores a full case into memory and object.
+
+        Keyword arguments
+        -----------------
+        inputfname : str (default = None)
+            Path to the input file to be read.
+        savefile : str (default = None)
+            Path to HDF5 file containing save data. If None,
+            savefile is read from input file.
+        populate : bool (default = True)
+            Tells UETOOLS to populate all UEDGE arrays after reading
+            input and save file.
+
+        Modifies
+        --------
+        Case object : local arrays are updated to correspond to input
+            and local UEDGE variables
+        UEDGE memory : UEDGE memory is updated to correspond to input
+            and saved state
+
+        Returns
+        -------
+        None
+        """
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
-        self.setinput(inputfname, savefile=savefile, restoresave=True, **kwargs)
+        self.setinput(inputfname, savefile=savefile, restoresave=True, 
+                **kwargs
+        )
         if populate is True:
             self.populate(silent=True, **kwargs)
 
     def restore_save(self, savefile, **kwargs):
+        """ Procedure to read saved state and restore UEDGE variables.
+
+        Arguments
+        -----------------
+        savefile : str 
+            Path to HDF5 file containing UEDGE state data
+
+        Modifies
+        --------
+        UEDGE state
+
+        Returns
+        -------
+        None
+        """
         self.load_state(savefile, **kwargs)
         self.populate(**kwargs)
