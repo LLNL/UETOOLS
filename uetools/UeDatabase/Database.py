@@ -198,7 +198,6 @@ class Database(DB_1DPlots, DB_2DPlots):
         from  os.path import join, exists, isdir, isfile
         from os import walk
         from pathlib import Path
-        from tqdm import tqdm
         from multiprocessing import Process
 
 

@@ -12,7 +12,12 @@ from uetools.UeUtils.AboutSetup import AboutSetup
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
-from uedge import bbb, com, aph, api, svr
+try:
+    from uedge import bbb, com, aph, api, svr
+    uedge_is_installed = True
+except:
+    uedge_is_installed = False
+    
 try:
     from uedge import __version__
 except:
@@ -334,7 +339,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 self.restore_input(self.filename, self.savefile)
             else:
                 self.reload()
-                self.get_uevars()
+                # TODO:
+                if uedge_is_installed and not self.inplace:
+                    self.get_uevars()
         # Read all data directly from HDF5 file
         else:
             self.get = self.get_inplace
@@ -795,6 +802,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
         Arguments
         ---------
+
         Keyword arguments
         -----------------
         setupfile : str (default = None)
@@ -825,7 +833,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         -------
         None
         """
-        from collections import OrderedDict
         from copy import deepcopy
         from numpy import array
         from h5py import is_hdf5
@@ -1035,7 +1042,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 raise ValueError("No save-file supplied!")
             elif self.get('restart') == 1:
                 self.load_state(self.savefile, **kwargs)
-        self.get_uevars()
+        if uedge_is_installed and not self.inplace:
+            self.get_uevars()
         # NOTE: Get the hashes before running any commands. This way,
         # any changes done in external scripts etc will be registered.
         # This is useful (and necessary) to capture changes to arrays

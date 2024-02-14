@@ -170,6 +170,7 @@ class Save:
         
         Calls self.save(**kwargs)
         """
+        # TODO: compress?
         try:
             from Forthon import package, packageobject
         except:
