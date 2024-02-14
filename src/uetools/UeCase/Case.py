@@ -238,7 +238,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
-        self.uetoolsversion = "1.0"  # UEtools version
+        self.uetoolsversion = "1.1.0"  # UEtools version
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
         except:
