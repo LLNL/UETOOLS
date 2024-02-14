@@ -1,0 +1,102 @@
+# Required variables for UETOOLS to function
+# ====================================================
+# ======= DO NOT EDIT VARIABLES BELOW ================
+# ====================================================
+
+restore:
+    bbb:
+        - 'tes'
+        - 'tis'
+        - 'nis'
+        - 'ngs'
+        - 'tgs' 
+        - 'ups'
+        - 'phis'
+
+grid:
+    com:
+        - 'nx'
+        - 'ny'
+        - 'nxm'
+        - 'nym'
+        - 'ixlb'
+        - 'ixpt1'
+        - 'ixmdp'
+        - 'ixpt2'
+        - 'ixrb'
+        - 'iysptrx'
+        - 'iysptrx1'
+        - 'iysptrx2'
+        - 'nxleg'
+        - 'nxcore'
+        - 'nysol'
+        - 'nycore'
+        - 'rm'
+        - 'zm'
+        - 'bpol'
+        - 'bphi'
+        - 'b'
+        - 'br'
+        - 'vol'
+        - 'bz'
+        - 'psi'
+        - 'nlim'
+        - 'xlim'
+        - 'ylim'
+        - 'rbdry'
+        - 'zbdry'
+        - 'simagxs'
+        - 'sibdrys'
+        - 'runid'
+        - 'yyrb'
+        - 'yylb'
+        - 'rmagx'
+        - 'zmagx'
+        - 'nxomit'
+        - 'angfx'
+        - 'sx'
+        - 'sy'
+        - 'gx'
+        - 'gxf'
+        - 'gy'
+        - 'gyf'
+        - 'rr'
+        - 'rrv'
+    grd:
+        - 'nplate1'
+        - 'rplate1'
+        - 'zplate1'
+        - 'nplate2'
+        - 'rplate2'
+        - 'zplate2'
+    bbb:
+        - 'ixmp'
+        - 'ixp1'
+        - 'ixm1'
+
+diffusivities:
+    bbb:
+        - 'isbohmcalc'
+        - 'kye_use'
+        - 'kyi_use'
+        - 'dif_use'
+        - 'tray_use'
+        - 'kyev'
+        - 'kyiv'
+        - 'difniv'
+        - 'travisv'
+        - 'kye'
+        - 'kyi'
+        - 'difni'
+        - 'fcdif'
+        - 'travis'
+
+setup:
+    bbb:
+        - 'ncore'
+        - 'b0'
+        - 'numvar'
+
+# ====================================================
+# ======= DO NOT EDIT VARIABLES ABOVE ================
+# ====================================================

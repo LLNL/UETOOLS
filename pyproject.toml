@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uetools"
+version = "1.1.0"
+authors = [
+  { name="Andreas Holm", email="holm10@llnl.gov" },
+]
+description = "A utility tool for the UEDGE multi-fluid plasma-edge code"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+keywords = ["uedge", "fusion", "plasma", "physics", "fluid"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: LGPL",
+    "Operating System :: Unix-based OSs",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "h5py",
+    "pyaml",
+    "Forthon",
+    "matplotlib",
+    "h5pickle",
+]
+
+[project.optional-dependencies]
+parallel = [
+    "inspect",
+    "uuid",
+    "pickle"
+]
+uedge = [
+    "Forthon",
+    "uedge"
+]
+
+[project.urls]
+Homepage = "https://github.com/LLNL/UETOOLS"
+Issues = "https://github.com/LLNL/UETOOLS/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+#include = ["Ue*"]  
+#exclude = ["my_package.tests*"]  
+#namespaces = false  
