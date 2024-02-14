@@ -3,6 +3,7 @@ from matplotlib.pyplot import ion
 
 ion()
 
+# TODO: implement divergence plotting/calculation
 
 class Plot:
     def __init__(self, *args, rm=None, zm=None, **kwargs):
@@ -84,6 +85,7 @@ class Plot:
     def plot(self, 
             x=[], 
             y=[], 
+            new=False,
             xlabel='', 
             ylabel='', 
             xlim=(None, None),
@@ -94,7 +96,6 @@ class Plot:
             ncols=1,
             color='k',
             plottype='plot',
-            new=False,
             **kwargs):
         from matplotlib.pyplot import fignum_exists
         try:
