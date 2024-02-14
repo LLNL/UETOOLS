@@ -224,6 +224,13 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 raise ValueError('File {} does not exist!'.format(\
                     filename
                 ))
+    
+        if (inplace is False) and (uedge_is_installed is False):
+            print("No working UEDGE install found: only "+\
+                "inplace-evaluation is possible.")
+            print("Only UETOOLS HDF5 saves can be restored.")
+            print("For more information, consult UETOOLS documentation.")
+            inplace = True
 
         self.configcase(verbose=verbose)
         # TODO: add label attribute
@@ -238,7 +245,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
-        self.uetoolsversion = "1.1.0"  # UEtools version
+        self.uetoolsversion = "1.1.1"  # UEtools version
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
         except:
