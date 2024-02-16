@@ -109,14 +109,70 @@ class Interpolate():
         
         return newgrid
 
-
-
     # TODO
     # Try using an unstructured grid for interpolation:
     # The y-dimension is radial distance from the core in each 'patch', 
     # the x-dimension is the poloidal distance from the target, 
     # centered at 'cuts'. Scheme can be upgraded to include magnetics,
     # and calculating parallel distances rather than poloidal
+
+    def gridmorph(self, oldgrid, newgrid, **kwargs):
+        """ Uses the continuation solver to morph the UEDGE grids """
+        from copy import deepcopy
+
+        manualgrid = deepcopy(self.get('manualgrid'))
+        self.setue('gridmorph', 0)
+        self.setue('manualgrid', 1)
+        self.continuation_solve(
+                "gridmorph", 
+                1, 
+                commands=[f"self.morphed_mesh('{oldgrid}','{newgrid}',"+\
+                        "self.getue('gridmorph'), standalone=False)",
+                ],
+                newgeo=True, 
+                **kwargs
+        )
+        self.setue('manualgrid', manualgrid)
+        
+        
+
+    def morphed_mesh(self, oldgrid, newgrid, fraction, 
+                standalone=True, reread=False
+        ):
+        """ Morphs the physical and magnetic mesh between old and new grids 
+
+        Grids must have same number of poloidal and radial grid cells.
+        The number of cells in each macro-region should be identical.
+        First use interpolation routines to interpolate solution 
+        to new grid.
+        """
+        from h5py import File
+        from Forthon import packageobject
+        from copy import deepcopy
+        
+        
+        # List of variables to morph
+        variables = ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b"]
+        # "nlim", "xlim", "ylim", "nplate1", "nplate2", "rplate1", "rplate2",
+        # "zplate1", "zplate2"
+        if ("griddata"  not in dir(self)) or reread:
+            self.griddata = {'old': {}, 'new': {}, 'delta': 0}
+            for var in variables:
+                self.griddata['old'][var] = self.hdf5search(oldgrid, var)
+                self.griddata['new'][var] = self.hdf5search(newgrid, var)
+        for var in variables:
+            self.setue(var, (1-fraction)*self.griddata['old'][var] \
+                    + fraction*self.griddata['new'][var])
+        self.griddata['delta'] = fraction
+        packageobject('bbb').__getattribute__('guardc')()
+        if standalone:
+            iprint = deepcopy(self.get('iprint'))
+            self.setue("iprint", 0)
+            self.populate(silent=True, verbose=False)
+            self.setue("iprint", iprint)
+        
+
+
 
 class GridSnull:
     """ Object containing single null grid data for interpolation """
