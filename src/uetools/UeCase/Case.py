@@ -245,7 +245,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
-        self.uetoolsversion = "1.1.2"  # UEtools version
+        self.uetoolsversion = "1.1.4"  # UEtools version
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
         except:
@@ -393,10 +393,17 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         -------
         """
 
-        if self.exmain_evals != self.getue("exmain_evals"):
-            self.exmain_evals = self.getue("exmain_evals")
-            if self.mutex() is False:
-                raise Exception("Case doesn't own UEDGE memory")
+        if self.use_mutex:
+            if self.exmain_evals != self.getue("exmain_evals"):
+                self.exmain_evals = self.getue("exmain_evals")
+                if self.mutex() is False:
+                    raise Exception("Case doesn't own UEDGE memory")
+                self.reload()
+                self.vertices = self.createpolycollection(
+                                    self.get("rm"), 
+                                    self.get("zm")
+                                )
+        else:
             self.reload()
             self.vertices = self.createpolycollection(
                                 self.get("rm"), 
