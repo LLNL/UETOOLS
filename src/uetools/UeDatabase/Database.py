@@ -235,11 +235,14 @@ class Database(DB_1DPlots, DB_2DPlots):
             for file in filelist:
                 # NOTE: This should never happen, as any yamls are removed
                 # by is_case function
-                self.cases[file.replace(".hdf5", "")] = Case(
-                    file,
-                    inplace=True,
-                    verbose=False,
-                )
+                try:
+                    self.cases[file.replace(".hdf5", "")] = Case(
+                        file,
+                        inplace=True,
+                        verbose=False,
+                    )
+                except Exception as e:
+                    print(f"Failed reading case {file}: {e}")
         else:
             # Tries to restore cases from file
             for file in filelist:
