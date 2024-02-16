@@ -25,6 +25,7 @@ class Config(Lookup):
         except:
             print("No UETOOLS config file found: Configure file by calling Case.CreateConfig()")
             print("Alternatively, manually create the .uetoolsrc configuration YAML in your home directory.")
+            config = None
         if config is not None:
             for key, variable in config.items():
                 setattr(self, key, variable)
