@@ -38,7 +38,8 @@ class  DB_2DPlots:
         from matplotlib.widgets import Slider, RangeSlider
         from copy import deepcopy
 
-        plot = InteractivePlot(
+        # Return to avoid garbage collection!
+        return  InteractivePlot(
                 vararray,
                 self,
                 watermark=False,
@@ -56,8 +57,6 @@ class  DB_2DPlots:
                 **kwargs
 
         )
-        # Return to avoid garbage collection!
-        return plot
 
 
 class InteractivePlot():
@@ -168,6 +167,5 @@ class InteractivePlot():
 
         self.f.show()
         ion()
-#        return f, slice_slider, zrange_slider
 
 
