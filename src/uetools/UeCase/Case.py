@@ -245,7 +245,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
-        self.uetoolsversion = "1.1.1"  # UEtools version
+        self.uetoolsversion = "1.1.5"  # UEtools version
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
         except:
@@ -309,11 +309,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 self.location = os.path.dirname(abspath(self.filename))
             except:
                 self.location = getcwd()
-            self.session_id = self.getue("max_session_id") + 1
-            setattr(
-                packageobject("bbb"), "max_session_id", 
-                self.getue("max_session_id") + 1
-            )
             try:
                 self.exmain_evals = self.getue("exmain_evals")
                 self.use_mutex = True
@@ -321,6 +316,12 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 print('Variable "exmain_evals" not found!')
                 print('Using UEDGE version <7, deactivate mutex')
                 self.use_mutex = False
+            if self.use_mutex is True:
+                self.session_id = self.getue("max_session_id") + 1
+                setattr(
+                    packageobject("bbb"), "max_session_id", 
+                    self.getue("max_session_id") + 1
+                )
 
             if assign is True:
                 self.assign()
@@ -392,10 +393,17 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         -------
         """
 
-        if self.exmain_evals != self.getue("exmain_evals"):
-            self.exmain_evals = self.getue("exmain_evals")
-            if self.mutex() is False:
-                raise Exception("Case doesn't own UEDGE memory")
+        if self.use_mutex:
+            if self.exmain_evals != self.getue("exmain_evals"):
+                self.exmain_evals = self.getue("exmain_evals")
+                if self.mutex() is False:
+                    raise Exception("Case doesn't own UEDGE memory")
+                self.reload()
+                self.vertices = self.createpolycollection(
+                                    self.get("rm"), 
+                                    self.get("zm")
+                                )
+        else:
             self.reload()
             self.vertices = self.createpolycollection(
                                 self.get("rm"), 
@@ -493,7 +501,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         -------
         None
         """
-        setattr(packageobject("bbb"), "session_id", self.session_id)
+        if self.use_mutex is True:
+            setattr(packageobject("bbb"), "session_id", self.session_id)
         try:
             # Restore input to UEDGE
             # NOTE: variables not set maintain previous values. Reset
@@ -562,6 +571,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         -------
         value of/pointer to UEDGE variable
         """
+        # TODO: fix get on functions!
         from copy import deepcopy
         from numpy import ndarray
 

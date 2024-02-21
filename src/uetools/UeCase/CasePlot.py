@@ -288,8 +288,16 @@ class Caseplot(Plot):
 
 
     # Expand the 2D plot list
-    def grid(self, gridue=None, **kwargs):
-        return self.plotmesh(gridue, **kwargs)
+    def grid(self, **kwargs):
+        return self.plotmesh(**kwargs)
+    
+    def grid_hdf5(self, file, **kwargs):
+        return self.plotmesh( 
+            rm=self.hdf5search(file,'rm')[1:-1,1:-1],
+            zm=self.hdf5search(file,'zm')[1:-1,1:-1],
+            lcfs=False,
+            **kwargs
+            )
 
     def heatmap(self, var, s=None, **kwargs):
         if isinstance(var, str):
