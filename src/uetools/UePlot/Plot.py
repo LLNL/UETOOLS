@@ -260,6 +260,7 @@ class Plot:
         mask=None,
         colorbar=True,
         interactive=False,
+        **kwargs,
     ):
         """General plotting function
         z - values, if any. If None, plots grid
@@ -311,8 +312,8 @@ class Plot:
             vertices.set_linewidths(1)
             vertices.set_edgecolors("face")
         else:
-            vertices.set_edgecolors(linecolor)
-            vertices.set_linewidths(linewidth)
+            vertices.set_edgecolors("lightgrey")
+            vertices.set_linewidths(0.08)
         if z is None:  # Plot grid
             vertices.set_facecolor((0, 0, 0, 0))
             vertices.set_edgecolors(linecolor)
@@ -370,42 +371,49 @@ class Plot:
                     self.checkusn(com.zbdry, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.isepr,
                     self.checkusn(self.isepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.osepr,
                     self.checkusn(self.osepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.pfrboundr,
                     self.checkusn(self.pfrboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.otboundr,
                     self.checkusn(self.otboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.itboundr,
                     self.checkusn(self.itboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.solboundr,
                     self.checkusn(self.solboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 plotted = True
         except:
@@ -417,42 +425,49 @@ class Plot:
                     self.checkusn(self.get("zbdry"), flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.isepr,
                     self.checkusn(self.isepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.osepr,
                     self.checkusn(self.osepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.pfrboundr,
                     self.checkusn(self.pfrboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.otboundr,
                     self.checkusn(self.otboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.itboundr,
                     self.checkusn(self.itboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.solboundr,
                     self.checkusn(self.solboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 plotted = True
         except:
@@ -463,42 +478,49 @@ class Plot:
                 self.checkusn(self.sepcorez, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.isepr,
                 self.checkusn(self.isepz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.osepr,
                 self.checkusn(self.osepz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.pfrboundr,
                 self.checkusn(self.pfrboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.otboundr,
                 self.checkusn(self.otboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.itboundr,
                 self.checkusn(self.itboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.solboundr,
                 self.checkusn(self.solboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
 
     def plotvessel(self, ax, flip=False):
@@ -520,12 +542,14 @@ class Plot:
                     self.checkusn(self.get("ylim"), flip),
                     "k-",
                     linewidth=3,
+                    label='vessel',
                 )
                 ax.plot(
                     self.get("xlim"),
                     self.checkusn(self.get("ylim"), flip),
                     "y-",
                     linewidth=1,
+                    label='vessel',
                 )
         except:
             pass
@@ -558,6 +582,7 @@ class Plot:
                     "-",
                     color=p1c,
                     linewidth=1.5,
+                    label='plate1',
                 )
                 ax.plot(
                     self.get("rplate2"),
@@ -565,6 +590,7 @@ class Plot:
                     "-",
                     color=p2c,
                     linewidth=1.5,
+                    label='plate2',
                 )
         except:
             pass

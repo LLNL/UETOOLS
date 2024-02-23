@@ -291,11 +291,19 @@ class Caseplot(Plot):
     def grid(self, **kwargs):
         return self.plotmesh(**kwargs)
     
-    def grid_hdf5(self, file, **kwargs):
+    def grid_hdf5(self, file, flip=True, **kwargs):
+
+        rm=self.hdf5search(file,'rm')[1:-1,1:-1]
+        zm=self.hdf5search(file,'zm')[1:-1,1:-1]
+        if (
+            self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
+        ) and (flip is True):
+            zm = self.disp-zm        
         return self.plotmesh( 
-            rm=self.hdf5search(file,'rm')[1:-1,1:-1],
-            zm=self.hdf5search(file,'zm')[1:-1,1:-1],
             lcfs=False,
+            rm=rm,
+            zm=zm,
+            flip=flip,
             **kwargs
             )
 

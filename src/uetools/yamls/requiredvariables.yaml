@@ -97,6 +97,24 @@ setup:
         - 'b0'
         - 'numvar'
 
+species: 
+    com:
+        - 'ngsp'
+        - 'nhsp'
+        - 'nhgsp'
+        - 'nzsp'
+        - 'nusp'
+        - 'nisp'
+    bbb:
+        - 'ishymol'
+        - 'minu' 
+        - 'znuclin'
+        - 'isimpon'
+        - 'zi'
+        - 'mp'
+        - 'mg'
+        - 'nusp_imp'
+
 # ====================================================
 # ======= DO NOT EDIT VARIABLES ABOVE ================
 # ====================================================

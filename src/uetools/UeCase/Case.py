@@ -1,7 +1,7 @@
 from .CasePlot import Caseplot
 from .Solver import Solver
 from .Save import Save
-from uetools.UeDashboard import Dashboard
+from uetools.UeDashboard import CaseDashboard2D
 from uetools.UeUtils.Misc import Misc
 from uetools.UeUtils.Tracker import Tracker
 from uetools.UeUtils.Convert import Convert
@@ -1292,3 +1292,22 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         """
         self.load_state(savefile, **kwargs)
         self.populate(**kwargs)
+
+    def dashboard(
+        self,
+        ):
+
+
+        return CaseDashboard2D(self,
+
+        flip=True, 
+        grid=False,
+        cmap='magma',
+        linewidth=0.05, 
+        linecolor='k',
+        lcfscolor='grey', 
+        lcfs=True,
+        platecolor='r', 
+        plates=True, 
+        vessel=True,
+)

@@ -74,13 +74,14 @@ class InteractivePlot():
         ioff()
         self.f, self.ax = subplots(figsize=(7, 8))
 
+        print(vararray.shape, db.nx, db.ny)
         try:
             kwargs["zrange"]
             origrange = kwargs["zrange"]
         except:
             kwargs["zrange"] = (
-                vararray[1:-1, 1:-1, :].min(),
-                vararray[1:-1, 1:-1, :].max(),
+                vararray[:,1:-1, 1:-1].min(),
+                vararray[:,1:-1, 1:-1].max(),
             )
             origrange = kwargs["zrange"]
 
@@ -103,8 +104,8 @@ class InteractivePlot():
         self.zrange_slider = RangeSlider(
             zrange_position,
             "",
-            vararray[1:-1, 1:-1, :].min(),
-            vararray[1:-1, 1:-1, :].max(),
+            vararray[:,1:-1, 1:-1].min(),
+            vararray[:,1:-1, 1:-1].max(),
             valinit=(origrange),
             orientation="vertical",
         )
