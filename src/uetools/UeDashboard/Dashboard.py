@@ -1055,7 +1055,7 @@ class MainMenu(QMainWindow):
         # Logic for opening an existing file goes here...
         # TODO: Move focus to opened file
 
-        if 1==0:
+        if 1==1:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
             self.lastpath, "All files (*.*)")[0]
             self.lastpath = "/".join(file.split("/")[:-1])
@@ -1063,6 +1063,8 @@ class MainMenu(QMainWindow):
             file = "/Users/holm10/Documents/fusion/uedge/src/"+\
                     "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
             print("USING TUTORIAL CASE")
+        if len(file.strip()) == 0:
+            return
         case =  CaseDashboard(Case(file, inplace=True))
         case.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # TODO: Figure out how to resize Widget with Window?!
