@@ -178,11 +178,13 @@ class Plot:
                 vertices.append(vert)
         return PolyCollection(vertices)
 
-    def checkusn(self, array, flip=False):
+    def checkusn(self, array, flip=True):
         if flip is False:
             return array
         elif self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             return -array + self.disp
+        else:
+            return array
 
     def plotprofile(
         self,
@@ -255,7 +257,7 @@ class Plot:
         lcfscolor='grey',
         title=None,
         grid=False,
-        flip=False,
+        flip=True,
         watermark=True,
         mask=None,
         colorbar=True,
@@ -351,12 +353,13 @@ class Plot:
         if watermark is True:
             self.watermark(ax.get_figure(), bottom=0.1, left=0.02, right=0.95)
 
+        self.Qvertices = vertices
         if interactive is True:
             return cbar, vertices
         else:
             return ax.get_figure()
 
-    def plotlcfs(self, ax, flip=False, color="grey", linewidth=0.5, **kwargs):
+    def plotlcfs(self, ax, flip=True, color="grey", linewidth=0.5, **kwargs):
         """Plots LCFS on ax"""
         try:
             from uedge import com, bbb, grd
@@ -523,7 +526,7 @@ class Plot:
                 label='lcfs'
             )
 
-    def plotvessel(self, ax, flip=False):
+    def plotvessel(self, ax, flip=True):
         """Plots vessel on ax"""
         try:
             from uedge import com, bbb, grd
@@ -555,7 +558,7 @@ class Plot:
             pass
 
 
-    def plotplates(self, ax, flip=False, color=None):
+    def plotplates(self, ax, flip=True, color=None):
         """Plot plates on ax"""
         try:
             from uedge import com, bbb, grd
@@ -638,7 +641,7 @@ class Plot:
         width=3e-3,
         headwidth=3,
         headlength=2,
-        flip=False,
+        flip=True,
         plates=False,
         vessel=False,
         lcfs=True,
@@ -808,7 +811,7 @@ class Plot:
         var,
         resolution=(500j, 800j),
         color="k",
-        flip=False,
+        flip=True,
         levels=14,
         linewidth=0.5,
         interplcfs=1,

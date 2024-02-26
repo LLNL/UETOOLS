@@ -54,13 +54,16 @@ class AboutSetup():
         # Get the elemental arrays
         elements = self.elements()
         # Total number of hydrogenic species
-        self.nhydrogenic = nhsp + ishymol
+        try:
+            self.nhydrogenic = nhsp + ishymol
+        except:
+            self.nhydrogenic = nhgsp + 1
         # Total number of impurity species
         self.nimp = count_nonzero(nzsp)
         # Get arrays for ion species
         ionarray = []
         for i in range(nisp):
-            charge = '{}'.format(('+'+str(int(zi[i])))*(zi[i]>0))
+            charge = '{}'.format(('+'+str(int(zi[i])))*(zi[i]>0)+"0"*(zi[i]==0))
             sign = ''.join((x for x in elements[znuclin[i]][minu[i]] \
                 if not x.isdigit())
             )
@@ -79,6 +82,8 @@ class AboutSetup():
             )
             if (i ==1) and (ishymol > 0):
                 sign = sign + '_2'
+            else:
+                sign = sign +"0"
             gasarray.append(sign)#.center(5))
         self.ionarray = ionarray
         self.gasarray = gasarray 

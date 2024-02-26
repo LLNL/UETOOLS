@@ -19,6 +19,8 @@ centered:
         - 'psordis'
         - 'psor'
         - 'psorc'
+        - 'psorg'
+        - 'psorgc'
         - 'psorcxg'
         - 'psorcxgc'
         - 'psorrg'

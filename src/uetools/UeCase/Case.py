@@ -174,6 +174,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         diff_file=None,
         aphdir=None,
         apidir=None,
+        restoresave=True,
         **kwargs,
     ):
         """Initializes the UeCase object.
@@ -209,7 +210,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             Path to directory with impurity rate files. Kwarg 
             defintion takes precedence over input file and run command
             files. Reads apidir from run comand files or input if None.
-
+        restoresave : bool (default = True)
+            Switch whether to restore save file or not during reading
         """
         import uetools
         import os
@@ -344,7 +346,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 self.varinput.update(self.readyaml(variableyamlfile))  # Read to memory
 
             if self.filename is not None:
-                self.restore_input(self.filename, self.savefile)
+                self.restore_input(self.filename, self.savefile, 
+                    restoresave=restoresave)
             else:
                 self.reload()
                 # TODO:
@@ -1240,7 +1243,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             self.setue("iprint", old_iprint)  # Restore
 
     def restore_input(self, inputfname=None, savefile=None, 
-        populate=True, **kwargs):
+        populate=True, restoresave=True, **kwargs):
         """ Restores a full case into memory and object.
 
         Keyword arguments
@@ -1268,10 +1271,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
-        self.setinput(inputfname, savefile=savefile, restoresave=True, 
+        self.setinput(inputfname, savefile=savefile, restoresave=restoresave, 
                 **kwargs
         )
-        if populate is True:
+        if (restoresave is True) and (populate is True):
             self.populate(silent=True, **kwargs)
 
     def restore_save(self, savefile, **kwargs):
@@ -1296,10 +1299,11 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
     def dashboard(
         self,
         ):
+        from PyQt5 import QtCore, QtWidgets
+        import sys
 
-
-        return CaseDashboard2D(self,
-
+        app = QtWidgets.QApplication(sys.argv)
+        w = CaseDashboard2D(self,
         flip=True, 
         grid=False,
         cmap='magma',
@@ -1310,4 +1314,19 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         platecolor='r', 
         plates=True, 
         vessel=True,
-)
+        )
+        app.exec_()
+
+        return
+        return CaseDashboard2D(self,
+        flip=True, 
+        grid=False,
+        cmap='magma',
+        linewidth=0.05, 
+        linecolor='k',
+        lcfscolor='grey', 
+        lcfs=True,
+        platecolor='r', 
+        plates=True, 
+        vessel=True,
+        )

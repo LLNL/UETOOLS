@@ -1,16 +1,132 @@
 #import matplotlib
 #matplotlib.use("Qt5Agg")
 
+from PyQt5 import QtCore, QtWidgets
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+
+
+class HeatmapCanvas(FigureCanvasQTAgg):
+    def __init__(self, case, parent=None, figsize=(7,8), **kwargs):
+        from matplotlib.pyplot import subplots, ion, ioff, figure
+        from matplotlib.widgets import Slider, RangeSlider, Button, \
+            TextBox, RadioButtons
+        self.case = case 
+        self.case = case
+        self.var = self.case.get('te')/1.602e-19
+        self.varname = "Te [eV]"
+        self.case.set_speciesarrays()
+        self.multispecies = 0
+        self.s = 0
+        self.ns = 0
+        self.smax = self.case.get("nisp")
+        self.nsmax = self.case.get("ngsp")
+        self.fromccmap = False
+        for key, value in kwargs.items():
+            self.__setattr__(key, value)
+        self.f = figure(figsize = figsize, dpi=100)
+        self.ax = self.f.add_subplot(111)
+        self.cbar, self.verts = case.plotmesh(
+                self.var, 
+                ax=self.ax, 
+                interactive=True,
+                watermark=False,
+                **kwargs
+        )
+        self.f.get_axes()[0].set_title(self.varname)
+        # Set figure location
+        self.f.get_axes()[0].set_position([0.05, 0.08, 0.6, 0.8])
+        # Set colorbar location
+        self.f.get_axes()[1].set_position([0.72, 0.08, 0.06, 0.88])
+        # Set slider location
+        zrange_position = self.f.add_axes([0.88, 0.1, 0.06, 0.84])
+        self.zrange_slider = RangeSlider(
+            zrange_position,
+            "",
+            self.var[1:-1, 1:-1].min(),
+            self.var[1:-1, 1:-1].max(),
+            valinit=(
+                self.var[1:-1, 1:-1].min(),
+                self.var[1:-1, 1:-1].max(),
+            ),
+            orientation="vertical",
+        )
+#        self.zrange_slider.valtext.set_visible(False)
+        self.zrange_slider.on_changed(self.update)
+
+        super(HeatmapCanvas, self).__init__(self.f)
+
+    def update(self, *args):
+        for val in args:
+            self.verts.set_cmap(self.cmap)
+            if self.multispecies == 0:
+                var = self.var[1:-1, 1:-1]
+            elif self.multispecies == 'ion':
+                var = self.var[1:-1, 1:-1, self.s]
+            elif self.multispecies == 'gas':
+                var = self.var[1:-1, 1:-1, self.ns]
+            else:
+                raise IndexError("Shape of var could not be determined")
+            self.verts.set_array(
+                var.reshape(
+                    self.case.get("nx") * self.case.get("ny")
+                )
+            )
+            self.f.get_axes()[0].set_title(self.varname)
+            self.verts.set_clim(self.zrange_slider.val)
+#            self.display_value(self.tbllim, self.zrange_slider.val[0])  
+#            self.display_value(self.tbulim, self.zrange_slider.val[1])  
+
+
+class CaseDashboard2D(QtWidgets.QMainWindow):
+
+    def __init__(self, case, *args,  
+        flip=True, 
+        grid=False,
+        cmap='magma',
+        linewidth=0.05, 
+        linecolor='k',
+        lcfscolor='grey', 
+        lcfs=True,
+        platecolor='r', 
+        plates=True, 
+        vessel=True,
+        **kwargs):
+        super(CaseDashboard2D, self).__init__(*args, **kwargs)
+
+        sc = HeatmapCanvas(case, self, figsize=(7,8),
+            flip=True, 
+            grid=False,
+            cmap='magma',
+            linewidth=0.05, 
+            linecolor='k',
+            lcfscolor='grey', 
+            lcfs=True,
+            platecolor='r', 
+            plates=True, 
+        )#width=5, height=4, dpi=100)
+
+        toolbar = NavigationToolbar(sc, self)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(toolbar)
+        layout.addWidget(sc)
+
+        # Create a placeholder widget to hold our toolbar and canvas.
+        widget = QtWidgets.QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
+        self.show()
+
 class MainMenu():
     def __init__(self, casepath=None):
         from matplotlib.pyplot import figure
         self.f = figure(figsize=(4, 3))
         if casepath is None:
             self.f.suptitle("No UEDGE case loaded")
-                
         
 
-class CaseDashboard2D():
+class CaseDashboard2D_bu():
     def __init__(self, 
         case, 
         **kwargs):
@@ -18,9 +134,10 @@ class CaseDashboard2D():
         from matplotlib.pyplot import subplots, ion, ioff, figure
         from matplotlib.widgets import Slider, RangeSlider, Button, \
             TextBox, RadioButtons
-        from copy import deepcopy
         from os.path import expanduser
         
+        # TODO: Dropdown with parameters?
+        # TODO: Button to flip?
         self.case = case
         self.var = self.case.get('te')/1.602e-19
         self.varname = "Te [eV]"
@@ -35,6 +152,7 @@ class CaseDashboard2D():
         for key, value in kwargs.items():
             self.__setattr__(key, value)
         ioff()
+        """======= CREAT DASHBOARD AND SPLIT INTO SECTIONS  ======="""
         self.board = figure(layout='constrained', figsize=(14,8))
         [self.f, self.controls] = self.board.subfigures(1,2, wspace=0,
                                                 width_ratios=[1,1])
@@ -65,8 +183,7 @@ class CaseDashboard2D():
                 watermark=False,
                 **kwargs
         )
-        # TODO: Dropdown with parameters?
-        # TODO: Button to flip?
+        """======= ADD POLY COLLECTION AND SLIDERS ======="""
         self.f.get_axes()[0].set_title(self.varname)
         # Set figure location
         self.f.get_axes()[0].set_position([0.05, 0.08, 0.6, 0.88])
@@ -83,6 +200,10 @@ class CaseDashboard2D():
             orientation="vertical",
         )
         self.zrange_slider.valtext.set_visible(False)
+        self.zrange_slider.on_changed(self.update)
+#        self.board.show()
+#        ion()
+#        return
         axulim = self.f.add_axes([0.86, 0.96, 0.11, 0.025])
         self.tbulim = TextBox(axulim, "", textalignment='center')
         self.tbulim.on_submit(self.update_upper)
@@ -93,21 +214,36 @@ class CaseDashboard2D():
         self.tbllim.on_submit(self.update_lower)
         self.display_value(self.tbllim, kwargs['zrange'][0])
         maxbuttons = 18
-        """ Set up variable button options """
+
+        """======= SET UP PRE-DEFINED PLOTS ======="""
         self.varbuttons = {
             "Electron temperature": {'func': self.te},
             "Ion temperature": {'func': self.ti},
+            "Gas temperature": {'func': self.tg},
             "Electron density": {'func': self.ne},
             "Ion density": {'func': self.ni},
             "Gas density": {'func': self.ng},
+            "Potential": {'func': self.phi},
+            "Total radiated power": {'func': self.prad_tot},
+            "Imp. radiated power": {'func': self.prad_imp},
+            "Hyd. radiated power": {'func': self.prad_hyd},
+            "Ion ionization source": {'func': self.ion_ioniz},
+            "Gas ionization sink": {'func': self.gas_ioniz},
+            "Ion recombination + CX sink": {'func': self.ion_rec},
+            "Gas recombination source": {'func': self.gas_rec},
+            "Gas CX source": {'func': self.gas_cx},
         }
+
+
+
         [self.varbuttonarea, a] = self._varbuttonarea.subfigures(
                     2, 
                     1, 
                     height_ratios=[
                             len(self.varbuttons)/maxbuttons,
                             1-(len(self.varbuttons)/maxbuttons)
-                    ]
+                    ],
+                    hspace=0
         )
         buttonaxes = self.varbuttonarea.subplots(\
                     max(len(self.varbuttons), 0), 
@@ -122,7 +258,8 @@ class CaseDashboard2D():
         for j in range(i, len(buttonaxes)):
             buttonaxes[j].set_visible(False)
         self.varbuttons['Electron temperature']['button'].color = 'grey'
-        """ Set up the switches """
+
+        """======= SET UP PLOT SWITCHES ======="""
         self.switches = {
             "Log": {'func': self.toggle_log, 'default': False},
             "Vessel": {'func': self.toggle_vessel, 'default': True},
@@ -136,9 +273,11 @@ class CaseDashboard2D():
                     height_ratios=[
                             len(self.switches)/maxbuttons,
                             1-(len(self.switches)/maxbuttons)
-                    ]
+                    ],
+                    hspace=0
         )
-        switchaxes = self.switcharea.subplots(max(len(self.switches), 0), 1)
+        switchaxes = self.switcharea.subplots(max(len(self.switches), 0), 1, 
+                gridspec_kw={'hspace': 0.0})
         i = 0
         for key, setup in self.switches.items():
             if setup['default']:
@@ -155,7 +294,8 @@ class CaseDashboard2D():
             i += 1
         for j in range(i, len(switchaxes)):
             switchaxes[j].set_visible(False)
-        """ Set up radio buttons """
+
+        """======= SET UP RADIO BUTTONS ======="""
         plupps = self.nsmax + self.smax + len(default_cmaps)
         radioaxes = self.radioarea.subplots(
                 3, 1, 
@@ -192,14 +332,7 @@ class CaseDashboard2D():
         self.tbccmap.color='lightgrey'
         self.customcmap=False
 
-        """ SET TITLES """
-        radioaxes[0].set_title("Ion array species")
-        radioaxes[1].set_title("Gas array species")
-        radioaxes[2].set_title("Colormap")
-        
-        self.varbuttonarea.suptitle("Plot variables")
-        self.switcharea.suptitle("Plot switches")
-
+        """======= SET UP INTERACTIVE BOXES  ======="""
         [_, self.varbox, _, self.savebox, self.menu] = \
                 self.controlarea.subfigures(\
                         5,
@@ -219,6 +352,7 @@ class CaseDashboard2D():
         self.tbprompt.on_submit(self.prompt)
         self.tbprompt.color='lightgrey'
 
+        """======= SET UP MENU BUTTONS  ======="""
         self.menubuttons = {
             "Export": {'func': self.export},
             "Close": {'func': self.close},
@@ -236,10 +370,19 @@ class CaseDashboard2D():
             self.menubuttons[key]['button'].on_clicked(setup['func'])
             i += 1
 
+        """======= CLEAN UP PLOT  ======="""
         for line in self.ax.lines:
             if "child" in line.get_label():
                 line.remove()
 
+        """======= SET TITLES  ======="""
+        radioaxes[0].set_title("Ion array species")
+        radioaxes[1].set_title("Gas array species")
+        radioaxes[2].set_title("Colormap") 
+        self.varbuttonarea.suptitle("Plot variables")
+        self.switcharea.suptitle("Plot switches")
+
+        """======= SET INITIAL PLOT LIMITS  ======="""
         xlim = [self.case.get('rm').min(), self.case.get('rm').max()]
         ylim = [self.case.get('zm').min(), self.case.get('zm').max()]
         for var in ['xlim', 'rplate1', 'rplate2']:
@@ -250,14 +393,15 @@ class CaseDashboard2D():
             ylim[1] = max(self.case.get(var).max(), ylim[1])
         if self.flip is True:
             ylim = [self.case.disp - x for x in ylim[::-1]]
-
-
         self.ax.set_xlim((xlim[0]-0.03, xlim[1]+0.03))
         self.ax.set_ylim((ylim[0]-0.03, ylim[1]+0.03))
+
+        
+        """======= SHOW AND START TRACKING INTERACTIONS  ======="""
         self.board.show()
-        self.zrange_slider.on_changed(self.update)
         ion()
 
+    """ ======= MENU BUTTONS ======="""
     def close(self, event):
         from matplotlib.pyplot import close
         close(self.board)
@@ -270,7 +414,6 @@ class CaseDashboard2D():
     def export(self, event):
         from matplotlib.transforms import Bbox
         from matplotlib.pyplot import close
-        from copy import deepcopy
         if self.multispecies == 0:
             var = self.var
         elif self.multispecies == 'ion':
@@ -306,7 +449,7 @@ class CaseDashboard2D():
         print(f"Figure saved successfully to: {self.exportpath}")
         
 
-    """ RADIO BUTTONS """
+    """======= RADIO BUTTONS ======="""
         
     def update_ionspecies(self, label):
         self.s = self.case.ionarray.index(label)
@@ -350,8 +493,8 @@ class CaseDashboard2D():
             self.tbccmap.color='salmon'
             return
         
-    """ TOGGLES """
 
+    """======= TOGGLES ======="""
     def toggle(self, label):
         status = self.__getattribute__(label)
         self.switches[label]['button'].color = ('light'*status) + 'grey'
@@ -416,6 +559,7 @@ class CaseDashboard2D():
             self.verts.set_linewidths(0.08)
         self.toggle('Grid')
 
+    """ ======= UPDATE FUNCTIONS ======="""
     def update_lower(self, val):
         self.zrange_slider.set_min(float(val))
         self.update_slider()
@@ -428,18 +572,15 @@ class CaseDashboard2D():
         valstr = "{:.3g}".format(val)
         box.text_disp.set_text(valstr)
 
-
-
     def update_slider(self):
-        from copy import deepcopy
         lims = self.get_lims()
         self.zrange_slider.valmin = lims[0]
         self.zrange_slider.valmax = lims[1]
-        vals = deepcopy(self.zrange_slider.val)
-        valinit = deepcopy(self.zrange_slider.valinit)
+        vals = self.zrange_slider.val
+        valinit = self.zrange_slider.valinit
         self.zrange_slider.valinit = vals
         # TODO: only update new_valint when zrange_slider set?
-        new_valinit = list(deepcopy(vals))
+        new_valinit = list(vals)
         # If values within 1/1000th of the resolution, rescale
         if (vals[0] < lims[0]) or (vals[0] > lims[1]) or \
             (vals[0] > lims[0]*1e4):
@@ -472,6 +613,28 @@ class CaseDashboard2D():
         self.tbprompt.color='lightgrey'
         self.tbprompt.text_disp.set_text('')
 
+    def update(self, val):
+        self.verts.set_cmap(self.cmap)
+        if self.multispecies == 0:
+            var = self.var[1:-1, 1:-1]
+        elif self.multispecies == 'ion':
+            var = self.var[1:-1, 1:-1, self.s]
+        elif self.multispecies == 'gas':
+            var = self.var[1:-1, 1:-1, self.ns]
+        else:
+            raise IndexError("Shape of var could not be determined")
+        self.verts.set_array(
+            var.reshape(
+                self.case.get("nx") * self.case.get("ny")
+            )
+        )
+        self.f.get_axes()[0].set_title(self.varname)
+        self.verts.set_clim(self.zrange_slider.val)
+        self.display_value(self.tbllim, self.zrange_slider.val[0])  
+        self.display_value(self.tbulim, self.zrange_slider.val[1])  
+
+
+    """ ======= PRE-DEFINED PLOTTING FUNCTIONS ======="""
     def execute_button(self, title, label, multispecies=0):
         self.multispecies = multispecies
         self.varname = title
@@ -479,38 +642,6 @@ class CaseDashboard2D():
         self.update(self.zrange_slider.val)
         self.reset_buttons()
         self.varbuttons[label]['button'].color = 'grey'
-
-    def ti(self, event):
-        self.var = self.case.get("ti")/1.602e-19
-        self.execute_button("Ti [eV]", "Ion temperature")
-
-    def te(self, event):
-        self.var = self.case.get("te")/1.602e-19
-        self.execute_button("Te [eV]", "Electron temperature")
-        return
-
-    def ne(self, event):
-        self.var = self.case.get("ne")
-        self.execute_button("ne [m**-3]", "Electron density")
-        return
-
-    def ni(self, event):
-        self.var = self.case.get("ni")
-        self.execute_button("ni [m**-3], {}".format(\
-                self.case.ionarray[self.s]),
-                "Ion density", 
-                "ion"
-        )
-        return
-
-    def ng(self, event):
-        self.var = self.case.get("ng")
-        self.execute_button("ng [m**-3], {}".format(\
-                self.case.gasarray[self.ns]), 
-                "Gas density", 
-                "gas"
-        )
-        return
 
     def prompt(self, command):
         from uedge import bbb, com, grd, flx, aph, api
@@ -543,26 +674,87 @@ class CaseDashboard2D():
         # TODO: Use radio buttons for custom prompts?
         # No, species indices may not be straightforward
 
-    def update(self, val):
-        from copy import deepcopy
-  
-        self.verts.set_cmap(self.cmap)
-        if self.multispecies == 0:
-            var = self.var[1:-1, 1:-1]
-        elif self.multispecies == 'ion':
-            var = self.var[1:-1, 1:-1, self.s]
-        elif self.multispecies == 'gas':
-            var = self.var[1:-1, 1:-1, self.ns]
-        else:
-            raise IndexError("Shape of var could not be determined")
-        self.verts.set_array(
-            var.reshape(
-                self.case.get("nx") * self.case.get("ny")
-            )
-        )
-        self.f.get_axes()[0].set_title(self.varname)
-        self.verts.set_clim(self.zrange_slider.val)
-        self.display_value(self.tbllim, self.zrange_slider.val[0])  
-        self.display_value(self.tbulim, self.zrange_slider.val[1])  
+    def prad_tot(self, event):
+        self.var = self.case.get("prad") + self.case.get("pradhyd")
+        self.execute_button("Total radiated power [W/m**-3]", "Total radiated power")
+        
+    def prad_imp(self, event):
+        self.var = self.case.get("prad") 
+        self.execute_button("Impurity radiated power [W/m**-3]", "Imp. radiated power")
+        
+    def prad_hyd(self, event):
+        self.var = self.case.get("pradhyd") 
+        self.execute_button("Hydrogenic radiated power [W/m**-3]", "Hyd. radiated power")
 
+    def tg(self, event):
+        self.var = self.case.get("tg")/1.602e-19
+        self.execute_button("Tg [eV], {}".format(\
+                self.case.gasarray[self.ns]), 
+                "Gas temperature", 
+                "gas")
+
+    def ion_ioniz(self, event):
+        self.var = self.case.get("psorc")
+        self.execute_button("Ion ionization source [part/s], {}".format(\
+                self.case.ionarray[self.ns]), 
+                "Ion ionization source", 
+                "ion")
+        
+    def gas_ioniz(self, event):
+        self.var = self.case.get("psorc")
+        self.execute_button("Gas ionization sink [part/s], {}".format(\
+                self.case.gasarray[self.ns]), 
+                "Gas ionization sink", 
+                "ion")
+        
+    def ion_rec(self, event):
+        self.var = self.case.get("psorxrc")
+        self.execute_button("Ion recombination + CX sink [part/s], {}".format(\
+                self.case.ionarray[self.ns]), 
+                "Ion recombination + CX sink", 
+                "ion")
+        
+    def gas_rec(self, event):
+        self.var = self.case.get("psorrgc")
+        self.execute_button("Gas recombination source [part/s], {}".format(\
+                self.case.gasarray[self.ns]), 
+                "Gas recombination source", 
+                "gas")
+        
+    def gas_cx(self, event):
+        self.var = self.case.get("psorcxgc")
+        self.execute_button("Gas CX source [part/s], {}".format(\
+                self.case.gasarray[self.ns]), 
+                "Gas CX source", 
+                "gas")
+       
+    def phi(self, event):
+        self.var = self.case.get("phi")
+        self.execute_button("Potential [V]", "Potential")
+
+    def ti(self, event):
+        self.var = self.case.get("ti")/1.602e-19
+        self.execute_button("Ti [eV]", "Ion temperature")
+
+    def te(self, event):
+        self.var = self.case.get("te")/1.602e-19
+        self.execute_button("Te [eV]", "Electron temperature")
+
+    def ne(self, event):
+        self.var = self.case.get("ne")
+        self.execute_button("ne [m**-3]", "Electron density")
+
+    def ni(self, event):
+        self.var = self.case.get("ni")
+        self.execute_button("ni [m**-3], {}".format(\
+                self.case.ionarray[self.s]),
+                "Ion density", 
+                "ion")
+
+    def ng(self, event):
+        self.var = self.case.get("ng")
+        self.execute_button("ng [m**-3], {}".format(\
+                self.case.gasarray[self.ns]), 
+                "Gas density", 
+                "gas")
 

@@ -544,7 +544,7 @@ class Caseplot(Plot):
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline("fngx", "fngy", s, surfnorm, **kwargs)
 
-    def plot_driftdirection(self, ax=None, width=0.02, color='k', flip=False,
+    def plot_driftdirection(self, ax=None, width=0.02, color='k', flip=True,
         **kwargs):
         ''' Plots the drift direction on the requested axis '''
         """
