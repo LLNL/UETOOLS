@@ -1,760 +1,1161 @@
-#import matplotlib
-#matplotlib.use("Qt5Agg")
+import sys
+from uetools import Case
+import matplotlib
+matplotlib.use('Qt5Agg')
 
-from PyQt5 import QtCore, QtWidgets
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.figure import Figure
+from matplotlib import rcParams
+
+#from range_slider import RangeSlider
+from PyQt5.QtCore import (
+    Qt, 
+    QMargins,
+    QTimer,
+    QSize,
+)
+from PyQt5.QtWidgets import QMenu
+from PyQt5.QtGui import (
+    QFont, 
+    QDoubleValidator,
+    QStatusTipEvent,
+)
+from range_slider import RangeSlider
+from functools import partial
+from PyQt5.QtWidgets import (
+    QAction,
+    QWidget,
+    QApplication, 
+    QLabel, 
+    QMainWindow,
+    QMenu,
+    QAction,
+    QSlider,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QPushButton,
+    QLineEdit,
+    QTabWidget,
+    QRadioButton,
+    QButtonGroup,
+    QCheckBox,
+    QFrame,
+    QFormLayout,
+    QSizePolicy,
+    QComboBox,
+    QFileDialog,
+    QDialog,
+    QDialogButtonBox,
+    QInputDialog,
+)
 
 
-class HeatmapCanvas(FigureCanvasQTAgg):
-    def __init__(self, case, parent=None, figsize=(7,8), **kwargs):
-        from matplotlib.pyplot import subplots, ion, ioff, figure
-        from matplotlib.widgets import Slider, RangeSlider, Button, \
-            TextBox, RadioButtons
-        self.case = case 
-        self.case = case
-        self.var = self.case.get('te')/1.602e-19
-        self.varname = "Te [eV]"
+    # update permanent bar
+# TODO: Display file name somewhere else
+
+
+# TODO: Store previously opened files in separate yaml under .uedgerc
+# TODO: Make dialogue work with active UEDGE run
+# TODO: make raise_message bolded red in bar
+
+
+# TODO: How to deal with CX/psorx?
+# TODO: Set zeros to 1e-10
+
+
+class CaseDashboard(QWidget):
+    """Main Window."""
+    def __init__(self, case, parent=None):
+        """Initializer."""
+        super().__init__(parent)
+        self.file = case.filename
+        self.case = case        
+
+        # TODO Initialize to dummy file to get prompt open?
+
+        self._createCanvas()
+        self._createVarButtons()
+        self._createSlider()
+        self._createSwitches()
+        self._createRadios()
+        self._createMiscOptions()
+        self._createSettings()
+
+        self.menu = QGridLayout()
+        self.menu.addLayout(self.buttons['layout'],    
+                0, 0, 1, 2
+        )
+        self.menu.addLayout(self.radios['layout'],
+                0, 2, 1, 1
+        )
+        self.menu.addLayout(self.settings, 1, 0, 1, 3)
+        self.sliderBar = QHBoxLayout()
+        self.sliderBar.addStretch()
+        self.sliderBar.addWidget(self.slider['items']['slider'])
+        self.sliderBar.addStretch()
+
+        self.sliderControl = QVBoxLayout()
+        self.sliderControl.addWidget(self.slider['items']['ulim'])
+        self.sliderControl.addLayout(self.sliderBar)
+        self.sliderControl.addWidget(self.slider['items']['llim'])
+        
+
+        '''
+        self.layout.addLayout(self.canvaslayout, 0, 5, 17, 30)
+        self.layout.addWidget(self.slider['items']['ulim'],
+                0, 35, 1, 3
+        )
+        self.layout.addWidget(self.slider['items']['slider'],        
+                1, 35, 15, 1, Qt.AlignHCenter
+        )
+        self.layout.addWidget(self.slider['items']['llim'],
+                16, 35, 1, 3
+        )
+
+        self.centralWidget = QWidget(self)
+        self.centralWidget.setLayout(self.layout)
+        '''
+        self.layout = QHBoxLayout()
+        self.layout.addLayout(self.menu)
+        self.layout.addLayout(self.canvaslayout)
+        self.layout.addLayout(self.sliderControl)
+
+
+        self.centralWidget = QWidget(self)
+        self.centralWidget.setLayout(self.layout)
+
+    def _createSettings(self):
+        self.settings = QGridLayout()
+        self.settings.addWidget(self.misc['frame'], 0, 0, 1, 1)
+        self.settings.addWidget(self.cmap_radio['frame'], 1, 0, 1, 1)
+        self.settings.addWidget(self.switches['frame'], 0, 1, 2, 1)
+        
+
+    def _createCanvas(self):
+        self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
+        self.canvas.setMinimumWidth(650)
+        self.canvas.setMinimumHeight(750)
+        self.case.te2D(ax=self.canvas.axes)#, flip=True)
         self.case.set_speciesarrays()
-        self.multispecies = 0
-        self.s = 0
-        self.ns = 0
-        self.smax = self.case.get("nisp")
-        self.nsmax = self.case.get("ngsp")
-        self.fromccmap = False
-        for key, value in kwargs.items():
-            self.__setattr__(key, value)
-        self.f = figure(figsize = figsize, dpi=100)
-        self.ax = self.f.add_subplot(111)
-        self.cbar, self.verts = case.plotmesh(
-                self.var, 
-                ax=self.ax, 
-                interactive=True,
-                watermark=False,
-                **kwargs
-        )
-        self.f.get_axes()[0].set_title(self.varname)
-        # Set figure location
-        self.f.get_axes()[0].set_position([0.05, 0.08, 0.6, 0.8])
-        # Set colorbar location
-        self.f.get_axes()[1].set_position([0.72, 0.08, 0.06, 0.88])
-        # Set slider location
-        zrange_position = self.f.add_axes([0.88, 0.1, 0.06, 0.84])
-        self.zrange_slider = RangeSlider(
-            zrange_position,
-            "",
-            self.var[1:-1, 1:-1].min(),
-            self.var[1:-1, 1:-1].max(),
-            valinit=(
-                self.var[1:-1, 1:-1].min(),
-                self.var[1:-1, 1:-1].max(),
-            ),
-            orientation="vertical",
-        )
-#        self.zrange_slider.valtext.set_visible(False)
-        self.zrange_slider.on_changed(self.update)
-
-        super(HeatmapCanvas, self).__init__(self.f)
-
-    def update(self, *args):
-        for val in args:
-            self.verts.set_cmap(self.cmap)
-            if self.multispecies == 0:
-                var = self.var[1:-1, 1:-1]
-            elif self.multispecies == 'ion':
-                var = self.var[1:-1, 1:-1, self.s]
-            elif self.multispecies == 'gas':
-                var = self.var[1:-1, 1:-1, self.ns]
-            else:
-                raise IndexError("Shape of var could not be determined")
-            self.verts.set_array(
-                var.reshape(
-                    self.case.get("nx") * self.case.get("ny")
-                )
-            )
-            self.f.get_axes()[0].set_title(self.varname)
-            self.verts.set_clim(self.zrange_slider.val)
-#            self.display_value(self.tbllim, self.zrange_slider.val[0])  
-#            self.display_value(self.tbulim, self.zrange_slider.val[1])  
-
-
-class CaseDashboard2D(QtWidgets.QMainWindow):
-
-    def __init__(self, case, *args,  
-        flip=True, 
-        grid=False,
-        cmap='magma',
-        linewidth=0.05, 
-        linecolor='k',
-        lcfscolor='grey', 
-        lcfs=True,
-        platecolor='r', 
-        plates=True, 
-        vessel=True,
-        **kwargs):
-        super(CaseDashboard2D, self).__init__(*args, **kwargs)
-
-        sc = HeatmapCanvas(case, self, figsize=(7,8),
-            flip=True, 
-            grid=False,
-            cmap='magma',
-            linewidth=0.05, 
-            linecolor='k',
-            lcfscolor='grey', 
-            lcfs=True,
-            platecolor='r', 
-            plates=True, 
-        )#width=5, height=4, dpi=100)
-
-        toolbar = NavigationToolbar(sc, self)
-
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(toolbar)
-        layout.addWidget(sc)
-
-        # Create a placeholder widget to hold our toolbar and canvas.
-        widget = QtWidgets.QWidget()
-        widget.setLayout(layout)
-        self.setCentralWidget(widget)
-
-        self.show()
-
-class MainMenu():
-    def __init__(self, casepath=None):
-        from matplotlib.pyplot import figure
-        self.f = figure(figsize=(4, 3))
-        if casepath is None:
-            self.f.suptitle("No UEDGE case loaded")
+        self.verts = self.case.Qvertices
+        self.suptitle = 'Electron temperature [eV]'
+        self.canvas.fig.suptitle(self.suptitle)
         
+        self.canvastoolbar = NavigationToolbar2QT(self.canvas, self)
+        self.canvaslayout = QVBoxLayout()
+        self.canvaslayout.addWidget(self.canvastoolbar)
+        self.canvaslayout.addWidget(self.canvas)
+        (ax, cax) = self.canvas.fig.get_axes()
+        old_cax = cax.get_position()
+        old_ax = ax.get_position()
+        dx = 0.055
+        cax.set_position([old_cax.x0+dx, old_cax.y0, old_cax.x1+dx, 0.85])
+        ax.set_anchor("C")
+        ax.set_position([0.1, old_ax.y0, 0.75, 0.85])
 
-class CaseDashboard2D_bu():
-    def __init__(self, 
-        case, 
-        **kwargs):
-        """Returns a series of figures to scroll through"""
-        from matplotlib.pyplot import subplots, ion, ioff, figure
-        from matplotlib.widgets import Slider, RangeSlider, Button, \
-            TextBox, RadioButtons
-        from os.path import expanduser
-        
-        # TODO: Dropdown with parameters?
-        # TODO: Button to flip?
-        self.case = case
-        self.var = self.case.get('te')/1.602e-19
-        self.varname = "Te [eV]"
-        self.case.set_speciesarrays()
-        self.multispecies = 0
-        self.s = 0
-        self.ns = 0
-        self.smax = self.case.get("nisp")
-        self.nsmax = self.case.get("ngsp")
-        self.fromccmap = False
-        default_cmaps = ('magma', 'bwr', 'gist_heat', 'jet', 'gist_rainbow','')
-        for key, value in kwargs.items():
-            self.__setattr__(key, value)
-        ioff()
-        """======= CREAT DASHBOARD AND SPLIT INTO SECTIONS  ======="""
-        self.board = figure(layout='constrained', figsize=(14,8))
-        [self.f, self.controls] = self.board.subfigures(1,2, wspace=0,
-                                                width_ratios=[1,1])
-        self.ax = self.f.subplots(1,1)
-        [self.buttonarea, self.controlarea] = self.controls.subfigures(2, 1, 
-                                                hspace=0, height_ratios=[8,2])
-
-        [self._varbuttonarea, self.radioarea, self._switcharea] = \
-                self.buttonarea.subfigures(
-                            1, 
-                            3, 
-                            width_ratios=[1,1,1], 
-                            wspace=0
-                )
-        try:
-            kwargs["zrange"]
-            origrange = kwargs["zrange"]
-        except:
-            kwargs["zrange"] = (
-                self.var[1:-1, 1:-1].min(),
-                self.var[1:-1, 1:-1].max(),
-            )
-            origrange = kwargs["zrange"]
-        self.cbar, self.verts = case.plotmesh(
-                self.var, 
-                ax=self.ax, 
-                interactive=True,
-                watermark=False,
-                **kwargs
-        )
-        """======= ADD POLY COLLECTION AND SLIDERS ======="""
-        self.f.get_axes()[0].set_title(self.varname)
-        # Set figure location
-        self.f.get_axes()[0].set_position([0.05, 0.08, 0.6, 0.88])
-        # Set colorbar location
-        self.f.get_axes()[1].set_position([0.72, 0.08, 0.06, 0.88])
-        # Set slider location
-        zrange_position = self.f.add_axes([0.88, 0.1, 0.06, 0.84])
-        self.zrange_slider = RangeSlider(
-            zrange_position,
-            "",
-            self.var[1:-1, 1:-1].min(),
-            self.var[1:-1, 1:-1].max(),
-            valinit=(origrange),
-            orientation="vertical",
-        )
-        self.zrange_slider.valtext.set_visible(False)
-        self.zrange_slider.on_changed(self.update)
-#        self.board.show()
-#        ion()
-#        return
-        axulim = self.f.add_axes([0.86, 0.96, 0.11, 0.025])
-        self.tbulim = TextBox(axulim, "", textalignment='center')
-        self.tbulim.on_submit(self.update_upper)
-        self.display_value(self.tbulim, kwargs['zrange'][1])
-
-        axllim = self.f.add_axes([0.86, 0.02, 0.11, 0.025])
-        self.tbllim = TextBox(axllim, "", textalignment='center')
-        self.tbllim.on_submit(self.update_lower)
-        self.display_value(self.tbllim, kwargs['zrange'][0])
-        maxbuttons = 18
-
-        """======= SET UP PRE-DEFINED PLOTS ======="""
-        self.varbuttons = {
-            "Electron temperature": {'func': self.te},
-            "Ion temperature": {'func': self.ti},
-            "Gas temperature": {'func': self.tg},
-            "Electron density": {'func': self.ne},
-            "Ion density": {'func': self.ni},
-            "Gas density": {'func': self.ng},
-            "Potential": {'func': self.phi},
-            "Total radiated power": {'func': self.prad_tot},
-            "Imp. radiated power": {'func': self.prad_imp},
-            "Hyd. radiated power": {'func': self.prad_hyd},
-            "Ion ionization source": {'func': self.ion_ioniz},
-            "Gas ionization sink": {'func': self.gas_ioniz},
-            "Ion recombination + CX sink": {'func': self.ion_rec},
-            "Gas recombination source": {'func': self.gas_rec},
-            "Gas CX source": {'func': self.gas_cx},
-        }
-
-
-
-        [self.varbuttonarea, a] = self._varbuttonarea.subfigures(
-                    2, 
-                    1, 
-                    height_ratios=[
-                            len(self.varbuttons)/maxbuttons,
-                            1-(len(self.varbuttons)/maxbuttons)
-                    ],
-                    hspace=0
-        )
-        buttonaxes = self.varbuttonarea.subplots(\
-                    max(len(self.varbuttons), 0), 
-                    1
-        )
-        i = 0
-        for key, setup in self.varbuttons.items():
-            self.varbuttons[key]['button'] = Button(buttonaxes[i], key, 
-                color=(key != "Electron temperature")*'light'+'grey')
-            self.varbuttons[key]['button'].on_clicked(setup['func'])
-            i += 1
-        for j in range(i, len(buttonaxes)):
-            buttonaxes[j].set_visible(False)
-        self.varbuttons['Electron temperature']['button'].color = 'grey'
-
-        """======= SET UP PLOT SWITCHES ======="""
-        self.switches = {
-            "Log": {'func': self.toggle_log, 'default': False},
-            "Vessel": {'func': self.toggle_vessel, 'default': True},
-            "Plates": {'func': self.toggle_plates, 'default': True},
-            "Separatrix": {'func': self.toggle_sep, 'default': True},
-            "Grid": {'func': self.toggle_grid, 'default': False},
-        }
-        [self.switcharea, b] = self._switcharea.subfigures(
-                    2, 
-                    1,
-                    height_ratios=[
-                            len(self.switches)/maxbuttons,
-                            1-(len(self.switches)/maxbuttons)
-                    ],
-                    hspace=0
-        )
-        switchaxes = self.switcharea.subplots(max(len(self.switches), 0), 1, 
-                gridspec_kw={'hspace': 0.0})
-        i = 0
-        for key, setup in self.switches.items():
-            if setup['default']:
-                color = 'grey'
-                setattr(self, key, True)
-            else:
-                color = 'lightgrey'
-                setattr(self, key, False)
-            self.switches[key]['button'] = Button(switchaxes[i], 
-                        key, 
-                        color=color
-            )
-            self.switches[key]['button'].on_clicked(self.switches[key]['func'])
-            i += 1
-        for j in range(i, len(switchaxes)):
-            switchaxes[j].set_visible(False)
-
-        """======= SET UP RADIO BUTTONS ======="""
-        plupps = self.nsmax + self.smax + len(default_cmaps)
-        radioaxes = self.radioarea.subplots(
-                3, 1, 
-                height_ratios=[
-                    self.smax/plupps, 
-                    self.nsmax/plupps, 
-                    len(default_cmaps)/plupps
-        ]) 
-        self.radios = {
-            'ion': {
-                'labels': tuple(self.case.ionarray), 
-                'func': self.update_ionspecies
-            },
-            'gas': {
-                'labels': tuple(self.case.gasarray), 
-                'func': self.update_gasspecies
-            },
-            'cmap': {
-                'labels': default_cmaps,
-                'func': self.update_cmap
-            },
-        }
-        i = 0
-        for key, setup in self.radios.items():
-            self.radios[key]['button'] = RadioButtons(radioaxes[i],
-                        self.radios[key]['labels'], radio_props={'s': 42})
-            self.radios[key]['button'].on_clicked(self.radios[key]['func'])
-            i += 1
-        x = radioaxes[-1].get_position().x0
-        y = radioaxes[-1].get_position().y0
-        axccmap = self.radioarea.add_axes([0.245, 0.6/plupps, 0.7, 0.034])
-        self.tbccmap = TextBox(axccmap, "")
-        self.tbccmap.on_submit(self.custom_cmap)
-        self.tbccmap.color='lightgrey'
-        self.customcmap=False
-
-        """======= SET UP INTERACTIVE BOXES  ======="""
-        [_, self.varbox, _, self.savebox, self.menu] = \
-                self.controlarea.subfigures(\
-                        5,
-                        1, 
-                        wspace=0.1, 
-                        height_ratios=[0.5, 1, 0.5, 1,2
-        ])
-        axep = self.savebox.subplots(1, 1)
-        self.tbe = TextBox(axep, "Export path:".rjust(25))
-        self.tbe.on_submit(self.exportpath)
-        self.tbe.color='lightgrey'
-        self.exportpath = expanduser("~/fig.png")
-        self.tbe.text_disp.set_text('~/fig.png')
-        
-        axprompt = self.varbox.subplots(1,1)
-        self.tbprompt = TextBox(axprompt, "Plot expression:".rjust(25))
-        self.tbprompt.on_submit(self.prompt)
-        self.tbprompt.color='lightgrey'
-
-        """======= SET UP MENU BUTTONS  ======="""
-        self.menubuttons = {
-            "Export": {'func': self.export},
-            "Close": {'func': self.close},
-        }
-        maxmenus = 10
-        [_, self.active_menu] = self.menu.subfigures(1, 2,
-            width_ratios=[
-                    1-(len(self.menubuttons)/maxmenus),
-                    len(self.menubuttons)/maxmenus])
-        menuaxes = self.active_menu.subplots(1, len(self.menubuttons))
-        i = 0
-        for key, setup in self.menubuttons.items():
-            self.menubuttons[key]['button'] = \
-                Button(menuaxes[i], key, color='lightgrey')
-            self.menubuttons[key]['button'].on_clicked(setup['func'])
-            i += 1
-
-        """======= CLEAN UP PLOT  ======="""
-        for line in self.ax.lines:
+        self.casename = self.case.casename
+        self.gasspecies = 0
+        self.ionspecies = 0
+        self.cmap = 'magma'
+        self.grid = False
+        self.log = False
+        self.abs = False
+        self.varscale = 1
+        self.var = self.case.get("te")/1.602e-19
+        self.multispecies = False
+        self.xy = self.case.get("nx") * self.case.get("ny")
+        for line in self.canvas.axes.lines:
             if "child" in line.get_label():
                 line.remove()
 
-        """======= SET TITLES  ======="""
-        radioaxes[0].set_title("Ion array species")
-        radioaxes[1].set_title("Gas array species")
-        radioaxes[2].set_title("Colormap") 
-        self.varbuttonarea.suptitle("Plot variables")
-        self.switcharea.suptitle("Plot switches")
 
-        """======= SET INITIAL PLOT LIMITS  ======="""
-        xlim = [self.case.get('rm').min(), self.case.get('rm').max()]
-        ylim = [self.case.get('zm').min(), self.case.get('zm').max()]
-        for var in ['xlim', 'rplate1', 'rplate2']:
-            xlim[0] = min(self.case.get(var).min(), xlim[0])
-            xlim[1] = max(self.case.get(var).max(), xlim[1])
-        for var in ['ylim', 'zplate1', 'zplate2']:
-            ylim[0] = min(self.case.get(var).min(), ylim[0])
-            ylim[1] = max(self.case.get(var).max(), ylim[1])
-        if self.flip is True:
-            ylim = [self.case.disp - x for x in ylim[::-1]]
-        self.ax.set_xlim((xlim[0]-0.03, xlim[1]+0.03))
-        self.ax.set_ylim((ylim[0]-0.03, ylim[1]+0.03))
+    def _createMiscOptions(self):
+        self.misc = {
+            'frame': QFrame(),
+            'items': {
+                'abs': QCheckBox(),
+                'varscale': MyLineEdit("1"),
+                'ulim': MyClearLineEdit(),
+                'llim': MyClearLineEdit(),
+            }
+        }
+        tmp = self.misc['items']
 
-        
-        """======= SHOW AND START TRACKING INTERACTIONS  ======="""
-        self.board.show()
-        ion()
+        form =  QFormLayout()
+        form.addRow("Variable absolute value", tmp["abs"])
+        tmp['abs'].toggled.connect(self.toggle_abs)
+        tmp['abs'].setToolTip("Plots the absolute value of variables.")
 
-    """ ======= MENU BUTTONS ======="""
-    def close(self, event):
-        from matplotlib.pyplot import close
-        close(self.board)
-        del self
+        tmp['varscale'].setValidator(QDoubleValidator())
+        tmp['varscale'].returnPressed.connect(self.change_varscale)
+        tmp['varscale'].setFixedWidth(50)
+        form.addRow("Variable scaling factor", tmp["varscale"])
+        tmp['varscale'].mousePressEvent = lambda _ : tmp['varscale'].selectAll()
+        tmp['varscale'].setToolTip("Hit return to apply.")
 
-    def exportpath(self, val):
-        from os.path import expanduser
-        self.exportpath = expanduser(val)
+        tmp['ulim'].setValidator(QDoubleValidator())
+        tmp['ulim'].returnPressed.connect(self.change_ulim)
+        tmp['ulim'].setFixedWidth(50)
+        tmp['ulim'].setToolTip("Hit return to apply.")
+        form.addRow("Set upper plot range", tmp ['ulim'])
 
-    def export(self, event):
-        from matplotlib.transforms import Bbox
-        from matplotlib.pyplot import close
-        if self.multispecies == 0:
-            var = self.var
-        elif self.multispecies == 'ion':
-            var = self.var[:,:,self.s]
-        elif self.multispecies == 'gas':
-            var = self.var[:,:,self.ns]
-        figsize=self.board.get_size_inches()
-        figsize[0] *= 0.42
-        bb=Bbox([[0,0],[*figsize]])
-        self.board.savefig(self.exportpath, dpi=300, bbox_inches=bb)
-        """
-        # TODO: Figure out why closing the figure causes
-        # a segfault??!
-        self.expfig=self.case.plotmesh(
-                deepcopy(var),
-                cmap=self.cmap,
-                figsize=figsize,
-                xlim=self.ax.get_xlim(),
-                ylim=self.ax.get_ylim(),
-                zrange=self.zrange_slider.val,
-                log=self.Log,
-                vessel=self.Vessel,
-                plates=self.Plates,
-                lcfs=self.Separatrix,
-                title=self.varname,
-                grid=self.Grid,
-                flip=self.flip
-        )
-        self.expfig.savefig(self.exportpath, dpi=300)       
-#       Closing the new figure segfaults for some reason?!
-        close(self.expfig)
-        """
-        print(f"Figure saved successfully to: {self.exportpath}")
-        
+        tmp['llim'].setValidator(QDoubleValidator())
+        tmp['llim'].returnPressed.connect(self.change_llim)
+        tmp['llim'].setFixedWidth(50)
+        tmp['llim'].setToolTip("Hit return to apply.")
+        form.addRow("Set lower plot range", tmp ['llim'])
 
-    """======= RADIO BUTTONS ======="""
-        
-    def update_ionspecies(self, label):
-        self.s = self.case.ionarray.index(label)
-        if self.multispecies == 'ion':
-            self.update_slider()
-            self.update(self.zrange_slider.val)
-            self.reset_buttons()
+        self.misc['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel(self.title("Plot options")))
+        layout.addLayout(form)
+        layout.addStretch()
+        self.misc['frame'].setLayout(layout)
 
-    def update_gasspecies(self, label):
-        self.ns = self.case.gasarray.index(label)
-        if self.multispecies == 'gas':
-            self.update_slider()
-            self.update(self.zrange_slider.val)
-            self.reset_buttons()
 
-    def update_cmap(self, label):
-        self.cmap = label
-        if label != '':
-            self.verts.set_cmap(self.cmap)
-            self.customcmap=False
-        else:
-            self.customcmap=True
-            if not self.fromccmap:
+    def set_custom_cmap(self):
+        cmap = self.cmap_radio['items']['cmap'].text()
+        try:
+            self.verts.set_cmap(cmap)
+            self.cmap = cmap
+            self.cmap_radio['group'].setExclusive(False)
+            for key, item in self.cmap_radio['items'].items():
                 try:
-                    self.custom_cmap(self.tbccmap.text)
+                    item.setChecked(False)
                 except:
                     pass
-        self.f.canvas.draw()
-
-
-    def custom_cmap(self, val):
-        if not self.customcmap:
-            self.fromccmap = True
-            self.radios['cmap']['button'].set_active(len(\
-                self.radios['cmap']['button'].labels)-1)
-            self.fromccmap = False
-        self.cmap = val
-        try:
-            self.verts.set_cmap(self.cmap)
+            self.cmap_radio['group'].setExclusive(True)
         except:
-            self.tbccmap.color='salmon'
+            self.raise_message(f"Colormap {cmap} not available!")
+            self.cmap_radio['items']['cmap'].clear()
+        self.canvas.draw()
+        self.cmap_radio['items']['cmap'].clearFocus()
+
+
+    def toggle_abs(self):
+        self.abs = not self.abs
+        self.update_var()
+
+    def change_varscale(self):
+        self.varscale = float(self.misc['items']['varscale'].text())
+        self.update_var()
+        self.misc['items']['varscale'].clearFocus()
+
+    def change_ulim(self):
+        ulim = float(self.misc['items']['ulim'].text())
+        clim = self.verts.get_clim()
+        lims = self.get_lims()
+        if ulim <= clim[0]:
+            self.raise_message("Requested upper range {:.3g} is".format(ulim)+
+                " below the current lower limit {:.3g}".format(clim[0]))
             return
+        ulim = min(ulim, lims[1])
+        self.verts.set_clim((clim[0], ulim))
+        self.slider['items']['ulim'].setText(\
+                self.title("{:.3g}".format(ulim)
+        ))
+        self.slider['items']['slider'].setHigh(
+           int( self.value2position(ulim)
+        ))
+        self.update_var()
+        self.misc['items']['ulim'].clear()
+        self.misc['items']['ulim'].clearFocus()
+
+    def change_llim(self):
+        llim = float(self.misc['items']['llim'].text())
+        clim = self.verts.get_clim()
+        lims = self.get_lims()
+        if llim >= clim[1]:
+            self.raise_message("Requested lower range {:.3g} is".format(llim)+
+                " above the current upper limit {:.3g}".format(clim[1]))
+            return
+        llim = max(llim, lims[0])
+        self.verts.set_clim((llim, clim[1]))
+        self.slider['items']['llim'].setText(\
+                self.title("{:.3g}".format(llim)
+        ))
+        self.slider['items']['slider'].setLow(
+           int( self.value2position(llim)
+        ))
+        self.update_var()
+        self.misc['items']['llim'].clear()
+        self.misc['items']['llim'].clearFocus()
+
+
+
+
+
+    def _createRadios(self):
+        self._createIonRadio()
+        self._createGasRadio()
+        self._createCmapRadio()
+        self.radios = {'layout': QGridLayout()}
+
+        self.radios['layout'].addWidget(self.ion_radio['frame'], 0, 0, 1, 1)
+        self.radios['layout'].addWidget(self.gas_radio['frame'], 1, 0, 1, 1)
+
+    def _createIonRadio(self):
+        self.ion_radio = {
+            'frame': QFrame(),
+            'layout': QVBoxLayout(),
+            'group': QButtonGroup(),
+            'title': QLabel(self.title("Ion species")),
+            'labels': self.case.ionarray,
+            'items': {}
+        }
+        self.ion_radio['title'].setAlignment(\
+                    Qt.AlignHCenter |\
+                    Qt.AlignVCenter
+        )
+        self.ion_radio['layout'].addWidget(self.ion_radio['title'])
+        ind = 0
+        for label in self.ion_radio['labels']:
+            self.ion_radio['items'][label] = QRadioButton(label)
+            self.ion_radio['layout'].addWidget(\
+                    self.ion_radio['items'][label])
+            self.ion_radio['group'].addButton(\
+                    self.ion_radio['items'][label], ind)
+            self.ion_radio['items'][label].clicked.connect(self.ion_radio_clicked)
+            ind += 1
+        self.ion_radio['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
+        self.ion_radio['frame'].setLayout(self.ion_radio['layout'])
+        self.ion_radio['items'][self.case.ionarray[0]].setChecked(True)
+
+    def _createGasRadio(self):
+        self.gas_radio = {
+            'frame': QFrame(),
+            'layout': QVBoxLayout(),
+            'group': QButtonGroup(),
+            'title': QLabel(self.title("Gas species")),
+            'labels': self.case.gasarray,
+            'items': {}
+        }
+        self.gas_radio['title'].setAlignment(\
+                    Qt.AlignHCenter |\
+                    Qt.AlignVCenter
+        )
+        self.gas_radio['layout'].addWidget(self.gas_radio['title'])
+        ind = 0
+        for label in self.gas_radio['labels']:
+            self.gas_radio['items'][label] = QRadioButton(label)
+            self.gas_radio['layout'].addWidget(\
+                    self.gas_radio['items'][label])
+            self.gas_radio['group'].addButton(\
+                    self.gas_radio['items'][label], ind)
+            self.gas_radio['items'][label].clicked.connect(self.gas_radio_clicked)
+            ind += 1
+        self.gas_radio['layout'].addStretch()
+        self.gas_radio['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
+        self.gas_radio['frame'].setLayout(self.gas_radio['layout'])
+        self.gas_radio['items'][self.case.gasarray[0]].setChecked(True)
+
+
+    def _createCmapRadio(self):
+        self.cmap_radio = {
+            'frame': QFrame(),
+            'layout': QVBoxLayout(),
+            'group': QButtonGroup(),
+            'title': QLabel(self.title("Colormaps")),
+            'labels': [
+                'magma',
+                'bwr',
+                'cividis',
+                'hsv',
+                'Dark2',
+                'gnuplot2',
+                'hot',
+                'jet',
+            ],
+            'items': {
+                'cmap': MyLineEdit()
+            }
+        }
+        self.cmap_radio['layout'].addWidget(self.cmap_radio['title'])
+        ind = 0
+        for label in self.cmap_radio['labels']:
+            self.cmap_radio['items'][label] = QRadioButton(label)
+            self.cmap_radio['layout'].addWidget(\
+                    self.cmap_radio['items'][label])
+            self.cmap_radio['group'].addButton(\
+                    self.cmap_radio['items'][label], ind)
+            self.cmap_radio['items'][label].clicked.connect(self.cmap_radio_clicked)
+            ind += 1
+        self.cmap_radio['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
+        self.cmap_radio['frame'].setLayout(self.cmap_radio['layout'])
+        self.cmap_radio['items'][self.cmap_radio['labels'][0]].setChecked(True)
+
+        self.cmap_radio['layout'].addWidget(self.cmap_radio['items']["cmap"])
+        self.cmap_radio['items']['cmap'].returnPressed.connect(self.set_custom_cmap)
+        self.cmap_radio['items']['cmap'].setFixedWidth(100)
+        self.cmap_radio['items']['cmap'].mousePressEvent = \
+                lambda _ : self.cmap_radio['items']['cmap'].selectAll()
+        self.cmap_radio['items']['cmap'].setToolTip("Hit return to apply.")
+        self.cmap_radio['layout'].addStretch()
+
+
+    def cmap_radio_clicked(self):
+        self.cmap = self.cmap_radio['group'].checkedButton().text()
+        self.verts.set_cmap(self.cmap)
+        self.cmap_radio['items']['cmap'].clear()
+        self.canvas.draw()
+
+    def ion_radio_clicked(self):
+        self.ionspecies = self.ion_radio['group'].checkedId()
+        title = self.suptitle
+        if self.multispecies == 'ion':
+            if " for " in title:
+                title = title.split("for")[0] + "for {}".format(
+                    self.case.ionarray[self.ionspecies])
+            self.suptitle = title
+            self.update_var()
         
+    def gas_radio_clicked(self):
+        self.gasspecies = self.gas_radio['group'].checkedId()
+        if self.multispecies == 'gas':
+            title = self.canvas.fig._suptitle.get_text()
+            if " for " in title:
+                title = title.split("for")[0] + "for {}".format(
+                    self.case.gasarray[self.gasspecies])
+            self.canvas.fig.suptitle(title)
+            self.update_var()
 
-    """======= TOGGLES ======="""
-    def toggle(self, label):
-        status = self.__getattribute__(label)
-        self.switches[label]['button'].color = ('light'*status) + 'grey'
-        setattr(self, label, not status)
-        self.f.canvas.draw()
 
-    def toggle_plates(self, event):
-        if self.Plates is True:
-            for line in self.ax.lines:
-                if 'plate' in line.get_label():
-                    line.set_visible(False)
+    def _createSlider(self):
+        lims = self.get_lims()
+        self.slider = {
+            'layout': QVBoxLayout(),
+            'items': {
+                'ulim': QLabel(self.title("{:.3g}".format(lims[1]))),
+                'slider': RangeSlider(Qt.Vertical),
+                'llim': QLabel(self.title("{:.3g}".format(lims[0]))),
+            }
+        }
+
+        self.slider['items']['llim'].setAlignment(\
+                        Qt.AlignHCenter | \
+                        Qt.AlignVCenter
+        )
+        self.slider['items']['ulim'].setAlignment(\
+                        Qt.AlignHCenter | \
+                        Qt.AlignVCenter
+        )
+        self.slider['items']['ulim'].setFixedWidth(75)
+        self.slider['items']['llim'].setFixedWidth(75)
+
+        self.slider['items']['slider'].setMinimum(0)
+        self.slider['items']['slider'].setMaximum(1000)
+        self.slider['items']['slider'].setLow(0)
+        self.slider['items']['slider'].setHigh(1000)
+        self.slider['items']['slider'].setMinimumHeight(30)
+        self.slider['items']['slider'].setValue(1000)
+        self.slider['items']['slider'].sliderMoved.connect(\
+                self.update_plot_range)
+
+
+    def _createSwitches(self):
+        self.switches = {
+            'frame': QFrame(),
+            'layout': QVBoxLayout(),
+            'title': QLabel(self.title("Switches")),
+            'items': {}
+        }
+        
+        grid = QHBoxLayout()
+        col = [QVBoxLayout(), QVBoxLayout(), QVBoxLayout()]
+        grid.addLayout(col[0])
+        grid.addLayout(col[1])
+        grid.addLayout(col[2])
+        col[0].setContentsMargins(10,0,10,5)
+        col[1].setContentsMargins(10,0,10,5)
+
+        self.switches['layout'].addWidget(self.switches['title'])
+        self.switches['layout'].addLayout(grid)
+        self.switches['layout'].setSpacing(5)
+        grid.setSpacing(5)
+        self.switches['frame'].setLayout(self.switches['layout'])
+        self.switches['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
+
+        i = 0
+        for switch in ["Vessel", "Plates", "Separatrix", "Grid", "Scale"]:
+            if switch != "Scale":
+                on, off = "On", "Off"
+            else:
+                on, off = "Lin", "Log"
+            self.switches['items'][switch.lower()] = {
+                    'group': QButtonGroup(),
+                    on.lower(): QRadioButton(on),
+                    off.lower(): QRadioButton(off),
+                    'layout': QVBoxLayout()
+            }
+            tmpsw = self.switches['items'][switch.lower()]
+            tmpsw[on.lower()].toggled.connect(self.__getattribute__(\
+                "{}_switch_clicked".format(switch.lower())))
+            tmpsw['group'].addButton(tmpsw[on.lower()], 1)
+            tmpsw['group'].addButton(tmpsw[off.lower()], 0)
+            tmpsw['layout'].addWidget(QLabel(f"<b>{switch}</b>"))
+            tmpsw['layout'].addWidget(tmpsw[on.lower()])
+            tmpsw['layout'].addWidget(tmpsw[off.lower()])
+            tmpsw['layout'].setContentsMargins(0,0,0,0)
+            tmpsw['layout'].setSpacing(0)
+            col[int(i/5)].addLayout(tmpsw['layout'])
+            i += 1
+        col[-1].addStretch()
+        self.switches['items']['vessel']['on'].setChecked(True)
+        self.switches['items']['plates']['on'].setChecked(True)
+        self.switches['items']['separatrix']['on'].setChecked(True)
+        self.switches['items']['grid']['off'].setChecked(True)
+        self.switches['items']['scale']['lin'].setChecked(True)
+        self.plates_switch_clicked()
+        self.vessel_switch_clicked()
+        self.separatrix_switch_clicked()
+        self.scale_switch_clicked()
+
+
+    def plates_switch_clicked(self):
+        for line in self.canvas.axes.lines:
+            if 'plate' in line.get_label():
+                line.set_visible(not line.get_visible())
+        self.canvas.draw()
+
+    def grid_switch_clicked(self):
+        if self.grid:
+            self.verts.set_edgecolor('face')
+            self.verts.set_linewidths(1)
         else:
-            for line in self.ax.lines:
-                if 'plate' in line.get_label():
-                    line.set_visible(True)
-        self.toggle('Plates')
+            self.verts.set_edgecolor('lightgrey')
+            self.verts.set_linewidths(0.08)
+        self.grid = not self.grid
+        self.canvas.draw()
 
-    def toggle_vessel(self, event):
-        from matplotlib.pyplot import show
-        if self.Vessel is True:
-            for line in self.ax.lines:
-                if line.get_label() == 'vessel':
-                    line.set_visible(False)
-        else:
-            for line in self.ax.lines:
-                if line.get_label() == 'vessel':
-                    line.set_visible(True)
-        self.toggle('Vessel')
+    def separatrix_switch_clicked(self):
+        for line in self.canvas.axes.lines:
+            if line.get_label() == "lcfs":
+                line.set_visible(not line.get_visible())
+        self.canvas.draw()
 
-    def toggle_sep(self, event):
-        if self.Separatrix is True:
-            for line in self.ax.lines:
-                if line.get_label() == 'lcfs':
-                    line.set_visible(False)
-        else:
-            for line in self.ax.lines:
-                if line.get_label() == 'lcfs':
-                    line.set_visible(True)
-                    line.set_alpha(1)
-        self.toggle('Separatrix')
+    def vessel_switch_clicked(self):
+        for line in self.canvas.axes.lines:
+            if line.get_label() == 'vessel':
+                line.set_visible(not line.get_visible())
+        self.canvas.draw()
 
-    def toggle_log(self, event):
+    def scale_switch_clicked(self):
         from matplotlib.colors import LogNorm, Normalize
         from numpy import log
         lims = self.get_lims()
-        for x in lims:
-            if x<=0:
-                raise ValueError("Cannot plot negative values on log scale!")
-        if self.Log is True:
-            self.verts.set_norm(Normalize(vmin=lims[0], vmax=lims[1]))
+
+        '''
+        self.log = not self.log
+        if self.log:
+            self.verts.set_norm(Normalize(*lims))#vmin=lims[0], vmax=lims[1])
         else:
             self.verts.set_norm(LogNorm(*lims))
-            self.verts.set_clim(*lims)
-        self.toggle('Log')
+        self.update_var()  
 
-    def toggle_grid(self, event):
-        if self.Grid is True:
-            self.verts.set_linewidths(1)
-            self.verts.set_edgecolors("face")
+        return
+        '''
+        if (lims[0] <= 0) and (self.log is False):
+            self.raise_message("Negative values in var: masking array!")
+            var = self.verts.get_array()
+            var.mask=(var<=0)
+            self.verts.set_array(var)
+            lims = self.get_lims()
         else:
-            self.verts.set_edgecolors("lightgrey")
-            self.verts.set_linewidths(0.08)
-        self.toggle('Grid')
-
-    """ ======= UPDATE FUNCTIONS ======="""
-    def update_lower(self, val):
-        self.zrange_slider.set_min(float(val))
-        self.update_slider()
-
-    def update_upper(self, val):
-        self.zrange_slider.set_max(float(val))
-        self.update_slider()
-
-    def display_value(self, box, val):
-        valstr = "{:.3g}".format(val)
-        box.text_disp.set_text(valstr)
-
-    def update_slider(self):
-        lims = self.get_lims()
-        self.zrange_slider.valmin = lims[0]
-        self.zrange_slider.valmax = lims[1]
-        vals = self.zrange_slider.val
-        valinit = self.zrange_slider.valinit
-        self.zrange_slider.valinit = vals
-        # TODO: only update new_valint when zrange_slider set?
-        new_valinit = list(vals)
-        # If values within 1/1000th of the resolution, rescale
-        if (vals[0] < lims[0]) or (vals[0] > lims[1]) or \
-            (vals[0] > lims[0]*1e4):
-            self.zrange_slider.set_min(lims[0])
-            new_valinit[0]=lims[0]
-        if (vals[1] > lims[1]) or (vals[1] < lims[0]) or \
-            (vals[1] < lims[1]/1e4):
-            self.zrange_slider.set_max(lims[1])
-            new_valinit[1]=lims[1]
-        self.zrange_slider.valinit = (new_valinit)
-        self.zrange_slider.ax.set_ylim(lims)
-        self.zrange_slider.set_val(self.zrange_slider.val)
-        self.display_value(self.tbllim, self.zrange_slider.val[0])  
-        self.display_value(self.tbulim, self.zrange_slider.val[1])  
-        self.zrange_slider.reset()
-
-    def get_lims(self):
-        if self.multispecies == 0:
-            var = self.var
-        elif self.multispecies == 'ion':
-            var = self.var[:,:,self.s]
-        elif self.multispecies == 'gas':
-            var = self.var[:,:,self.ns]
-        return (var[1:-1,1:-1].min(), 
-                var[1:-1,1:-1].max())
- 
-    def reset_buttons(self):
-        for key, setup in self.varbuttons.items():
-            setup['button'].color="lightgrey"
-        self.tbprompt.color='lightgrey'
-        self.tbprompt.text_disp.set_text('')
-
-    def update(self, val):
-        self.verts.set_cmap(self.cmap)
-        if self.multispecies == 0:
-            var = self.var[1:-1, 1:-1]
-        elif self.multispecies == 'ion':
-            var = self.var[1:-1, 1:-1, self.s]
-        elif self.multispecies == 'gas':
-            var = self.var[1:-1, 1:-1, self.ns]
+            var = self.verts.get_array()
+            var.mask=False
+            self.verts.set_array(var)
+        if self.log:
+            self.verts.set_norm(Normalize(*lims))#vmin=lims[0], vmax=lims[1])
         else:
-            raise IndexError("Shape of var could not be determined")
-        self.verts.set_array(
-            var.reshape(
-                self.case.get("nx") * self.case.get("ny")
+            self.verts.set_norm(LogNorm(*lims))
+        vals = self.get_slider_values()
+        self.log = not self.log 
+        newpos = [int(self.value2position(x)) for x in vals]
+        self.slider['items']['slider'].setLow(newpos[0])
+        self.slider['items']['slider'].setHigh(newpos[1])
+        clim = list(self.verts.get_clim())
+        if self.log:
+            if clim[0] < 0:
+                clim[0]=1e-100
+            if (clim[1] <0) or (clim[1]<clim[0]):
+                clim[1]=1e100
+        self.verts.set_clim(clim)
+        self.canvas.draw()
+
+
+    def _createVarButtons(self):
+        self.buttons = {
+            'layout': QGridLayout(),
+            'title': QLabel(self.title("Plots")),
+            'items': {
+                'te': 'Electron temperature',
+                'ti': 'Ion temperature',
+                'tg': 'Gas temperature',
+                'ne': 'Electron density',
+                'ni': 'Ion density',
+                'ng': 'Gas density',
+                'phi': 'Potential',
+                'prad': 'Total radiated power',
+                'pradhyd': 'Hyd. radiated power',
+                'pradimp': 'Imp. radiated power',
+                'psorc': "Ion ioniz. source",
+                'psorgc': "Gas ioniz. sink",
+                'psorxrc': "Ion rec. + CX sink",
+                'psorrgc': "Gas rec. source",
+                'psorcxg': "Gas CX source",
+            },
+        }
+        self.buttons["title"].setAlignment(Qt.AlignHCenter)
+        self.buttons['layout'].setSpacing(0)
+
+        maxbuttons = 8
+        cols = [QVBoxLayout() for x in range(int(len(self.buttons['items'])/maxbuttons+1))]
+        i = 0
+        for key, setup in self.buttons['items'].items():
+            self.buttons['items'][key] = QPushButton(setup)
+            self.buttons['items'][key].clicked.connect(
+                self.__getattribute__(f"plot_{key}"))
+            cols[int(i/maxbuttons)].addWidget(
+                self.buttons['items'][key], 
             )
-        )
-        self.f.get_axes()[0].set_title(self.varname)
-        self.verts.set_clim(self.zrange_slider.val)
-        self.display_value(self.tbllim, self.zrange_slider.val[0])  
-        self.display_value(self.tbulim, self.zrange_slider.val[1])  
+            i += 1
+        for vbox in cols:
+            vbox.addStretch()
+        # Add drop-down
+        self.buttons['items']['dropdown'] = QComboBox()
+        varlist = list(self.buttons['items'].keys())
+        self.buttons['items']['dropdown'].addItem("", 0)
+        # TODO: Check that can be plotted --> len(shape)
+        for vartype in ['centered', 'staggered']:
+            if self.case.inplace:
+                for var, path in self.case.vars.items():
+                    if (vartype in path) and (var not in varlist):
+                        if (len(self.case.get(var).shape) <= 3) and \
+                            (len(self.case.get(var).shape) > 1):
+                            self.buttons['items']['dropdown'].addItem(var, i)
 
+        cols[-1].addWidget(self.buttons['items']['dropdown'])
+        self.buttons['items']['dropdown'].activated[str].connect(self.plot_dropdown)
 
-    """ ======= PRE-DEFINED PLOTTING FUNCTIONS ======="""
-    def execute_button(self, title, label, multispecies=0):
-        self.multispecies = multispecies
-        self.varname = title
-        self.update_slider()
-        self.update(self.zrange_slider.val)
-        self.reset_buttons()
-        self.varbuttons[label]['button'].color = 'grey'
+        custom = QVBoxLayout()
+        custom.addWidget(QLabel("Custom formula"))
+        self.buttons['items']['custom'] = MyLineEdit()
+        self.buttons['items']['custom'].mousePressEvent = \
+            lambda _ : self.buttons['items']['custom'].selectAll()
+        self.buttons['items']['custom'].returnPressed.connect(self.plot_custom)
+        self.buttons['items']['custom'].setToolTip("Plots custom formula. "+
+            "Access var by get('var'). Python syntax applies. Expects output"+
+            "of shape ({},{}). Hit return to apply. ".format(self.case.nx, 
+            self.case.ny))
+        custom.addWidget(self.buttons['items']['custom'])
+        custom.addStretch()
 
-    def prompt(self, command):
-        from uedge import bbb, com, grd, flx, aph, api
-        # TODO: add log-checks here
-        get = self.case.get
-        self.multispecies = 0
-        self.varname = command
-        for substr in ['get', '(', ')', '"', "'", ".", "bbb", "com", 
-            "grd", "flx", "aph", "api"]:
-            self.varname = self.varname.replace(substr, '')
+        self.buttons['layout'].addWidget(self.buttons['title'],0,0,1, len(cols))
+        for i in range(len(cols)):
+            self.buttons['layout'].addLayout(cols[i], 1, i, 1, 1)
+        self.buttons['layout'].addLayout(custom, 2,0,1,len(cols))
+
+    def plot_custom(self):
         try:
-            exec( "self.var = " + command)
+            from uedge import com, bbb, grd, flx, aph, api
         except:
-            self.tbprompt.color='salmon'
-            return
-        self.reset_buttons()
-        self.tbprompt.text_disp.set_text(command)
+            pass
+        command = self.buttons['items']['custom'].text()
+        self.buttons['items']['dropdown'].setCurrentIndex(0)
+        get = self.case.get
         try:
-            self.verts.set_array(
-                self.var[1:-1, 1:-1].reshape(
-                    self.case.get("nx") * self.case.get("ny")
+            exec("locals()['var'] =" + command)
+            locals()['var'].shape # Fails non-ndarray results
+        except:
+            self.raise_message(f"{command} not recognized!")
+            return
+        if len(locals()['var'].shape) > 2:
+            self.raise_message("Command variable has wrong shape: "+
+                "{}, expected ({},{})".format(\
+                    locals()['var'].shape,
+                    self.case.nx+2,
+                    self.case.ny+2
                 )
             )
-        except:
-            self.tbprompt.color='salmon'
+        else:
+            self.var = locals()['var']
+            for substr in ['get', '(', ')', '"', "'", ".", "bbb", "com",
+                "grd", "flx", "aph", "api", "self"]:
+                command = command.replace(substr, '')
+            self.suptitle = command
+            self.buttons['items']['custom'].clearFocus()
+            self.multispecies = False
+            self.update_var()
+
+
+    def plot_dropdown(self, text):
+        # TODO: attempt auto-detecting shape
+        self.raise_message(text)
+        var = self.case.get(text)
+        if len(var.shape) == 3:
+            if var.shape[-1] == len(self.case.ionarray):
+                self.multispecies = 'ion'
+                self.suptitle = text + " for {}".format(\
+                    self.case.ionarray[self.ionspecies])
+                self.var = var
+            elif var.shape[-1] == len(self.case.gasarray):
+                self.multispecies = 'gas'
+                self.suptitle = text + " for {}".format(\
+                    self.case.gasarray[self.gasspecies])
+                self.var = var
+            else:
+                self.raise_message("Could not determine species"+
+                    f" index of {text}")
+                return
+        elif len(var.shape) == 2:
+            self.var = var
+            self.suptitle = text
+        else:
+            self.raise_message(f"Could not determine shape of {text}")
             return
-        self.update_slider()
-        self.update(self.zrange_slider.val)
-        self.tbprompt.color='grey'
-        # TODO: Use radio buttons for custom prompts?
-        # No, species indices may not be straightforward
+            
+        self.buttons['items']['custom'].clear()
+        self.update_var()
 
-    def prad_tot(self, event):
-        self.var = self.case.get("prad") + self.case.get("pradhyd")
-        self.execute_button("Total radiated power [W/m**-3]", "Total radiated power")
+    def update_var(self):
+        from copy import deepcopy
+        from numpy import sum
+        if self.multispecies == 'ion':
+            var = self.var[1:-1,1:-1,self.ionspecies]
+        elif self.multispecies == 'gas':
+            var = self.var[1:-1,1:-1,self.gasspecies]
+        else:
+            var = self.var[1:-1,1:-1]
+        self.suptitle = self.suptitle.split("(")[0] \
+            + (self.varscale != 1)*" (x{:.3g})".format(self.varscale)
+        var *= self.varscale
+        if sum(var) == 0:
+            self.raise_message("Requested variable unpopulated! "+
+                "Select another variable or species to plot.")
+            return
+        if self.abs:
+            var = abs(var)
+        if (var.min() < 0) and self.log:
+            self.raise_message("Negative values in var: masking array!")
+            var.mask=(var<=0)
+        # Record old values slider values
+        [llim, ulim] = deepcopy(self.verts.get_clim())
+        self.verts.set_array(var.reshape(self.xy))
+        clim = self.verts.get_clim()
+        lims = self.get_lims()
+        if ulim <= lims[0]:
+            ulim = lims[1]
+        ulim = min(ulim, lims[1])
+        if llim >= lims[1]:
+            llim = lims[0]
+        llim = max(llim, lims[0])
+        # Enseure some separation between sliders when var is constant
+        if lims[1]==lims[0]:
+            llim, ulim = 1, 1e100
+        # Enseure some separation between sliders when bounds are maintained
+        if abs(ulim-llim)/max(1e-10, abs(lims[1]-lims[0])) < 1e-2:
+            llim, ulim = lims[0], lims[1]
+        # NOTE
+        # I HAVE NO CLUE WHY THE LOWER LIMIT DOES NOT REGISTER
+        # AT THE FIRST CET_CLIM CALL, AND DONT ASK ME HOW LONG
+        # IT TOOK TO FIGURE IT OUT!!!
+        self.verts.set_clim((llim, ulim))
+        self.verts.set_clim((llim, ulim))
+        self.slider['items']['ulim'].setText(\
+                self.title("{:.3g}".format(ulim)
+        ))
+        self.slider['items']['llim'].setText(\
+                self.title("{:.3g}".format(llim)
+        ))
+        self.slider['items']['slider'].setHigh(
+            int( self.value2position(ulim)
+        ))
+        self.slider['items']['slider'].setLow(
+            int( self.value2position(llim)
+        ))
+        self.verts.set_cmap(self.verts.get_cmap())
+        self.canvas.fig.suptitle(self.suptitle)
+        self.canvas.draw()
+
+    def plot_driver(self, var, title, multispecies=False):
+        from numpy.ma import masked_array
+        # Save variable as masked_array to mask for log
+        self.var = masked_array(var, mask=False)
+        self.multispecies = multispecies
+        species=''
+        if multispecies == 'gas':
+            species = self.case.gasarray[self.gasspecies]
+        elif multispecies == 'ion':
+            species = self.case.ionarray[self.ionspecies]
+        self.suptitle = title + f" for {species}"*(multispecies is not False)
+        self.update_var()
+        self.buttons['items']['dropdown'].setCurrentIndex(0)
+        command = self.buttons['items']['custom'].clear()
         
-    def prad_imp(self, event):
-        self.var = self.case.get("prad") 
-        self.execute_button("Impurity radiated power [W/m**-3]", "Imp. radiated power")
+    def plot_te(self):
+        self.plot_driver(
+            self.case.get('te')/1.602e-19,
+            'Electron temperature [eV]',
+        )
+
+    def plot_ti(self):
+        self.plot_driver(
+            self.case.get('ti')/1.602e-19,
+            'Ion temperature [eV]',
+        )
+
+    def plot_tg(self):
+        self.plot_driver(
+            self.case.get('tg')/1.602e-19,
+            'Gas temperature [eV]',
+            'gas'
+        )
+
+    def plot_ne(self):
+        self.plot_driver(
+            self.case.get('ne'),
+            r'Electron density [m$\mathrm{{}^{-3}}$]',
+        )
+
+    def plot_ni(self):
+        self.plot_driver(
+            self.case.get('ni'),
+            r'Ion density [m$\mathrm{{}^{-3}}$]',
+            'ion'
+        )
+
+    def plot_ng(self):
+        self.plot_driver(
+            self.case.get('ng'),
+            r'Gas density [m$\mathrm{{}^{-3}}$]',
+            'gas'
+        )
+
+    def plot_phi(self):
+        self.plot_driver(
+            self.case.get('phi'),
+            'Electrical potential [V]',
+        )
+
+    def plot_prad(self):
+        self.plot_driver(
+            self.case.get('prad')+self.case.get('pradhyd'),
+            'Total radiated power [W/m$\mathrm{{}^{-3}}$]',
+        )
+
+    def plot_pradhyd(self):
+        self.plot_driver(
+            self.case.get('pradhyd'),
+            'Hydrogenic radiated power [W/m$\mathrm{{}^{-3}}$]',
+        )
+
+    def plot_pradimp(self):
+        self.plot_driver(
+            self.case.get('prad'),
+            'Impurity radiated power [W/m$\mathrm{{}^{-3}}$]',
+        )
+
+    def plot_psorc(self):
+        self.plot_driver(
+            self.case.get('psorc'),
+            'Ion ionization source [parts/s]',
+            'ion'
+        )
+
+    def plot_psorgc(self):
+        self.plot_driver(
+            self.case.get('psorgc'),
+            'Gas ionization sink [parts/s]',
+            'gas'
+        )
+
+    def plot_psorxrc(self):
+        self.plot_driver(
+            self.case.get('psorxrc'),
+            'Ion recombination + CX sink [parts/s]',
+            'ion'
+        )
+
+    def plot_psorrgc(self):
+        self.plot_driver(
+            self.case.get('psorrgc'),
+            'Gas recombination source [parts/s]',
+            'gas'
+        )
+
+    def plot_psorcxg(self):
+        self.plot_driver(
+            self.case.get('psorcxg'),
+            'Gas CX source [parts/s]',
+            'gas'
+        )
+
+
+
+    """ ===========================
+               SLIDER HELPERS 
+        ==========================="""
+    def get_lims(self):
+        var = self.verts.get_array()
+        return (var.min(), var.max())
+
+    def get_slider_position(self):
+        return (self.slider_lower_position(), self.slider_higher_position())
+
+    def get_slider_values(self):
+        pos = self.get_slider_position()
+        return  (max(min(self.position2value(pos[0]), 1000), 0),
+                 max(min(self.position2value(pos[1]), 1000),0))
+
+    def slider_higher_position(self):
+        return self.slider['items']['slider'].high()
+
+    def slider_lower_position(self):
+        return self.slider['items']['slider'].low()
+
+    def position2value(self, pos):
+        lims = self.get_lims()
+        pos /= 1000
+        if self.log:
+            return (lims[1]**pos)*(lims[0]**(1-pos))
+        else:
+            return pos*lims[1] + (1-pos)*lims[0]
+
+    def value2position(self, val):
+        from numpy import log
+        from numpy.ma import is_masked
+        lims = self.get_lims()
+        if abs(lims[0]-lims[1])<1e-20:
+            return 0
+        for lim in lims:
+            if is_masked(lim):
+                return 0
+        if self.log:
+            return 1000/(1+(log(lims[1])-log(val))/max(1e-20, 
+                        (log(val)-log(lims[0]))))
+        else:
+            return 1000/(1 + ((lims[1]-val)/max(1e-10,(val-lims[0]))))
         
-    def prad_hyd(self, event):
-        self.var = self.case.get("pradhyd") 
-        self.execute_button("Hydrogenic radiated power [W/m**-3]", "Hyd. radiated power")
+    def update_plot_range(self, l, u):
+        from numpy.ma import is_masked
+        nl = self.position2value(l)
+        nu = self.position2value(u)
+        for var in [nl, nu]:
+            if is_masked(var):
+                return 0
+        self.verts.set_clim((nl, nu))
+        self.verts.set_cmap(self.verts.get_cmap())
+        self.slider['items']['llim'].setText(self.title("{:.3g}".format(nl)))
+        self.slider['items']['ulim'].setText(self.title("{:.3g}".format(nu)))
+        self.canvas.draw()
 
-    def tg(self, event):
-        self.var = self.case.get("tg")/1.602e-19
-        self.execute_button("Tg [eV], {}".format(\
-                self.case.gasarray[self.ns]), 
-                "Gas temperature", 
-                "gas")
 
-    def ion_ioniz(self, event):
-        self.var = self.case.get("psorc")
-        self.execute_button("Ion ionization source [part/s], {}".format(\
-                self.case.ionarray[self.ns]), 
-                "Ion ionization source", 
-                "ion")
+
+    def populateOpenRecent(self):
+        # Step 1. Remove the old options from the menu
+        self.openRecentMenu.clear()
+        # Step 2. Dynamically create the actions
+        actions = []
+        filenames = [f"File-{n}" for n in range(5)]
+        for filename in filenames:
+            action = QAction(filename, self)
+            action.triggered.connect(partial(self.openRecentFile, filename))
+            actions.append(action)
+        # Step 3. Add the actions to the menu
+        self.openRecentMenu.addActions(actions)
+
+    def openFile(self):
+        # Logic for opening an existing file goes here...
+        self.raise_message("<b>File > Open YAML input...</b> clicked")
+
+    """ ===========================
+                FORMATTERS 
+        ==========================="""
+    def title(self, text):
+        return f"<b><font size=4>{text}</font></b>"
+
+    def raise_message(self, message, time=5000):
+        QApplication.sendEvent(self, QStatusTipEvent(message))
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide_message)
+        self.timer.start(time)
+
+    def hide_message(self):
+        QApplication.sendEvent(self, QStatusTipEvent(''))
+
+    def mousePressEvent(self, event):
+        focused_widget = QApplication.focusWidget()
+        if isinstance(focused_widget, MyLineEdit):
+            focused_widget.clearFocus()
+        if isinstance(focused_widget, MyClearLineEdit):
+            focused_widget.clear()
+            focused_widget.clearFocus()
+        QMainWindow.mousePressEvent(self, event)
+
+
+class HeatmapInteractiveFigure(QWidget):
+    """Figure Widget with slider."""
+    def __init__(self, var, parent=None):
+        """Initializer."""
+        super().__init__(parent)
+
+        # TODO: Figure out what is needed to initialize a figure!
+
+
+
+
+class MplCanvas(FigureCanvasQTAgg):
+    def __init__(self, parent=None, width=2, height=4, dpi=300):
+        self.fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = self.fig.add_subplot(111)
+        super(MplCanvas, self).__init__(self.fig)
+
+class MyLineEdit(QLineEdit):
+        pass
+
+class MyClearLineEdit(QLineEdit):
+        pass
+
+
+class MainMenu(QMainWindow):
+    """Main Window."""
+    def __init__(self, parent=None, case=None):
+        """Initializer."""
+        from os import getcwd
+        super().__init__(parent)
         
-    def gas_ioniz(self, event):
-        self.var = self.case.get("psorc")
-        self.execute_button("Gas ionization sink [part/s], {}".format(\
-                self.case.gasarray[self.ns]), 
-                "Gas ionization sink", 
-                "ion")
+        self.tablist = []
+        self.file = "No file loaded!"
+        self.lastpath = getcwd()
+
+        self.setFocus()
+        self.setWindowTitle("UETOOLS Main Menu")
+        self.resize(1300, 900)
+
+        self._createActions()
+        self._createMenuBar()
+        self._connectActions()
+        self._createStatusBar()
+
+        self.centralWidget = QTabWidget()#QLabel("Hello, World")
+        self.centralWidget.setMinimumWidth(1300)
+        self.centralWidget.setMinimumHeight(900)
+        self.setCentralWidget(self.centralWidget)
+
+        if case is not None:
+            case =  CaseDashboard(Case(file, inplace=True))
+            self.tablist.append(self.centralWidget.addTab(case,
+                f"{case.casename} heatmap")
+            )
+
+
+    def openFile(self):
+        # Logic for opening an existing file goes here...
+        # TODO: Move focus to opened file
+
+        if 1==0:
+            file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
+            self.lastpath, "All files (*.*)")[0]
+            self.lastpath = "/".join(file.split("/")[:-1])
+        else:
+            file = "/Users/holm10/Documents/fusion/uedge/src/"+\
+                    "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
+            print("USING TUTORIAL CASE")
+        case =  CaseDashboard(Case(file, inplace=True))
+        case.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # TODO: Figure out how to resize Widget with Window?!
+        self.tablist.append(self.centralWidget.addTab(case,
+            f"{case.casename} heatmap")
+        )
+
+        self.raise_message(f"File > Opened {file}.")
+
+
+    def _createMenuBar(self):
+        menuBar = self.menuBar()
+        menuBar.setNativeMenuBar(False)
+        # File menu
+        fileMenu = QMenu("&File", self)
+        menuBar.addMenu(fileMenu)
+        fileMenu.addAction(self.openAction)
+        fileMenu.addSeparator()
+        fileMenu.addAction(self.exitAction)
+        editMenu = menuBar.addMenu("&Tab")
+        editMenu.addAction(self.renameAction)
+        editMenu.addAction(self.closeTabAction)
+        helpMenu = menuBar.addMenu("&Help")
+        helpMenu.addAction(self.helpContentAction)
+        helpMenu.addAction(self.aboutAction)
+
+
+
+    def _createActions(self):
+        # Creating actions using the second constructor
+        self.openAction = QAction("Open heatmap from HDF5 save...", self)
+        self.renameAction = QAction("Rename tab", self)
+        self.closeTabAction = QAction("Close tab", self)
+        self.exitAction = QAction("&Exit", self)
+        self.helpContentAction = QAction("&Help Content", self)
+        self.aboutAction = QAction("&About", self)
         
-    def ion_rec(self, event):
-        self.var = self.case.get("psorxrc")
-        self.execute_button("Ion recombination + CX sink [part/s], {}".format(\
-                self.case.ionarray[self.ns]), 
-                "Ion recombination + CX sink", 
-                "ion")
-        
-    def gas_rec(self, event):
-        self.var = self.case.get("psorrgc")
-        self.execute_button("Gas recombination source [part/s], {}".format(\
-                self.case.gasarray[self.ns]), 
-                "Gas recombination source", 
-                "gas")
-        
-    def gas_cx(self, event):
-        self.var = self.case.get("psorcxgc")
-        self.execute_button("Gas CX source [part/s], {}".format(\
-                self.case.gasarray[self.ns]), 
-                "Gas CX source", 
-                "gas")
-       
-    def phi(self, event):
-        self.var = self.case.get("phi")
-        self.execute_button("Potential [V]", "Potential")
+    def _createStatusBar(self):
+        self.statusbar = self.statusBar()
+#        self.wcLabel = QLabel(f"{self.file}")
+#        self.statusbar.addPermanentWidget(self.wcLabel)
 
-    def ti(self, event):
-        self.var = self.case.get("ti")/1.602e-19
-        self.execute_button("Ti [eV]", "Ion temperature")
+    def _connectActions(self):
+        # Connect File actions
+        self.openAction.triggered.connect(self.openFile)
+        self.renameAction.triggered.connect(self.editTab)
+        self.closeTabAction.triggered.connect(self.closeTab)
+        self.exitAction.triggered.connect(self.close)
+#        self.openRecentMenu.aboutToShow.connect(self.populateOpenRecent)
 
-    def te(self, event):
-        self.var = self.case.get("te")/1.602e-19
-        self.execute_button("Te [eV]", "Electron temperature")
+    def populateOpenRecent(self):
+        # Step 1. Remove the old options from the menu
+        self.openRecentMenu.clear()
+        # Step 2. Dynamically create the actions
+        actions = []
+        filenames = [f"File-{n}" for n in range(5)]
+        for filename in filenames:
+            action = QAction(filename, self)
+            action.triggered.connect(partial(self.openRecentFile, filename))
+            actions.append(action)
+        # Step 3. Add the actions to the menu
+        self.openRecentMenu.addActions(actions)
 
-    def ne(self, event):
-        self.var = self.case.get("ne")
-        self.execute_button("ne [m**-3]", "Electron density")
+    def editTab(self):
+        # Logic for opening an existing file goes here...
 
-    def ni(self, event):
-        self.var = self.case.get("ni")
-        self.execute_button("ni [m**-3], {}".format(\
-                self.case.ionarray[self.s]),
-                "Ion density", 
-                "ion")
+        newname, ok = QInputDialog().getText(self, "Edit tab name",
+                "New tab name:", QLineEdit.Normal,
+                self.centralWidget.tabText(self.centralWidget.currentIndex()))
+        if ok and newname:
+            self.centralWidget.setTabText(
+                self.centralWidget.currentIndex(), 
+                newname
+            )
 
-    def ng(self, event):
-        self.var = self.case.get("ng")
-        self.execute_button("ng [m**-3], {}".format(\
-                self.case.gasarray[self.ns]), 
-                "Gas density", 
-                "gas")
 
+    def closeTab(self):
+        # TODO Get a handle on the tab naming
+        self.centralWidget.removeTab(self.centralWidget.currentIndex())
+
+    def raise_message(self, message, time=5000):
+        self.statusbar.showMessage(message, time)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    win = MainMenu()
+    win.show()
+    sys.exit(app.exec_())
+else:
+    app = QApplication(sys.argv)
+    win = CaseDashboard(self)
+    
+     
+    win.show()
+    sys.exit(app.exec_())

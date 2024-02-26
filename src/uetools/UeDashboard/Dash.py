@@ -42,6 +42,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QFrame,
     QFormLayout,
+    QSizePolicy,
     QComboBox,
     QFileDialog,
     QDialog,
@@ -125,12 +126,10 @@ class CaseDashboard(QWidget):
         self.centralWidget.setLayout(self.layout)
 
     def _createSettings(self):
-        self.settings = QVBoxLayout()
-        decks = QHBoxLayout()
-        self.settings.addLayout(decks)
-        decks.addWidget(self.misc['frame'])
-        decks.addWidget(self.cmap_radio['frame'])
-        decks.addWidget(self.switches['frame'])
+        self.settings = QGridLayout()
+        self.settings.addWidget(self.misc['frame'], 0, 0, 1, 1)
+        self.settings.addWidget(self.cmap_radio['frame'], 1, 0, 1, 1)
+        self.settings.addWidget(self.switches['frame'], 0, 1, 2, 1)
         
 
     def _createCanvas(self):
@@ -291,11 +290,10 @@ class CaseDashboard(QWidget):
         self._createIonRadio()
         self._createGasRadio()
         self._createCmapRadio()
-        self.radios = {'layout': QVBoxLayout()}
+        self.radios = {'layout': QGridLayout()}
 
-        self.radios['layout'].addWidget(self.ion_radio['frame'])
-        self.radios['layout'].addWidget(self.gas_radio['frame'])
-        self.radios['layout'].addStretch()
+        self.radios['layout'].addWidget(self.ion_radio['frame'], 0, 0, 1, 1)
+        self.radios['layout'].addWidget(self.gas_radio['frame'], 1, 0, 1, 1)
 
     def _createIonRadio(self):
         self.ion_radio = {
@@ -347,6 +345,7 @@ class CaseDashboard(QWidget):
                     self.gas_radio['items'][label], ind)
             self.gas_radio['items'][label].clicked.connect(self.gas_radio_clicked)
             ind += 1
+        self.gas_radio['layout'].addStretch()
         self.gas_radio['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
         self.gas_radio['frame'].setLayout(self.gas_radio['layout'])
         self.gas_radio['items'][self.case.gasarray[0]].setChecked(True)
@@ -608,40 +607,39 @@ class CaseDashboard(QWidget):
             },
         }
         self.buttons["title"].setAlignment(Qt.AlignHCenter)
-        self.buttons['layout'].addWidget(self.buttons['title'],0,0,1,2)
         self.buttons['layout'].setSpacing(0)
 
-        cols = [QVBoxLayout()]
-        col = cols[-1]
-        i = 10
-        j = 0
+        maxbuttons = 8
+        cols = [QVBoxLayout() for x in range(int(len(self.buttons['items'])/maxbuttons+1))]
+        i = 0
         for key, setup in self.buttons['items'].items():
-            if i > 7:   
-                i = 0
-                cols.append(QVBoxLayout())
-                col = cols[-1]
-                self.buttons['layout'].addLayout(col, 1, j, 1, 1)
-                j +=1
             self.buttons['items'][key] = QPushButton(setup)
             self.buttons['items'][key].clicked.connect(
                 self.__getattribute__(f"plot_{key}"))
-            col.addWidget(self.buttons['items'][key])
+            cols[int(i/maxbuttons)].addWidget(
+                self.buttons['items'][key], 
+            )
             i += 1
+        for vbox in cols:
+            vbox.addStretch()
         # Add drop-down
         self.buttons['items']['dropdown'] = QComboBox()
         varlist = list(self.buttons['items'].keys())
         self.buttons['items']['dropdown'].addItem("", 0)
+        # TODO: Check that can be plotted --> len(shape)
         for vartype in ['centered', 'staggered']:
             if self.case.inplace:
                 for var, path in self.case.vars.items():
                     if (vartype in path) and (var not in varlist):
-                        self.buttons['items']['dropdown'].addItem(var, i)
-        cols[-1].addWidget(self.buttons['items']['dropdown']) 
-        self.buttons['items']['dropdown'].activated[str].connect(self.plot_dropdown)
-        for col in cols:
-            col.addStretch()
+                        if (len(self.case.get(var).shape) <= 3) and \
+                            (len(self.case.get(var).shape) > 1):
+                            self.buttons['items']['dropdown'].addItem(var, i)
 
-        self.buttons['layout'].addWidget(QLabel("Custom formula"), 2, 0, 1, 2)
+        cols[-1].addWidget(self.buttons['items']['dropdown'])
+        self.buttons['items']['dropdown'].activated[str].connect(self.plot_dropdown)
+
+        custom = QVBoxLayout()
+        custom.addWidget(QLabel("Custom formula"))
         self.buttons['items']['custom'] = MyLineEdit()
         self.buttons['items']['custom'].mousePressEvent = \
             lambda _ : self.buttons['items']['custom'].selectAll()
@@ -650,8 +648,13 @@ class CaseDashboard(QWidget):
             "Access var by get('var'). Python syntax applies. Expects output"+
             "of shape ({},{}). Hit return to apply. ".format(self.case.nx, 
             self.case.ny))
-        self.buttons['layout'].addWidget(self.buttons['items']['custom'], 
-            3, 0, 1, 2)
+        custom.addWidget(self.buttons['items']['custom'])
+        custom.addStretch()
+
+        self.buttons['layout'].addWidget(self.buttons['title'],0,0,1, len(cols))
+        for i in range(len(cols)):
+            self.buttons['layout'].addLayout(cols[i], 1, i, 1, 1)
+        self.buttons['layout'].addLayout(custom, 2,0,1,len(cols))
 
     def plot_custom(self):
         try:
@@ -687,6 +690,7 @@ class CaseDashboard(QWidget):
 
 
     def plot_dropdown(self, text):
+        # TODO: attempt auto-detecting shape
         self.raise_message(text)
         var = self.case.get(text)
         if len(var.shape) == 3:
@@ -723,6 +727,8 @@ class CaseDashboard(QWidget):
             var = self.var[1:-1,1:-1,self.gasspecies]
         else:
             var = self.var[1:-1,1:-1]
+        self.suptitle = self.suptitle.split("(")[0] \
+            + (self.varscale != 1)*" (x{:.3g})".format(self.varscale)
         var *= self.varscale
         if sum(var) == 0:
             self.raise_message("Requested variable unpopulated! "+
@@ -1049,7 +1055,7 @@ class MainMenu(QMainWindow):
         # Logic for opening an existing file goes here...
         # TODO: Move focus to opened file
 
-        if 1==0:
+        if 1==1:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
             self.lastpath, "All files (*.*)")[0]
             self.lastpath = "/".join(file.split("/")[:-1])
@@ -1058,6 +1064,7 @@ class MainMenu(QMainWindow):
                     "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
             print("USING TUTORIAL CASE")
         case =  CaseDashboard(Case(file, inplace=True))
+        case.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # TODO: Figure out how to resize Widget with Window?!
         self.tablist.append(self.centralWidget.addTab(case,
             f"{case.casename} heatmap")
