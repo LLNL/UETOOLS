@@ -8,13 +8,23 @@ from matplotlib.figure import Figure
 from matplotlib import rcParams
 
 #from range_slider import RangeSlider
-from PyQt5.QtCore import Qt, QMargins
+from PyQt5.QtCore import (
+    Qt, 
+    QMargins,
+    QTimer,
+    QSize,
+)
 from PyQt5.QtWidgets import QMenu
-from PyQt5.QtGui import QFont, QDoubleValidator
+from PyQt5.QtGui import (
+    QFont, 
+    QDoubleValidator,
+    QStatusTipEvent,
+)
 from range_slider import RangeSlider
-from PyQt5.QtWidgets import QAction, QWidget
 from functools import partial
 from PyQt5.QtWidgets import (
+    QAction,
+    QWidget,
     QApplication, 
     QLabel, 
     QMainWindow,
@@ -26,6 +36,7 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QPushButton,
     QLineEdit,
+    QTabWidget,
     QRadioButton,
     QButtonGroup,
     QCheckBox,
@@ -38,6 +49,7 @@ from PyQt5.QtWidgets import (
 # TODO: Text boxes to set limits
 # TODO: Open dialogue
     # update permanent bar
+# TODO: Display file name somewhere else
 
 
 # TODO: Store previously opened files in separate yaml under .uedgerc
@@ -48,17 +60,13 @@ from PyQt5.QtWidgets import (
 # TODO: How to deal with CX/psorx?
 # TODO: Set zeros to 1e-10
 
-class CaseDashboard(QMainWindow):
+class CaseDashboard(QWidget):
     """Main Window."""
     def __init__(self, case, parent=None):
         """Initializer."""
         super().__init__(parent)
         self.file = case.filename
         self.case = case        
-
-        self.setFocus()
-        self.setWindowTitle("UETOOLS Case Heatmap")
-        self.resize(1300, 900)
 
         # TODO Initialize to dummy file to get prompt open?
         self.layout = QGridLayout()
@@ -68,11 +76,6 @@ class CaseDashboard(QMainWindow):
         self._createSlider()
         self._createSwitches()
         self._createRadios()
-    
-        self._createActions()
-        self._createMenuBar()
-        self._connectActions()
-        self._createStatusBar()
         self._createMiscOptions()
         self._createSettings()
 
@@ -82,22 +85,21 @@ class CaseDashboard(QMainWindow):
         self.layout.addLayout(self.radios['layout'],
                 0, 2, 5, 1
         )
-        self.layout.addLayout(self.canvaslayout, 0, 5, 17, 18)
+        self.layout.addLayout(self.canvaslayout, 0, 5, 17, 30)
         self.layout.addLayout(self.settings, 7, 0, 7, 3)
         self.layout.addWidget(self.slider['items']['ulim'],
-                0, 23, 1, 3
+                0, 35, 1, 3
         )
         self.layout.addWidget(self.slider['items']['slider'],        
-                1, 24, 15, 1, Qt.AlignHCenter
+                1, 35, 15, 1, Qt.AlignHCenter
         )
         self.layout.addWidget(self.slider['items']['llim'],
-                16, 23, 1, 3
+                16, 35, 1, 3
         )
 
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
 
-        self.setCentralWidget(self.centralWidget)
 
 
     def _createSettings(self):
@@ -386,9 +388,6 @@ class CaseDashboard(QMainWindow):
                     self.case.gasarray[self.gasspecies])
             self.canvas.fig.suptitle(title)
             self.update_var()
-
-    def _createStatusBar(self):
-        self.statusbar = self.statusBar()
 
 
     def _createSlider(self):
@@ -853,41 +852,6 @@ class CaseDashboard(QMainWindow):
         )
 
 
-    def _createMenuBar(self):
-        menuBar = self.menuBar()
-        menuBar.setNativeMenuBar(False)
-        # File menu
-        fileMenu = QMenu("&File", self)
-        menuBar.addMenu(fileMenu)
-#        fileMenu.addAction(self.openAction)
-#        openMenu.addAction(self.openYamlAction)
-#        openMenu.addAction(self.openHdf5Action)
-#        openMenu.addAction(self.openSaveAction)
-#        self.openRecentMenu = fileMenu.addMenu("Open Recent")
-        fileMenu.addSeparator()
-        fileMenu.addAction(self.exitAction)
-#        editMenu = menuBar.addMenu("&Edit")
-        helpMenu = menuBar.addMenu("&Help")
-        helpMenu.addAction(self.helpContentAction)
-        helpMenu.addAction(self.aboutAction)
-
-    def _createActions(self):
-        # Creating actions using the second constructor
-        self.openAction = QAction("Open HDF5 save file...", self)
-        self.exitAction = QAction("&Exit", self)
-        self.helpContentAction = QAction("&Help Content", self)
-        self.aboutAction = QAction("&About", self)
-        
-    def _createStatusBar(self):
-        self.statusbar = self.statusBar()
-        self.wcLabel = QLabel(f"{self.getCurrentFile()}")
-        self.statusbar.addPermanentWidget(self.wcLabel)
-
-    def _connectActions(self):
-        # Connect File actions
-        self.openAction.triggered.connect(self.openFile)
-        self.exitAction.triggered.connect(self.close)
-#        self.openRecentMenu.aboutToShow.connect(self.populateOpenRecent)
 
     """ ===========================
                SLIDER HELPERS 
@@ -947,8 +911,6 @@ class CaseDashboard(QMainWindow):
         self.canvas.draw()
 
 
-    def getCurrentFile(self):
-        return self.file
 
     def populateOpenRecent(self):
         # Step 1. Remove the old options from the menu
@@ -963,25 +925,9 @@ class CaseDashboard(QMainWindow):
         # Step 3. Add the actions to the menu
         self.openRecentMenu.addActions(actions)
 
-    def openRecentFile(self, filename):
-        # Logic for opening a recent file goes here...
-        self.promptbox.setText(f"<b>{filename}</b> opened")
-
     def openFile(self):
         # Logic for opening an existing file goes here...
         self.raise_message("<b>File > Open YAML input...</b> clicked")
-
-    def openYamlFile(self):
-        # Logic for opening an existing file goes here...
-        self.promptbox.setText("<b>File > Open YAML input...</b> clicked")
-
-    def openHdf5File(self):
-        # Logic for opening an existing file goes here...
-        self.promptbox.setText("<b>File > Open HDF5 input...</b> clicked")
-
-    def openSaveFile(self):
-        # Logic for opening an existing file goes here...
-        self.promptbox.setText("<b>File > Open Save file...</b> clicked")
 
     """ ===========================
                 FORMATTERS 
@@ -989,11 +935,15 @@ class CaseDashboard(QMainWindow):
     def title(self, text):
         return f"<b><font size=4>{text}</font></b>"
 
-    def show_message(self, message, time=5000):    
-        self.statusbar.showMessage(message, time)
-
     def raise_message(self, message, time=5000):
-        self.statusbar.showMessage(message, time)
+        QApplication.sendEvent(self, QStatusTipEvent(message))
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide_message)
+        self.timer.start(time)
+
+    def hide_message(self):
+        QApplication.sendEvent(self, QStatusTipEvent(''))
 
     def mousePressEvent(self, event):
         focused_widget = QApplication.focusWidget()
@@ -1018,11 +968,152 @@ class MyClearLineEdit(QLineEdit):
         pass
 
 
+class MainMenu(QMainWindow):
+    """Main Window."""
+    def __init__(self, parent=None):
+        """Initializer."""
+        super().__init__(parent)
+        
+        self.tabs = 1
+        self.tablist = []
+        self.file = "No file loaded!"
+
+        self.setFocus()
+        self.setWindowTitle("UETOOLS Main Menu")
+        self.resize(1300, 900)
+
+        self._createActions()
+        self._createMenuBar()
+        self._connectActions()
+        self._createStatusBar()
+
+        self.centralWidget = QTabWidget()#QLabel("Hello, World")
+        self.centralWidget.setMinimumWidth(1200)
+        self.setCentralWidget(self.centralWidget)
+
+        #file_info = QFileInfo(file_name)
+
+#        tab_widget.addTab(GeneralTab(file_info, self), "General")
+#        tab_widget.addTab(PermissionsTab(file_info, self), "Permissions")
+#        tab_widget.addTab(ApplicationsTab(file_info, self), "Applications")
+
+#        button_box = QDialogButtonBox(
+#            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+#        )
+
+#        button_box.accepted.connect(self.accept)
+#        button_box.rejected.connect(self.reject)
+
+#        self.centralWidget = QTabWidget()
+#        main_layout = QVBoxLayout()
+#        self.centralWidget.setLayout(self.layout)
+
+#        self.setCentralWidget(self.centralWidget)
+#        main_layout.addWidget(tab_widget)
+#        main_layout.addWidget(button_box)
+#        self.setLayout(main_layout)
+#        self.setWindowTitle("Tab Dialog")
+
+
+
+    def openFile(self):
+        # Logic for opening an existing file goes here...
+        # TODO: Move focus to opened file
+        file = "/Users/holm10/Documents/fusion/uedge/src/"+\
+                "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
+        print("USING TUTORIAL CASE")
+        # TODO: Figure out how to stretch figure to fill whole width
+        case =  CaseDashboard(Case(file, inplace=True))
+        layout = QHBoxLayout()
+        layout.addWidget(case)
+        layout.setMinimumWidth(1200)
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.tablist.append(self.centralWidget.addTab(widget,
+            f"Case {self.tabs}")
+        )
+        self.tabs += 1
+
+        self.raise_message("<b>File > Opened test file.</b> clicked")
+
+
+    def _createMenuBar(self):
+        menuBar = self.menuBar()
+        menuBar.setNativeMenuBar(False)
+        # File menu
+        fileMenu = QMenu("&File", self)
+        menuBar.addMenu(fileMenu)
+        fileMenu.addAction(self.openAction)
+#        openMenu.addAction(self.openYamlAction)
+#        openMenu.addAction(self.openHdf5Action)
+#        openMenu.addAction(self.openSaveAction)
+#        self.openRecentMenu = fileMenu.addMenu("Open Recent")
+        fileMenu.addSeparator()
+        fileMenu.addAction(self.exitAction)
+        editMenu = menuBar.addMenu("&Edit tab")
+        editMenu.addAction(self.renameAction)
+        editMenu.addAction(self.closeTabAction)
+        helpMenu = menuBar.addMenu("&Help")
+        helpMenu.addAction(self.helpContentAction)
+        helpMenu.addAction(self.aboutAction)
+
+
+
+    def _createActions(self):
+        # Creating actions using the second constructor
+        self.openAction = QAction("Open HDF5 save file...", self)
+        self.renameAction = QAction("Renname tab...", self)
+        self.closeTabAction = QAction("Close tab", self)
+        self.exitAction = QAction("&Exit", self)
+        self.helpContentAction = QAction("&Help Content", self)
+        self.aboutAction = QAction("&About", self)
+        
+    def _createStatusBar(self):
+        self.statusbar = self.statusBar()
+#        self.wcLabel = QLabel(f"{self.file}")
+#        self.statusbar.addPermanentWidget(self.wcLabel)
+
+    def _connectActions(self):
+        # Connect File actions
+        self.openAction.triggered.connect(self.openFile)
+        self.renameAction.triggered.connect(self.editTab)
+        self.closeTabAction.triggered.connect(self.closeTab)
+        self.exitAction.triggered.connect(self.close)
+#        self.openRecentMenu.aboutToShow.connect(self.populateOpenRecent)
+
+    def populateOpenRecent(self):
+        # Step 1. Remove the old options from the menu
+        self.openRecentMenu.clear()
+        # Step 2. Dynamically create the actions
+        actions = []
+        filenames = [f"File-{n}" for n in range(5)]
+        for filename in filenames:
+            action = QAction(filename, self)
+            action.triggered.connect(partial(self.openRecentFile, filename))
+            actions.append(action)
+        # Step 3. Add the actions to the menu
+        self.openRecentMenu.addActions(actions)
+
+    def editTab(self):
+        # Logic for opening an existing file goes here...
+        self.raise_message("<b>File > Open YAML input...</b> clicked")
+
+    def closeTab(self):
+        # TODO Get a handle on the tab naming
+        self.centralWidget.removeTab(self.centralWidget.currentIndex())
+
+    def raise_message(self, message, time=5000):
+        self.statusbar.showMessage(message, time)
+
 
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    win = MainMenu()
+
+    '''
     try:
         win = CaseDashboard(Case(sys.argv[1], inplace=True))
     except:
@@ -1031,6 +1122,7 @@ if __name__ == "__main__":
                 "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
         print("USING TUTORIAL CASE")
         win = CaseDashboard(Case(file, inplace=True))
+    '''
     win.show()
     sys.exit(app.exec_())
 else:
