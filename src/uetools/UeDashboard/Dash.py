@@ -43,11 +43,13 @@ from PyQt5.QtWidgets import (
     QFrame,
     QFormLayout,
     QComboBox,
+    QFileDialog,
+    QDialog,
+    QDialogButtonBox,
+    QInputDialog,
 )
 
 
-# TODO: Text boxes to set limits
-# TODO: Open dialogue
     # update permanent bar
 # TODO: Display file name somewhere else
 
@@ -60,6 +62,7 @@ from PyQt5.QtWidgets import (
 # TODO: How to deal with CX/psorx?
 # TODO: Set zeros to 1e-10
 
+
 class CaseDashboard(QWidget):
     """Main Window."""
     def __init__(self, case, parent=None):
@@ -69,7 +72,6 @@ class CaseDashboard(QWidget):
         self.case = case        
 
         # TODO Initialize to dummy file to get prompt open?
-        self.layout = QGridLayout()
 
         self._createCanvas()
         self._createVarButtons()
@@ -79,14 +81,27 @@ class CaseDashboard(QWidget):
         self._createMiscOptions()
         self._createSettings()
 
-        self.layout.addLayout(self.buttons['layout'],    
-                0, 0, 5, 2
+        self.menu = QGridLayout()
+        self.menu.addLayout(self.buttons['layout'],    
+                0, 0, 1, 2
         )
-        self.layout.addLayout(self.radios['layout'],
-                0, 2, 5, 1
+        self.menu.addLayout(self.radios['layout'],
+                0, 2, 1, 1
         )
+        self.menu.addLayout(self.settings, 1, 0, 1, 3)
+        self.sliderBar = QHBoxLayout()
+        self.sliderBar.addStretch()
+        self.sliderBar.addWidget(self.slider['items']['slider'])
+        self.sliderBar.addStretch()
+
+        self.sliderControl = QVBoxLayout()
+        self.sliderControl.addWidget(self.slider['items']['ulim'])
+        self.sliderControl.addLayout(self.sliderBar)
+        self.sliderControl.addWidget(self.slider['items']['llim'])
+        
+
+        '''
         self.layout.addLayout(self.canvaslayout, 0, 5, 17, 30)
-        self.layout.addLayout(self.settings, 7, 0, 7, 3)
         self.layout.addWidget(self.slider['items']['ulim'],
                 0, 35, 1, 3
         )
@@ -99,8 +114,15 @@ class CaseDashboard(QWidget):
 
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
+        '''
+        self.layout = QHBoxLayout()
+        self.layout.addLayout(self.menu)
+        self.layout.addLayout(self.canvaslayout)
+        self.layout.addLayout(self.sliderControl)
 
 
+        self.centralWidget = QWidget(self)
+        self.centralWidget.setLayout(self.layout)
 
     def _createSettings(self):
         self.settings = QVBoxLayout()
@@ -113,6 +135,8 @@ class CaseDashboard(QWidget):
 
     def _createCanvas(self):
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
+        self.canvas.setMinimumWidth(650)
+        self.canvas.setMinimumHeight(750)
         self.case.te2D(ax=self.canvas.axes)#, flip=True)
         self.case.set_speciesarrays()
         self.verts = self.case.Qvertices
@@ -123,7 +147,15 @@ class CaseDashboard(QWidget):
         self.canvaslayout = QVBoxLayout()
         self.canvaslayout.addWidget(self.canvastoolbar)
         self.canvaslayout.addWidget(self.canvas)
+        (ax, cax) = self.canvas.fig.get_axes()
+        old_cax = cax.get_position()
+        old_ax = ax.get_position()
+        dx = 0.055
+        cax.set_position([old_cax.x0+dx, old_cax.y0, old_cax.x1+dx, 0.85])
+        ax.set_anchor("C")
+        ax.set_position([0.1, old_ax.y0, 0.75, 0.85])
 
+        self.casename = self.case.casename
         self.gasspecies = 0
         self.ionspecies = 0
         self.cmap = 'magma'
@@ -409,6 +441,8 @@ class CaseDashboard(QWidget):
                         Qt.AlignHCenter | \
                         Qt.AlignVCenter
         )
+        self.slider['items']['ulim'].setFixedWidth(75)
+        self.slider['items']['llim'].setFixedWidth(75)
 
         self.slider['items']['slider'].setMinimum(0)
         self.slider['items']['slider'].setMaximum(1000)
@@ -955,6 +989,17 @@ class CaseDashboard(QWidget):
         QMainWindow.mousePressEvent(self, event)
 
 
+class HeatmapInteractiveFigure(QWidget):
+    """Figure Widget with slider."""
+    def __init__(self, var, parent=None):
+        """Initializer."""
+        super().__init__(parent)
+
+        # TODO: Figure out what is needed to initialize a figure!
+
+
+
+
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=2, height=4, dpi=300):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
@@ -970,13 +1015,14 @@ class MyClearLineEdit(QLineEdit):
 
 class MainMenu(QMainWindow):
     """Main Window."""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, case=None):
         """Initializer."""
+        from os import getcwd
         super().__init__(parent)
         
-        self.tabs = 1
         self.tablist = []
         self.file = "No file loaded!"
+        self.lastpath = getcwd()
 
         self.setFocus()
         self.setWindowTitle("UETOOLS Main Menu")
@@ -988,53 +1034,36 @@ class MainMenu(QMainWindow):
         self._createStatusBar()
 
         self.centralWidget = QTabWidget()#QLabel("Hello, World")
-        self.centralWidget.setMinimumWidth(1200)
+        self.centralWidget.setMinimumWidth(1300)
+        self.centralWidget.setMinimumHeight(900)
         self.setCentralWidget(self.centralWidget)
 
-        #file_info = QFileInfo(file_name)
-
-#        tab_widget.addTab(GeneralTab(file_info, self), "General")
-#        tab_widget.addTab(PermissionsTab(file_info, self), "Permissions")
-#        tab_widget.addTab(ApplicationsTab(file_info, self), "Applications")
-
-#        button_box = QDialogButtonBox(
-#            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
-#        )
-
-#        button_box.accepted.connect(self.accept)
-#        button_box.rejected.connect(self.reject)
-
-#        self.centralWidget = QTabWidget()
-#        main_layout = QVBoxLayout()
-#        self.centralWidget.setLayout(self.layout)
-
-#        self.setCentralWidget(self.centralWidget)
-#        main_layout.addWidget(tab_widget)
-#        main_layout.addWidget(button_box)
-#        self.setLayout(main_layout)
-#        self.setWindowTitle("Tab Dialog")
-
+        if case is not None:
+            case =  CaseDashboard(Case(file, inplace=True))
+            self.tablist.append(self.centralWidget.addTab(case,
+                f"{case.casename} heatmap")
+            )
 
 
     def openFile(self):
         # Logic for opening an existing file goes here...
         # TODO: Move focus to opened file
-        file = "/Users/holm10/Documents/fusion/uedge/src/"+\
-                "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
-        print("USING TUTORIAL CASE")
-        # TODO: Figure out how to stretch figure to fill whole width
-        case =  CaseDashboard(Case(file, inplace=True))
-        layout = QHBoxLayout()
-        layout.addWidget(case)
-        layout.setMinimumWidth(1200)
-        widget = QWidget()
-        widget.setLayout(layout)
-        self.tablist.append(self.centralWidget.addTab(widget,
-            f"Case {self.tabs}")
-        )
-        self.tabs += 1
 
-        self.raise_message("<b>File > Opened test file.</b> clicked")
+        if 1==0:
+            file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
+            self.lastpath, "All files (*.*)")[0]
+            self.lastpath = "/".join(file.split("/")[:-1])
+        else:
+            file = "/Users/holm10/Documents/fusion/uedge/src/"+\
+                    "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
+            print("USING TUTORIAL CASE")
+        case =  CaseDashboard(Case(file, inplace=True))
+        # TODO: Figure out how to resize Widget with Window?!
+        self.tablist.append(self.centralWidget.addTab(case,
+            f"{case.casename} heatmap")
+        )
+
+        self.raise_message(f"File > Opened {file}.")
 
 
     def _createMenuBar(self):
@@ -1044,13 +1073,9 @@ class MainMenu(QMainWindow):
         fileMenu = QMenu("&File", self)
         menuBar.addMenu(fileMenu)
         fileMenu.addAction(self.openAction)
-#        openMenu.addAction(self.openYamlAction)
-#        openMenu.addAction(self.openHdf5Action)
-#        openMenu.addAction(self.openSaveAction)
-#        self.openRecentMenu = fileMenu.addMenu("Open Recent")
         fileMenu.addSeparator()
         fileMenu.addAction(self.exitAction)
-        editMenu = menuBar.addMenu("&Edit tab")
+        editMenu = menuBar.addMenu("&Tab")
         editMenu.addAction(self.renameAction)
         editMenu.addAction(self.closeTabAction)
         helpMenu = menuBar.addMenu("&Help")
@@ -1061,8 +1086,8 @@ class MainMenu(QMainWindow):
 
     def _createActions(self):
         # Creating actions using the second constructor
-        self.openAction = QAction("Open HDF5 save file...", self)
-        self.renameAction = QAction("Renname tab...", self)
+        self.openAction = QAction("Open heatmap from HDF5 save...", self)
+        self.renameAction = QAction("Rename tab", self)
         self.closeTabAction = QAction("Close tab", self)
         self.exitAction = QAction("&Exit", self)
         self.helpContentAction = QAction("&Help Content", self)
@@ -1096,7 +1121,16 @@ class MainMenu(QMainWindow):
 
     def editTab(self):
         # Logic for opening an existing file goes here...
-        self.raise_message("<b>File > Open YAML input...</b> clicked")
+
+        newname, ok = QInputDialog().getText(self, "Edit tab name",
+                "New tab name:", QLineEdit.Normal,
+                self.centralWidget.tabText(self.centralWidget.currentIndex()))
+        if ok and newname:
+            self.centralWidget.setTabText(
+                self.centralWidget.currentIndex(), 
+                newname
+            )
+
 
     def closeTab(self):
         # TODO Get a handle on the tab naming
@@ -1105,24 +1139,10 @@ class MainMenu(QMainWindow):
     def raise_message(self, message, time=5000):
         self.statusbar.showMessage(message, time)
 
-
-
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     win = MainMenu()
-
-    '''
-    try:
-        win = CaseDashboard(Case(sys.argv[1], inplace=True))
-    except:
-#        raise ValueError("No file supplied. Aborting!")
-        file = "/Users/holm10/Documents/fusion/uedge/src/"+\
-                "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
-        print("USING TUTORIAL CASE")
-        win = CaseDashboard(Case(file, inplace=True))
-    '''
     win.show()
     sys.exit(app.exec_())
 else:

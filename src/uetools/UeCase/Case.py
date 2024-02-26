@@ -242,7 +242,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         # Checksum whether to update data
 
         # Initialize parameters
-        self.casename = casename
+        if casename is None:
+            self.casename = "/".join(filename.split(".")[0].split("/")[-2:])
+        else:
+            self.casename = casename
         self.savefile = savefile
         self.inplace = inplace
         self.verbose = verbose
