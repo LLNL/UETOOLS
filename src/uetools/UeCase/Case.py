@@ -243,7 +243,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
 
         # Initialize parameters
         if casename is None:
-            self.casename = "/".join(filename.split(".")[0].split("/")[-2:])
+            try:
+                self.casename = "/".join(".".join(filename.split(".")[:-1]).split("/")[-2:])
+            except:
+                self.casename = "/".join((".".join(getcwd().split(".")[:-1]).split("/")[-1],"Case()"))
         else:
             self.casename = casename
         self.savefile = savefile
