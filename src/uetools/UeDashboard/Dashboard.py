@@ -83,7 +83,8 @@ class CaseDashboard(QWidget):
         self.gasarray = case.gasarray
         self.casename = case.casename
         self.ionspecies = 0
-        self.gaspecies = 0
+        self.gasspecies = 0
+        self.species = ''
         self.log = False
 
 
@@ -109,26 +110,10 @@ class CaseDashboard(QWidget):
         )
         self.menu.addLayout(self.settings, 1, 0, 1, 3)
 
-        '''
-        self.layout.addLayout(self.canvaslayout, 0, 5, 17, 30)
-        self.layout.addWidget(self.slider['items']['ulim'],
-                0, 35, 1, 3
-        )
-        self.layout.addWidget(self.slider['items']['slider'],        
-                1, 35, 15, 1, Qt.AlignHCenter
-        )
-        self.layout.addWidget(self.slider['items']['llim'],
-                16, 35, 1, 3
-        )
-
-        self.centralWidget = QWidget(self)
-        self.centralWidget.setLayout(self.layout)
-        '''
         self.layout = QHBoxLayout(self)
         self.layout.addLayout(self.menu)
         self.layout.addWidget(self.caseplot)
     
-        print(self.caseplot)
         self.centralWidget.setLayout(self.layout)
 
         
@@ -317,6 +302,7 @@ class CaseDashboard(QWidget):
 
 
     def _createCmapRadio(self):
+        from matplotlib.pyplot import colormaps
         self.cmap_radio = {
             'frame': QFrame(),
             'layout': QVBoxLayout(),
@@ -325,15 +311,13 @@ class CaseDashboard(QWidget):
             'labels': [
                 'magma',
                 'bwr',
-                'cividis',
                 'hsv',
-                'Dark2',
                 'gnuplot2',
                 'hot',
                 'jet',
             ],
             'items': {
-                'cmap': MyLineEdit()
+                'dropdown': QComboBox()
             }
         }
         self.cmap_radio['layout'].addWidget(self.cmap_radio['title'])
@@ -350,13 +334,19 @@ class CaseDashboard(QWidget):
         self.cmap_radio['frame'].setLayout(self.cmap_radio['layout'])
         self.cmap_radio['items'][self.cmap_radio['labels'][0]].setChecked(True)
 
-        self.cmap_radio['layout'].addWidget(self.cmap_radio['items']["cmap"])
-        self.cmap_radio['items']['cmap'].returnPressed.connect(self.set_custom_cmap)
-        self.cmap_radio['items']['cmap'].setFixedWidth(100)
-        self.cmap_radio['items']['cmap'].mousePressEvent = \
-                lambda _ : self.cmap_radio['items']['cmap'].selectAll()
-        self.cmap_radio['items']['cmap'].setToolTip("Hit return to apply.")
-        self.cmap_radio['layout'].addStretch()
+        self.cmap_radio['layout'].addWidget(self.cmap_radio['items']["dropdown"])
+
+        self.cmap_radio['items']['dropdown'].addItem('', 0)
+        i = 1
+        for  colormap in colormaps():
+            self.cmap_radio['items']['dropdown'].addItem(colormap, 1)
+            i+=1
+        self.cmap_radio['items']['dropdown'].setFixedWidth(150)
+        self.cmap_radio['items']['dropdown'].activated[str].connect(self.set_custom_cmap)
+        #self.cmap_radio['items']['cmap'].mousePressEvent = \
+        #        lambda _ : self.cmap_radio['items']['cmap'].selectAll()
+        #self.cmap_radio['items']['cmap'].setToolTip("Hit return to apply.")
+        #self.cmap_radio['layout'].addStretch()
 
 
 
@@ -364,11 +354,10 @@ class CaseDashboard(QWidget):
                  ACTIONS
         ==========================="""
 
-    def set_custom_cmap(self):
-        cmap = self.cmap_radio['items']['cmap'].text()
-        try:
-            self.verts.set_cmap(cmap)
+    def set_custom_cmap(self, cmap):
+        if len(cmap) > 0:
             self.cmap = cmap
+            self.caseplot.setCmap(cmap)
             self.cmap_radio['group'].setExclusive(False)
             for key, item in self.cmap_radio['items'].items():
                 try:
@@ -376,65 +365,31 @@ class CaseDashboard(QWidget):
                 except:
                     pass
             self.cmap_radio['group'].setExclusive(True)
-        except:
-            self.raise_message(f"Colormap {cmap} not available!")
-            self.cmap_radio['items']['cmap'].clear()
-        self.canvas.draw()
-        self.cmap_radio['items']['cmap'].clearFocus()
+        else:
+            self.cmap_radio['items']['dropdown'].setCurrentIndex(0)
 
     def toggle_abs(self):
         self.caseplot.toggleAbs()
 
     def change_varscale(self):
-        self.caseplpt.setVarscale(float(self.misc['items']['varscale'].text()))
+        self.caseplot.setVarscale(float(self.misc['items']['varscale'].text()))
         self.misc['items']['varscale'].clearFocus()
 
     def change_ulim(self):
-        ulim = float(self.misc['items']['ulim'].text())
-        clim = self.verts.get_clim()
-        lims = self.get_lims()
-        if ulim <= clim[0]:
-            self.raise_message("Requested upper range {:.3g} is".format(ulim)+
-                " below the current lower limit {:.3g}".format(clim[0]))
-            return
-        ulim = min(ulim, lims[1])
-        self.verts.set_clim((clim[0], ulim))
-        self.slider['items']['ulim'].setText(\
-                self.title("{:.3g}".format(ulim)
-        ))
-        self.slider['items']['slider'].setHigh(
-           int( self.value2position(ulim)
-        ))
-        self.update_var()
+        self.caseplot.setUpperSlider(float(self.misc['items']['ulim'].text()))
         self.misc['items']['ulim'].clear()
         self.misc['items']['ulim'].clearFocus()
 
     def change_llim(self):
-        llim = float(self.misc['items']['llim'].text())
-        clim = self.verts.get_clim()
-        lims = self.get_lims()
-        if llim >= clim[1]:
-            self.raise_message("Requested lower range {:.3g} is".format(llim)+
-                " above the current upper limit {:.3g}".format(clim[1]))
-            return
-        llim = max(llim, lims[0])
-        self.verts.set_clim((llim, clim[1]))
-        self.slider['items']['llim'].setText(\
-                self.title("{:.3g}".format(llim)
-        ))
-        self.slider['items']['slider'].setLow(
-           int( self.value2position(llim)
-        ))
-        self.update_var()
+        self.caseplot.setLowerSlider(float(self.misc['items']['llim'].text()))
         self.misc['items']['llim'].clear()
         self.misc['items']['llim'].clearFocus()
 
 
     def cmap_radio_clicked(self):
         self.cmap = self.cmap_radio['group'].checkedButton().text()
-        self.verts.set_cmap(self.cmap)
-        self.cmap_radio['items']['cmap'].clear()
-        self.canvas.draw()
+        self.caseplot.setCmap(self.cmap)
+        self.cmap_radio['items']['dropdown'].setCurrentIndex(0)
 
     def ion_radio_clicked(self):
         self.ionspecies = self.ion_radio['group'].checkedId()
@@ -444,7 +399,7 @@ class CaseDashboard(QWidget):
                 title = title.split("for")[0] + "for {}".format(
                     self.ionarray[self.ionspecies])
             self.caseplot.setTitle(title)
-            self.update_var()
+        self.caseplot.setVar(self.get_speciesvar())
         
     def gas_radio_clicked(self):
         self.gasspecies = self.gas_radio['group'].checkedId()
@@ -454,7 +409,7 @@ class CaseDashboard(QWidget):
                 title = title.split("for")[0] + "for {}".format(
                     self.gasarray[self.gasspecies])
             self.caseplot.setTitle(title)
-            self.update_var()
+        self.caseplot.setVar(self.get_speciesvar())
 
 
     def _createSwitches(self):
@@ -541,25 +496,41 @@ class CaseDashboard(QWidget):
     """ ===========================
                 PLOT ACTIONS
         ==========================="""
+
+    def get_speciesvar(self):
+        if self.multispecies == 'gas':
+            self.species = self.gasarray[self.gasspecies]
+            return self.var[:, :, self.gasspecies]
+        elif self.multispecies == 'ion':
+            self.species = self.ionarray[self.ionspecies]
+            return self.var[:, :, self.ionspecies]
+        else:
+            return self.var
+
+    def is_nonzero(self):
+        from numpy import sum
+        if sum(self.get_speciesvar()) == 0:
+            self.raise_message("Requested variable unpopulated! "+
+                "Select another variable or species to plot.")
+            return False
+        else:
+            return True
+
+
     def plot_driver(self, var, title, multispecies=False):
         from numpy.ma import masked_array
+        from numpy import sum
         # Save variable as masked_array to mask for log
         self.var = masked_array(var, mask=False)
         self.multispecies = multispecies
-        species=''
-        if (var.min() < 0) and self.log:
-            self.raise_message("Negative values in var: masking array!")
-        if multispecies == 'gas':
-            species = self.gasarray[self.gasspecies]
-            var = var[1:-1, 1:-1, self.gasspecies]
-        elif multispecies == 'ion':
-            species = self.ionarray[self.ionspecies]
-            var = var[1:-1, 1:-1, self.ionspecies]
-        else:
-            var = var[1:-1, 1:-1]
+        if not self.is_nonzero():
+            return
+        if (self.get_speciesvar().min() <= 0) and self.log:
+            self.raise_message("Non-positive values in logarithmic plot "+
+                "have been masked!")
         self.caseplot.setTitle(title + \
-                f" for {species}"*(multispecies is not False))
-        self.caseplot.setVar(var)
+                f" for {self.species}"*(multispecies is not False))
+        self.caseplot.setVar(self.get_speciesvar())
         self.buttons['items']['dropdown'].setCurrentIndex(0)
         command = self.buttons['items']['custom'].clear()
  
@@ -571,29 +542,34 @@ class CaseDashboard(QWidget):
         if len(var.shape) == 3:
             if var.shape[-1] == len(self.ionarray):
                 self.multispecies = 'ion'
+                self.var = var
+                if not self.is_nonzero():
+                    return
                 self.caseplot.setTitle(text + " for {}".format(\
                     self.ionarray[self.ionspecies]))
-                self.var = var
+                self.caseplot.setVar(self.get_speciesvar())
             elif var.shape[-1] == len(self.gasarray):
                 self.multispecies = 'gas'
+                self.var = var
+                if not self.is_nonzero():
+                    return
                 self.caseplot.setTitle(text + " for {}".format(\
                     self.gasarray[self.gasspecies]))
-                self.var = var
+                self.caseplot.setVar(self.get_speciesvar())
             else:
                 self.raise_message("Could not determine species"+
                     f" index of {text}")
                 return
         elif len(var.shape) == 2:
             self.var = var
-            self.caseplot.setTitle(uptitle)
+            self.caseplot.setVar(self.var)
+            if not self.is_nonzero():
+                return
+            self.caseplot.setTitle(suptitle)
         else:
             self.raise_message(f"Could not determine shape of {text}")
             return
-        if (var.min() < 0) and self.log:
-            self.raise_message("Negative values in var: masking array!")
-
         self.buttons['items']['custom'].clear()
-        self.update_var()
 
     def plot_custom(self):
         try:
@@ -619,13 +595,15 @@ class CaseDashboard(QWidget):
             )
         else:
             self.var = locals()['var']
+            self.multispecies = False
+            if not self.is_nonzero():
+                return
+            self.caseplot.setVar(self.var)
             for substr in ['get', '(', ')', '"', "'", ".", "bbb", "com",
                 "grd", "flx", "aph", "api", "self"]:
                 command = command.replace(substr, '')
             self.caseplot.setTitle(command)
             self.buttons['items']['custom'].clearFocus()
-            self.multispecies = False
-            self.update_var()
 
 
        
@@ -754,121 +732,6 @@ class CaseDashboard(QWidget):
         QMainWindow.mousePressEvent(self, event)
 
 
-class VerticalSlider(QWidget):
-    """ Vertical slider widget """
-    def __init__(self, verts, parent=None):
-        super().__init__(parent)
-        self.log = False
-        self.verts = verts
-        lims = self.get_lims()
-        self.slider = {
-            'items': {
-                'ulim': QLabel(self.title("{:.3g}".format(lims[1]))),
-                'slider': RangeSlider(Qt.Vertical),
-                'llim': QLabel(self.title("{:.3g}".format(lims[0]))),
-            }
-        }
-
-        self.slider['items']['llim'].setAlignment(\
-                        Qt.AlignHCenter | \
-                        Qt.AlignVCenter
-        )
-        self.slider['items']['ulim'].setAlignment(\
-                        Qt.AlignHCenter | \
-                        Qt.AlignVCenter
-        )
-        self.slider['items']['ulim'].setFixedWidth(75)
-        self.slider['items']['llim'].setFixedWidth(75)
-
-        self.slider['items']['slider'].setMinimum(0)
-        self.slider['items']['slider'].setMaximum(1000)
-        self.slider['items']['slider'].setLow(0)
-        self.slider['items']['slider'].setHigh(1000)
-        self.slider['items']['slider'].setMinimumHeight(30)
-        self.slider['items']['slider'].setValue(1000)
-        self.slider['items']['slider'].sliderMoved.connect(\
-                self.update_plot_range)
-
-        self.sliderBar = QGridLayout(self)
-        self.sliderBar.addWidget(self.slider['items']['ulim'],
-            0, 0, 1, 3)
-        self.sliderBar.addWidget(self.slider['items']['slider'],
-            1, 1, 1, 1)
-        self.sliderBar.addWidget(self.slider['items']['llim'],
-            2, 0, 1, 3)
-
-#        self.layout = QHBoxLayout()
-#        self.layout.addLayout(self.canvaslayout)
-#        self.layout.addLayout(self.sliderControl)
-
-        self.centralWidget = QWidget(self)
-#        self.centralWidget.setLayout(self.layout)
-
-    """ ===========================
-               SLIDER HELPERS 
-        ==========================="""
-    def get_lims(self):
-        var = self.verts.get_array()
-        if var is None:
-            return (0, 1)
-        return (var.min(), var.max())
-
-    def get_slider_position(self):
-        return (self.slider_lower_position(), self.slider_higher_position())
-
-    def get_slider_values(self):
-        pos = self.get_slider_position()
-        return  (max(min(self.position2value(pos[0]), 1000), 0),
-                 max(min(self.position2value(pos[1]), 1000),0))
-
-    def slider_higher_position(self):
-        return self.slider['items']['slider'].high()
-
-    def slider_lower_position(self):
-        return self.slider['items']['slider'].low()
-
-    def position2value(self, pos):
-        lims = self.get_lims()
-        pos /= 1000
-        if self.log:
-            return (lims[1]**pos)*(lims[0]**(1-pos))
-        else:
-            return pos*lims[1] + (1-pos)*lims[0]
-
-    def value2position(self, val):
-        from numpy import log
-        from numpy.ma import is_masked
-        lims = self.get_lims()
-        if abs(lims[0]-lims[1])<1e-20:
-            return 0
-        for lim in lims:
-            if is_masked(lim):
-                return 0
-        if self.log:
-            return 1000/(1+(log(lims[1])-log(val))/max(1e-20, 
-                        (log(val)-log(lims[0]))))
-        else:
-            return 1000/(1 + ((lims[1]-val)/max(1e-10,(val-lims[0]))))
-        
-    def update_plot_range(self, l, u):
-        from numpy.ma import is_masked
-        nl = self.position2value(l)
-        nu = self.position2value(u)
-        for var in [nl, nu]:
-            if is_masked(var):
-                return 0
-        self.verts.set_clim((nl, nu))
-        self.verts.set_cmap(self.verts.get_cmap())
-        self.slider['items']['llim'].setText(self.title("{:.3g}".format(nl)))
-        self.slider['items']['ulim'].setText(self.title("{:.3g}".format(nu)))
-        # TODO: connect
-#        self.canvas.draw()
-
-
-    def title(self, text):
-        return f"<b><font size=4>{text}</font></b>"
-
-
 
 class HeatmapInteractiveFigure(QWidget):
     """Figure Widget with slider."""
@@ -971,8 +834,8 @@ class HeatmapInteractiveFigure(QWidget):
                         Qt.AlignHCenter | \
                         Qt.AlignVCenter
         )
-        self.slider['items']['ulim'].setFixedWidth(75)
-        self.slider['items']['llim'].setFixedWidth(75)
+        self.slider['items']['ulim'].setFixedWidth(80)
+        self.slider['items']['llim'].setFixedWidth(80)
 
         self.slider['items']['slider'].setMinimum(0)
         self.slider['items']['slider'].setMaximum(1000)
@@ -1048,7 +911,7 @@ class HeatmapInteractiveFigure(QWidget):
     def setTitle(self, title):
         self.suptitle = title
         self.canvas.fig.suptitle(self.suptitle)
-        self.updatePlot()
+        self.canvas.draw()
 
     def getTitle(self):
         return self.suptitle
@@ -1062,8 +925,8 @@ class HeatmapInteractiveFigure(QWidget):
 
     def setCmap(self, cmap):
         self.cmap = cmap
-        vertices.set_cmap(cmap)
-        self.updatePlot()
+        self.verts.set_cmap(cmap)
+        self.canvas.draw()
 
     def toggleAbs(self):
         self.abs = not self.abs
@@ -1077,7 +940,7 @@ class HeatmapInteractiveFigure(QWidget):
 
     def setVarscale(self, val):
         self.varscale = val
-        self.update_var()
+        self.updatePlot()
 
     def toggleVessel(self):
         for line in self.canvas.axes.lines:
@@ -1087,6 +950,7 @@ class HeatmapInteractiveFigure(QWidget):
 
     def toggleLog(self):
         from matplotlib.colors import LogNorm, Normalize
+        from numpy.ma import is_masked
         from numpy import log
         lims = self.get_lims()
 
@@ -1095,12 +959,17 @@ class HeatmapInteractiveFigure(QWidget):
             if var is not None:
                 var.mask=(var<=0)
                 self.verts.set_array(var)
-                lims = self.get_lims()
+                lims = list(self.get_lims())
+                if is_masked(lims[0]):
+                    lims[0]=1e-100
+                if is_masked(lims[1]):
+                    lims[1]=1e100
         else:
             var = self.verts.get_array()
             if var is not None:
                 var.mask=False
                 self.verts.set_array(var)
+                lims = self.get_lims()
         if self.log:
             self.verts.set_norm(Normalize(*lims))#vmin=lims[0], vmax=lims[1])
         else:
@@ -1108,13 +977,15 @@ class HeatmapInteractiveFigure(QWidget):
         vals = self.get_slider_values()
         self.log = not self.log 
         newpos = [int(self.value2position(x)) for x in vals]
+        if newpos[0] == newpos[1]:
+            newpos = [0, 1000]
         self.slider['items']['slider'].setLow(newpos[0])
         self.slider['items']['slider'].setHigh(newpos[1])
         clim = list(self.verts.get_clim())
         if self.log:
-            if clim[0] < 0:
+            if clim[0] <= 0:
                 clim[0]=1e-100
-            if (clim[1] <0) or (clim[1]<clim[0]):
+            if (clim[1] <= 0) or (clim[1]<clim[0]):
                 clim[1]=1e100
         self.verts.set_clim(clim)
         self.canvas.draw()
@@ -1140,13 +1011,17 @@ class HeatmapInteractiveFigure(QWidget):
     def updatePlot(self):
         from copy import deepcopy
         from numpy import sum
+
+
+        if self.log:
+            self.var.mask=(self.var<=0)
         self.suptitle = self.suptitle.split("(")[0] \
             + (self.varscale != 1)*" (x{:.3g})".format(self.varscale)
         var = self.varscale*self.var
-#        if sum(var) == 0:
-#            self.raise_message("Requested variable unpopulated! "+
-#                "Select another variable or species to plot.")
-#            return
+        if sum(var) == 0:
+            self.raise_message("Requested variable unpopulated! "+
+                "Select another variable or species to plot.")
+            return
         if self.abs:
             var = abs(var)
 #        if (var.min() < 0) and self.log:
@@ -1154,7 +1029,7 @@ class HeatmapInteractiveFigure(QWidget):
 #            var.mask=(var<=0)
         # Record old values slider values
         [llim, ulim] = deepcopy(self.verts.get_clim())
-        self.verts.set_array(var.reshape(self.xy))
+        self.verts.set_array(var[1:-1,1:-1].reshape(self.xy))
         clim = self.verts.get_clim()
         lims = self.get_lims()
         if ulim <= lims[0]:
@@ -1191,6 +1066,50 @@ class HeatmapInteractiveFigure(QWidget):
         self.canvas.fig.suptitle(self.suptitle)
         self.canvas.draw()
 
+    def setUpperSlider(self, ulim):
+        clim = self.verts.get_clim()
+        lims = self.get_lims()
+        if ulim <= clim[0]:
+            self.raise_message("Requested upper range {:.3g} is".format(ulim)+
+                " below the current lower limit {:.3g}".format(clim[0]))
+            return
+        ulim = min(ulim, lims[1])
+        self.verts.set_clim((clim[0], ulim))
+        self.slider['items']['ulim'].setText(\
+                self.title("{:.3g}".format(ulim)
+        ))
+        self.slider['items']['slider'].setHigh(
+           int( self.value2position(ulim)
+        ))
+        self.canvas.draw()
+
+    def setLowerSlider(self, llim):
+        clim = self.verts.get_clim()
+        lims = self.get_lims()
+        if llim >= clim[1]:
+            self.raise_message("Requested lower range {:.3g} is".format(llim)+
+                " above the current upper limit {:.3g}".format(clim[1]))
+            return
+        llim = max(llim, lims[0])
+        self.verts.set_clim((llim, clim[1]))
+        self.slider['items']['llim'].setText(\
+                self.title("{:.3g}".format(llim)
+        ))
+        self.slider['items']['slider'].setLow(
+           int( self.value2position(llim)
+        ))
+        self.canvas.draw()
+
+
+    def raise_message(self, message, time=5000):
+        QApplication.sendEvent(self, QStatusTipEvent(message))
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide_message)
+        self.timer.start(time)
+
+    def hide_message(self):
+        QApplication.sendEvent(self, QStatusTipEvent(''))
 
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=2, height=4, dpi=300):
