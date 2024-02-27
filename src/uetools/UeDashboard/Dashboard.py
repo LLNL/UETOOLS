@@ -71,6 +71,7 @@ class CaseDashboard(QWidget):
         super().__init__(parent)
         self.file = case.filename
 
+        self.centralWidget = QWidget(self)
         self.caseplot = HeatmapInteractiveFigure(case)
         # Cannibalize Case functions
         self.inplace = case.inplace
@@ -123,12 +124,11 @@ class CaseDashboard(QWidget):
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
         '''
-        self.layout = QHBoxLayout()
+        self.layout = QHBoxLayout(self)
         self.layout.addLayout(self.menu)
         self.layout.addWidget(self.caseplot)
     
         print(self.caseplot)
-        self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
 
         
@@ -754,6 +754,122 @@ class CaseDashboard(QWidget):
         QMainWindow.mousePressEvent(self, event)
 
 
+class VerticalSlider(QWidget):
+    """ Vertical slider widget """
+    def __init__(self, verts, parent=None):
+        super().__init__(parent)
+        self.log = False
+        self.verts = verts
+        lims = self.get_lims()
+        self.slider = {
+            'items': {
+                'ulim': QLabel(self.title("{:.3g}".format(lims[1]))),
+                'slider': RangeSlider(Qt.Vertical),
+                'llim': QLabel(self.title("{:.3g}".format(lims[0]))),
+            }
+        }
+
+        self.slider['items']['llim'].setAlignment(\
+                        Qt.AlignHCenter | \
+                        Qt.AlignVCenter
+        )
+        self.slider['items']['ulim'].setAlignment(\
+                        Qt.AlignHCenter | \
+                        Qt.AlignVCenter
+        )
+        self.slider['items']['ulim'].setFixedWidth(75)
+        self.slider['items']['llim'].setFixedWidth(75)
+
+        self.slider['items']['slider'].setMinimum(0)
+        self.slider['items']['slider'].setMaximum(1000)
+        self.slider['items']['slider'].setLow(0)
+        self.slider['items']['slider'].setHigh(1000)
+        self.slider['items']['slider'].setMinimumHeight(30)
+        self.slider['items']['slider'].setValue(1000)
+        self.slider['items']['slider'].sliderMoved.connect(\
+                self.update_plot_range)
+
+        self.sliderBar = QGridLayout(self)
+        self.sliderBar.addWidget(self.slider['items']['ulim'],
+            0, 0, 1, 3)
+        self.sliderBar.addWidget(self.slider['items']['slider'],
+            1, 1, 1, 1)
+        self.sliderBar.addWidget(self.slider['items']['llim'],
+            2, 0, 1, 3)
+
+#        self.layout = QHBoxLayout()
+#        self.layout.addLayout(self.canvaslayout)
+#        self.layout.addLayout(self.sliderControl)
+
+        self.centralWidget = QWidget(self)
+#        self.centralWidget.setLayout(self.layout)
+
+    """ ===========================
+               SLIDER HELPERS 
+        ==========================="""
+    def get_lims(self):
+        var = self.verts.get_array()
+        if var is None:
+            return (0, 1)
+        return (var.min(), var.max())
+
+    def get_slider_position(self):
+        return (self.slider_lower_position(), self.slider_higher_position())
+
+    def get_slider_values(self):
+        pos = self.get_slider_position()
+        return  (max(min(self.position2value(pos[0]), 1000), 0),
+                 max(min(self.position2value(pos[1]), 1000),0))
+
+    def slider_higher_position(self):
+        return self.slider['items']['slider'].high()
+
+    def slider_lower_position(self):
+        return self.slider['items']['slider'].low()
+
+    def position2value(self, pos):
+        lims = self.get_lims()
+        pos /= 1000
+        if self.log:
+            return (lims[1]**pos)*(lims[0]**(1-pos))
+        else:
+            return pos*lims[1] + (1-pos)*lims[0]
+
+    def value2position(self, val):
+        from numpy import log
+        from numpy.ma import is_masked
+        lims = self.get_lims()
+        if abs(lims[0]-lims[1])<1e-20:
+            return 0
+        for lim in lims:
+            if is_masked(lim):
+                return 0
+        if self.log:
+            return 1000/(1+(log(lims[1])-log(val))/max(1e-20, 
+                        (log(val)-log(lims[0]))))
+        else:
+            return 1000/(1 + ((lims[1]-val)/max(1e-10,(val-lims[0]))))
+        
+    def update_plot_range(self, l, u):
+        from numpy.ma import is_masked
+        nl = self.position2value(l)
+        nu = self.position2value(u)
+        for var in [nl, nu]:
+            if is_masked(var):
+                return 0
+        self.verts.set_clim((nl, nu))
+        self.verts.set_cmap(self.verts.get_cmap())
+        self.slider['items']['llim'].setText(self.title("{:.3g}".format(nl)))
+        self.slider['items']['ulim'].setText(self.title("{:.3g}".format(nu)))
+        # TODO: connect
+#        self.canvas.draw()
+
+
+    def title(self, text):
+        return f"<b><font size=4>{text}</font></b>"
+
+
+
 class HeatmapInteractiveFigure(QWidget):
     """Figure Widget with slider."""
     def __init__(self, case, parent=None):
@@ -766,14 +882,37 @@ class HeatmapInteractiveFigure(QWidget):
         self.canvas.setMinimumWidth(650)
         self.canvas.setMinimumHeight(750)
         self.case = case        
-        self.case.plotmesh(ax=self.canvas.axes, colorbar=True)
+#        self.case.plotmesh(ax=self.canvas.axes, colorbar=True)
+        self.case.te2D(ax=self.canvas.axes)
         self.case.set_speciesarrays()
         self.verts = self.case.Qvertices
         
+        self._createSlider()
         self.canvastoolbar = NavigationToolbar2QT(self.canvas, self)
-        self.canvaslayout = QVBoxLayout()
-        self.canvaslayout.addWidget(self.canvastoolbar)
-        self.canvaslayout.addWidget(self.canvas)
+        self.test = QVBoxLayout()
+        self.test.addWidget(self.canvastoolbar)
+        self.test.addWidget(self.canvas)
+        self.sliderControl = QGridLayout()
+        self.sliderControl.addWidget(self.slider['items']['ulim'],
+            0,0,1,3)
+        self.sliderControl.addWidget(self.slider['items']['slider'],
+            1,1,1,1)
+        self.sliderControl.addWidget(self.slider['items']['llim'],
+            2,0,1,3)
+        self.canvaslayout = QHBoxLayout(self)
+#        self.cvl2.addWidget(self.canvastoolbar)
+#        self.slider = VerticalSlider(self.verts, self)
+#        self.canvaslayout.addWidget(self.canvas)
+        self.canvaslayout.addLayout(self.test)
+        self.canvaslayout.addLayout(self.sliderControl)
+#        self.canvaslayout.addWidget(self.slider)
+#        self.get_lims = self.slider.get_lims
+#        self.get_slider_values = self.slider.get_slider_values 
+#        self.value2position = self.slider.value2position
+
+#        self.canvaslayout.addWidget(self.canvastoolbar)
+#        self.canvaslayout.addWidget(self.canvas)
+
         (ax, cax) = self.canvas.fig.get_axes()
         old_cax = cax.get_position()
         old_ax = ax.get_position()
@@ -800,25 +939,111 @@ class HeatmapInteractiveFigure(QWidget):
             if "child" in line.get_label():
                 line.remove()
 
-        self._createSlider()
 
-        self.sliderBar = QHBoxLayout()
-        self.sliderBar.addStretch()
-        self.sliderBar.addWidget(self.slider['items']['slider'])
-        self.sliderBar.addStretch()
-
-        self.sliderControl = QVBoxLayout()
-        self.sliderControl.addWidget(self.slider['items']['ulim'])
-        self.sliderControl.addLayout(self.sliderBar)
-        self.sliderControl.addWidget(self.slider['items']['llim'])
-
-        self.layout = QHBoxLayout()
-        self.layout.addLayout(self.canvaslayout)
-        self.layout.addLayout(self.sliderControl)
+#        self.layout = QHBoxLayout()
+#        self.layout.addLayout(self.canvaslayout)
+#        self.layout.addLayout(self.sliderControl)
 
         self.centralWidget = QWidget(self)
-        self.centralWidget.setLayout(self.layout)
+#        self.centralWidget.setLayout(self.layout)
         self.canvas.draw()
+
+    def title(self, text):
+        return f"<b><font size=4>{text}</font></b>"
+
+
+    def _createSlider(self):
+        lims = self.get_lims()
+        self.slider = {
+            'layout': QVBoxLayout(),
+            'items': {
+                'ulim': QLabel(self.title("{:.3g}".format(lims[1]))),
+                'slider': RangeSlider(Qt.Vertical),
+                'llim': QLabel(self.title("{:.3g}".format(lims[0]))),
+            }
+        }
+
+        self.slider['items']['llim'].setAlignment(\
+                        Qt.AlignHCenter | \
+                        Qt.AlignVCenter
+        )
+        self.slider['items']['ulim'].setAlignment(\
+                        Qt.AlignHCenter | \
+                        Qt.AlignVCenter
+        )
+        self.slider['items']['ulim'].setFixedWidth(75)
+        self.slider['items']['llim'].setFixedWidth(75)
+
+        self.slider['items']['slider'].setMinimum(0)
+        self.slider['items']['slider'].setMaximum(1000)
+        self.slider['items']['slider'].setLow(0)
+        self.slider['items']['slider'].setHigh(1000)
+        self.slider['items']['slider'].setMinimumHeight(30)
+        self.slider['items']['slider'].setValue(1000)
+        self.slider['items']['slider'].sliderMoved.connect(\
+                self.update_plot_range)
+
+
+    """ ===========================
+               SLIDER HELPERS 
+        ==========================="""
+    def get_lims(self):
+        var = self.verts.get_array()
+        if var is None:
+            return (0, 1)
+        return (var.min(), var.max())
+
+    def get_slider_position(self):
+        return (self.slider_lower_position(), self.slider_higher_position())
+
+    def get_slider_values(self):
+        pos = self.get_slider_position()
+        return  (max(min(self.position2value(pos[0]), 1000), 0),
+                 max(min(self.position2value(pos[1]), 1000),0))
+
+    def slider_higher_position(self):
+        return self.slider['items']['slider'].high()
+
+    def slider_lower_position(self):
+        return self.slider['items']['slider'].low()
+
+    def position2value(self, pos):
+        lims = self.get_lims()
+        pos /= 1000
+        if self.log:
+            return (lims[1]**pos)*(lims[0]**(1-pos))
+        else:
+            return pos*lims[1] + (1-pos)*lims[0]
+
+    def value2position(self, val):
+        from numpy import log
+        from numpy.ma import is_masked
+        lims = self.get_lims()
+        if abs(lims[0]-lims[1])<1e-20:
+            return 0
+        for lim in lims:
+            if is_masked(lim):
+                return 0
+        if self.log:
+            return 1000/(1+(log(lims[1])-log(val))/max(1e-20, 
+                        (log(val)-log(lims[0]))))
+        else:
+            return 1000/(1 + ((lims[1]-val)/max(1e-10,(val-lims[0]))))
+        
+    def update_plot_range(self, l, u):
+        from numpy.ma import is_masked
+        nl = self.position2value(l)
+        nu = self.position2value(u)
+        for var in [nl, nu]:
+            if is_masked(var):
+                return 0
+        self.verts.set_clim((nl, nu))
+        self.verts.set_cmap(self.verts.get_cmap())
+        self.slider['items']['llim'].setText(self.title("{:.3g}".format(nl)))
+        self.slider['items']['ulim'].setText(self.title("{:.3g}".format(nu)))
+        self.canvas.draw()
+
+
 
     def setTitle(self, title):
         self.suptitle = title
@@ -966,102 +1191,6 @@ class HeatmapInteractiveFigure(QWidget):
         self.canvas.fig.suptitle(self.suptitle)
         self.canvas.draw()
 
-    def _createSlider(self):
-        lims = self.get_lims()
-        self.slider = {
-            'layout': QVBoxLayout(),
-            'items': {
-                'ulim': QLabel(self.title("{:.3g}".format(lims[1]))),
-                'slider': RangeSlider(Qt.Vertical),
-                'llim': QLabel(self.title("{:.3g}".format(lims[0]))),
-            }
-        }
-
-        self.slider['items']['llim'].setAlignment(\
-                        Qt.AlignHCenter | \
-                        Qt.AlignVCenter
-        )
-        self.slider['items']['ulim'].setAlignment(\
-                        Qt.AlignHCenter | \
-                        Qt.AlignVCenter
-        )
-        self.slider['items']['ulim'].setFixedWidth(75)
-        self.slider['items']['llim'].setFixedWidth(75)
-
-        self.slider['items']['slider'].setMinimum(0)
-        self.slider['items']['slider'].setMaximum(1000)
-        self.slider['items']['slider'].setLow(0)
-        self.slider['items']['slider'].setHigh(1000)
-        self.slider['items']['slider'].setMinimumHeight(30)
-        self.slider['items']['slider'].setValue(1000)
-        self.slider['items']['slider'].sliderMoved.connect(\
-                self.update_plot_range)
-
-
-    """ ===========================
-               SLIDER HELPERS 
-        ==========================="""
-    def get_lims(self):
-        var = self.verts.get_array()
-        if var is None:
-            return (0, 1)
-        return (var.min(), var.max())
-
-    def get_slider_position(self):
-        return (self.slider_lower_position(), self.slider_higher_position())
-
-    def get_slider_values(self):
-        pos = self.get_slider_position()
-        return  (max(min(self.position2value(pos[0]), 1000), 0),
-                 max(min(self.position2value(pos[1]), 1000),0))
-
-    def slider_higher_position(self):
-        return self.slider['items']['slider'].high()
-
-    def slider_lower_position(self):
-        return self.slider['items']['slider'].low()
-
-    def position2value(self, pos):
-        lims = self.get_lims()
-        pos /= 1000
-        if self.log:
-            return (lims[1]**pos)*(lims[0]**(1-pos))
-        else:
-            return pos*lims[1] + (1-pos)*lims[0]
-
-    def value2position(self, val):
-        from numpy import log
-        from numpy.ma import is_masked
-        lims = self.get_lims()
-        if abs(lims[0]-lims[1])<1e-20:
-            return 0
-        for lim in lims:
-            if is_masked(lim):
-                return 0
-        if self.log:
-            return 1000/(1+(log(lims[1])-log(val))/max(1e-20, 
-                        (log(val)-log(lims[0]))))
-        else:
-            return 1000/(1 + ((lims[1]-val)/max(1e-10,(val-lims[0]))))
-        
-    def update_plot_range(self, l, u):
-        from numpy.ma import is_masked
-        nl = self.position2value(l)
-        nu = self.position2value(u)
-        for var in [nl, nu]:
-            if is_masked(var):
-                return 0
-        self.verts.set_clim((nl, nu))
-        self.verts.set_cmap(self.verts.get_cmap())
-        self.slider['items']['llim'].setText(self.title("{:.3g}".format(nl)))
-        self.slider['items']['ulim'].setText(self.title("{:.3g}".format(nu)))
-        self.canvas.draw()
-
-
-    def title(self, text):
-        return f"<b><font size=4>{text}</font></b>"
-
-
 
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=2, height=4, dpi=300):
@@ -1096,10 +1225,10 @@ class MainMenu(QMainWindow):
         self._connectActions()
         self._createStatusBar()
 
-#        self.centralWidget = QTabWidget()#QLabel("Hello, World")
-#        self.centralWidget.setMinimumWidth(1300)
-#        self.centralWidget.setMinimumHeight(900)
-#        self.setCentralWidget(self.centralWidget)
+        self.centralWidget = QTabWidget(self)#QLabel("Hello, World")
+        self.centralWidget.setMinimumWidth(1300)
+        self.centralWidget.setMinimumHeight(900)
+        self.setCentralWidget(self.centralWidget)
 
         if case is not None:
             case =  CaseDashboard(Case(file, inplace=True))
@@ -1123,7 +1252,7 @@ class MainMenu(QMainWindow):
         if len(file.strip()) == 0:
             return
 
-        """
+        '''
         case = Case(file, inplace=True)
         te = case.get('te')[1:-1,1:-1]/1.602e-19
         case =  HeatmapInteractiveFigure(case)
@@ -1131,13 +1260,18 @@ class MainMenu(QMainWindow):
 #        case =  HeatmapInteractiveFigure(case, case.get("te")/1.602e-19)
         self.tablist.append(self.centralWidget.addTab(case, 'test'))
         return
-        """
-
-#        case =  CaseDashboard(Case(file, inplace=True))
         case = Case(file, inplace=True)
-        case =  HeatmapInteractiveFigure(case)
-        self.setCentralWidget(case)#self.centralWidget)
+        self.caseplot = HeatmapInteractiveFigure(case)
+        self.layout = QHBoxLayout()
+#        self.layout.addWidget(self.caseplot)
+ 
+        self.centralWidget = self.caseplot 
+        self.centralWidget.setLayout(self.layout)
+#        self.centralWidget = QWidget(self)
+#        self.centralWidget.setLayout(self.layout)
         return
+        '''
+        case =  CaseDashboard(Case(file, inplace=True))
         case.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # TODO: Figure out how to resize Widget with Window?!
         self.tablist.append(self.centralWidget.addTab(case,
