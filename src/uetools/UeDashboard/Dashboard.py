@@ -541,7 +541,8 @@ class CaseDashboard(QWidget):
             if not self.is_nonzero():
                 return
             self.caseplot.setVar(self.var)
-            for substr in ['get', '(', ')', '"', "'", ".", "bbb", "com",
+            for substr in ['get', '("', '")', "('", "')",
+                '"', "'", ".", "bbb", "com",
                 "grd", "flx", "aph", "api", "self"]:
                 command = command.replace(substr, '')
             self.caseplot.setTitle(command)
@@ -859,7 +860,8 @@ class HeatmapInteractiveFigure(QWidget):
         return self.suptitle
 
     def setVar(self, var):
-        self.var = var
+        from numpy.ma import masked_array
+        self.var = masked_array(var)
         self.updatePlot()
 
     def getVar(self):
