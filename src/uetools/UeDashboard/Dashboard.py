@@ -1170,8 +1170,7 @@ class MainMenu(QMainWindow):
 
     def openFile(self):#, caseobj=None):
         # Logic for opening an existing file goes here...
-        # TODO: Move focus to opened file
-        if 1==0:
+        if 1==1:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
             self.lastpath, "All files (*.*)")[0]
             self.lastpath = "/".join(file.split("/")[:-1])
@@ -1181,13 +1180,18 @@ class MainMenu(QMainWindow):
             print("USING TUTORIAL CASE")
         if len(file.strip()) == 0:
             return
-        case =  CaseDashboard(Case(file, inplace=True))
+        try:
+            case =  CaseDashboard(Case(file, inplace=True))
+        except:
+            self.raise_message(f"File {file} is not a valid UETOOLS save file!")
+            return
         case.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # TODO: Figure out how to resize Widget with Window?!
         self.tablist.append(self.centralWidget.addTab(case,
             f"{case.casename} heatmap")
         )
         self.centralWidget.setTabToolTip(self.tablist[-1], file)
+        self.centralWidget.setCurrentIndex(self.tablist[-1])
         self.raise_message(f"File > Opened {file}.")
         self.tabMenu.setDisabled(False)
 
@@ -1204,9 +1208,9 @@ class MainMenu(QMainWindow):
         self.tabMenu = menuBar.addMenu("&Tab")
         self.tabMenu.addAction(self.renameTabAction)
         self.tabMenu.addAction(self.popOutTabAction)
-        helpMenu = menuBar.addMenu("&Help")
-        helpMenu.addAction(self.helpContentAction)
-        helpMenu.addAction(self.aboutAction)
+#        helpMenu = menuBar.addMenu("&Help")
+#        helpMenu.addAction(self.helpContentAction)
+#        helpMenu.addAction(self.aboutAction)
 
 
 
@@ -1322,7 +1326,6 @@ if __name__ == "__main__":
 
     win = MainMenu()
     win.show()
-    win.openFile()
     sys.exit(app.exec_())
 else:
     app = QApplication(sys.argv)
