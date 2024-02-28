@@ -85,7 +85,6 @@ class CaseDashboard(QWidget):
         self.ionspecies = 0
         self.gasspecies = 0
         self.species = ''
-        self.log = False
 
 
         self._createVarButtons()
@@ -472,7 +471,7 @@ class CaseDashboard(QWidget):
 
 
     def plates_switch_clicked(self):
-        self.caseplot.toggleGrid()
+        self.caseplot.togglePlates()
 
     def grid_switch_clicked(self):
         self.caseplot.toggleGrid()
@@ -487,10 +486,9 @@ class CaseDashboard(QWidget):
         from matplotlib.colors import LogNorm, Normalize
         from numpy import log
         lims = self.caseplot.get_lims()
-        if (lims[0] <= 0) and (self.log is False):
+        if (lims[0] <= 0) and (self.caseplot.log is False):
             self.raise_message("Negative values in var: masking array!")
         self.caseplot.toggleLog()
-        self.log = not self.log
         # TODO: detect log from figure?
 
     """ ===========================
@@ -525,7 +523,7 @@ class CaseDashboard(QWidget):
         self.multispecies = multispecies
         if not self.is_nonzero():
             return
-        if (self.get_speciesvar().min() <= 0) and self.log:
+        if (self.get_speciesvar().min() <= 0) and self.caseplot.log:
             self.raise_message("Non-positive values in logarithmic plot "+
                 "have been masked!")
         self.caseplot.setTitle(title + \
@@ -565,7 +563,7 @@ class CaseDashboard(QWidget):
             self.caseplot.setVar(self.var)
             if not self.is_nonzero():
                 return
-            self.caseplot.setTitle(suptitle)
+            self.caseplot.setTitle(text)
         else:
             self.raise_message(f"Could not determine shape of {text}")
             return
@@ -1122,10 +1120,17 @@ class MyLineEdit(QLineEdit):
 
 class MyClearLineEdit(QLineEdit):
         pass
-
+ 
+class PopUp(QMainWindow):
+    def __init__(self, parent=None):
+        super(PopUp, self).__init__(parent)
+ 
 
 class MainMenu(QMainWindow):
     """Main Window."""
+
+    # TODO: pop-out tab option
+
     def __init__(self, parent=None, case=None):
         """Initializer."""
         from os import getcwd
@@ -1138,6 +1143,7 @@ class MainMenu(QMainWindow):
         self.setFocus()
         self.setWindowTitle("UETOOLS Main Menu")
         self.resize(1300, 900)
+        self.popups = []
 
         self._createActions()
         self._createMenuBar()
@@ -1147,19 +1153,24 @@ class MainMenu(QMainWindow):
         self.centralWidget = QTabWidget(self)#QLabel("Hello, World")
         self.centralWidget.setMinimumWidth(1300)
         self.centralWidget.setMinimumHeight(900)
+        self.centralWidget.setTabsClosable(True)
+        self.centralWidget.tabCloseRequested.connect(self.closeTab)
         self.setCentralWidget(self.centralWidget)
+        self.tabMenu.setDisabled(True)
 
         if case is not None:
-            case =  CaseDashboard(Case(file, inplace=True))
-            self.tablist.append(self.centralWidget.addTab(case,
-                f"{case.casename} heatmap")
-            )
+            self.openFile(case)
 
 
-    def openFile(self):
+    def closeTab(self, index):
+        self.centralWidget.removeTab(index)
+        if self.centralWidget.count() == 0:
+            self.tabMenu.setDisabled(True)
+
+
+    def openFile(self):#, caseobj=None):
         # Logic for opening an existing file goes here...
         # TODO: Move focus to opened file
-
         if 1==0:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
             self.lastpath, "All files (*.*)")[0]
@@ -1170,34 +1181,15 @@ class MainMenu(QMainWindow):
             print("USING TUTORIAL CASE")
         if len(file.strip()) == 0:
             return
-
-        '''
-        case = Case(file, inplace=True)
-        te = case.get('te')[1:-1,1:-1]/1.602e-19
-        case =  HeatmapInteractiveFigure(case)
-        case.setVar(te)
-#        case =  HeatmapInteractiveFigure(case, case.get("te")/1.602e-19)
-        self.tablist.append(self.centralWidget.addTab(case, 'test'))
-        return
-        case = Case(file, inplace=True)
-        self.caseplot = HeatmapInteractiveFigure(case)
-        self.layout = QHBoxLayout()
-#        self.layout.addWidget(self.caseplot)
- 
-        self.centralWidget = self.caseplot 
-        self.centralWidget.setLayout(self.layout)
-#        self.centralWidget = QWidget(self)
-#        self.centralWidget.setLayout(self.layout)
-        return
-        '''
         case =  CaseDashboard(Case(file, inplace=True))
         case.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # TODO: Figure out how to resize Widget with Window?!
         self.tablist.append(self.centralWidget.addTab(case,
             f"{case.casename} heatmap")
         )
-
+        self.centralWidget.setTabToolTip(self.tablist[-1], file)
         self.raise_message(f"File > Opened {file}.")
+        self.tabMenu.setDisabled(False)
 
 
     def _createMenuBar(self):
@@ -1209,9 +1201,9 @@ class MainMenu(QMainWindow):
         fileMenu.addAction(self.openAction)
         fileMenu.addSeparator()
         fileMenu.addAction(self.exitAction)
-        editMenu = menuBar.addMenu("&Tab")
-        editMenu.addAction(self.renameAction)
-        editMenu.addAction(self.closeTabAction)
+        self.tabMenu = menuBar.addMenu("&Tab")
+        self.tabMenu.addAction(self.renameTabAction)
+        self.tabMenu.addAction(self.popOutTabAction)
         helpMenu = menuBar.addMenu("&Help")
         helpMenu.addAction(self.helpContentAction)
         helpMenu.addAction(self.aboutAction)
@@ -1221,24 +1213,21 @@ class MainMenu(QMainWindow):
     def _createActions(self):
         # Creating actions using the second constructor
         self.openAction = QAction("Open heatmap from HDF5 save...", self)
-        self.renameAction = QAction("Rename tab", self)
-        self.closeTabAction = QAction("Close tab", self)
+        self.renameTabAction = QAction("Rename tab", self)
+        self.popOutTabAction = QAction("Pop out figure", self)
         self.exitAction = QAction("&Exit", self)
         self.helpContentAction = QAction("&Help Content", self)
         self.aboutAction = QAction("&About", self)
         
     def _createStatusBar(self):
         self.statusbar = self.statusBar()
-#        self.wcLabel = QLabel(f"{self.file}")
-#        self.statusbar.addPermanentWidget(self.wcLabel)
 
     def _connectActions(self):
         # Connect File actions
         self.openAction.triggered.connect(self.openFile)
-        self.renameAction.triggered.connect(self.editTab)
-        self.closeTabAction.triggered.connect(self.closeTab)
+        self.renameTabAction.triggered.connect(self.renameTab)
+        self.popOutTabAction.triggered.connect(self.popTab)
         self.exitAction.triggered.connect(self.close)
-#        self.openRecentMenu.aboutToShow.connect(self.populateOpenRecent)
 
     def populateOpenRecent(self):
         # Step 1. Remove the old options from the menu
@@ -1253,17 +1242,62 @@ class MainMenu(QMainWindow):
         # Step 3. Add the actions to the menu
         self.openRecentMenu.addActions(actions)
 
-    def editTab(self):
+    def renameTab(self):
         # Logic for opening an existing file goes here...
 
         newname, ok = QInputDialog().getText(self, "Edit tab name",
                 "New tab name:", QLineEdit.Normal,
-                self.centralWidget.tabText(self.centralWidget.currentIndex()))
+                self.centralWidget.tabText(self.activeTab()))
         if ok and newname:
             self.centralWidget.setTabText(
                 self.centralWidget.currentIndex(), 
                 newname
             )
+    
+    def activeTab(self):
+        return self.centralWidget.currentIndex()
+
+    def transfer_HeatmapInteractiveFigure(self, plot):
+        newplot=HeatmapInteractiveFigure(plot.case)
+        lines = {}
+        for line in plot.canvas.axes.lines:
+            lines[line.get_label()] = line.get_visible()
+        for line in newplot.canvas.axes.lines:
+            line.set_visible(lines[line.get_label()])
+        if plot.grid:
+            newplot.toggleGrid()
+        if plot.log:
+            newplot.toggleLog()
+            var = newplot.verts.get_array()
+            var.masked = (var <= 0)
+            newplot.verts.set_array(var)
+        clim = plot.verts.get_clim()
+        newplot.setTitle(plot.suptitle)
+        newplot.verts.set_clim(clim)
+        newplot.canvas.axes.set_xlim(plot.canvas.axes.get_xlim())
+        newplot.canvas.axes.set_ylim(plot.canvas.axes.get_ylim())
+        newplot.verts.set_array(plot.verts.get_array())
+        newplot.setUpperSlider(clim[1])
+        newplot.setLowerSlider(clim[0])
+        newplot.verts.set_cmap(plot.verts.get_cmap())
+        newplot.canvas.draw()
+        return newplot
+
+
+    def popTab(self):
+        widget = self.centralWidget.widget(self.activeTab())
+        plot = widget.caseplot
+        newplot = self.__getattribute__(
+            "transfer_{}".format(type(plot).__name__))(plot)
+        self.popups.append(PopUp(self))
+        self.popups[-1].show()
+        title = plot.suptitle
+        for substr in ["$", "\mathrm", "{","}"]:
+            title = title.replace(substr, "")
+        title = self.centralWidget.tabText(self.activeTab())
+        self.popups[-1].setWindowTitle(title)
+        self.popups[-1].setCentralWidget(newplot)
+
 
 
     def populateOpenRecent(self):
@@ -1279,13 +1313,9 @@ class MainMenu(QMainWindow):
         # Step 3. Add the actions to the menu
         self.openRecentMenu.addActions(actions)
 
-
-    def closeTab(self):
-        # TODO Get a handle on the tab naming
-        self.centralWidget.removeTab(self.centralWidget.currentIndex())
-
     def raise_message(self, message, time=5000):
         self.statusbar.showMessage(message, time)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
