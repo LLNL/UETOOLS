@@ -570,7 +570,9 @@ class Caseplot(Plot):
         x0 = mean(self.get('rm')[self.get(\
             'ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
         zm = self.get('zm')
-        if flip is True:
+        if (
+            self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
+        ) and (flip is True):
             zm = -zm + self.disp 
         y0 = mean(zm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
 
