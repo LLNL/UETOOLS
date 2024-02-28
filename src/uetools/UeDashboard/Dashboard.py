@@ -95,10 +95,9 @@ class CaseDashboard(QWidget):
         self.plot_te()
         self.caseplot.setTitle("Electron temperature [eV]")
 
-        self.settings = QGridLayout()
-        self.settings.addWidget(self.misc['frame'], 0, 0, 1, 1)
-        self.settings.addWidget(self.cmap_radio['frame'], 1, 0, 1, 1)
-        self.settings.addWidget(self.switches['frame'], 0, 1, 2, 1)
+        self.settings = QVBoxLayout()
+        self.settings.addWidget(self.misc['frame'])
+        self.settings.addWidget(self.switches['frame'])
 
         self.menu = QGridLayout()
         self.menu.addLayout(self.buttons['layout'],    
@@ -107,10 +106,14 @@ class CaseDashboard(QWidget):
         self.menu.addLayout(self.radios['layout'],
                 0, 2, 1, 1
         )
-        self.menu.addLayout(self.settings, 1, 0, 1, 3)
+#        self.menu.addLayout(self.settings, 1, 0, 1, 3)
+        self.fullmenu = QVBoxLayout()
+        self.fullmenu.addLayout(self.menu)
+        self.fullmenu.addStretch()
+        self.fullmenu.addLayout(self.settings)
 
         self.layout = QHBoxLayout(self)
-        self.layout.addLayout(self.menu)
+        self.layout.addLayout(self.fullmenu)
         self.layout.addWidget(self.caseplot)
     
         self.centralWidget.setLayout(self.layout)
@@ -121,6 +124,7 @@ class CaseDashboard(QWidget):
         ==========================="""
 
     def _createMiscOptions(self):
+        from matplotlib.pyplot import colormaps
         self.misc = {
             'frame': QFrame(),
             'items': {
@@ -128,6 +132,7 @@ class CaseDashboard(QWidget):
                 'varscale': MyLineEdit("1"),
                 'ulim': MyClearLineEdit(),
                 'llim': MyClearLineEdit(),
+                'cmap': QComboBox(),
             }
         }
         tmp = self.misc['items']
@@ -156,11 +161,21 @@ class CaseDashboard(QWidget):
         tmp['llim'].setToolTip("Hit return to apply.")
         form.addRow("Set lower plot range", tmp ['llim'])
 
+        form.addRow("Colormap", tmp["cmap"])
+        i = 0
+        for  colormap in colormaps():
+            if colormap == self.caseplot.cmap:
+                default = i
+            tmp['cmap'].addItem(colormap, i)
+            i+=1
+        tmp["cmap"].setCurrentIndex(default) 
+#        tmp['cmap'].setFixedWidth(150)
+        tmp['cmap'].activated[str].connect(self.set_cmap)
+
         self.misc['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
         layout = QVBoxLayout()
         layout.addWidget(QLabel(self.title("Plot options")))
         layout.addLayout(form)
-        layout.addStretch()
         self.misc['frame'].setLayout(layout)
 
     def _createVarButtons(self):
@@ -238,7 +253,6 @@ class CaseDashboard(QWidget):
     def _createRadios(self):
         self._createIonRadio()
         self._createGasRadio()
-        self._createCmapRadio()
         self.radios = {'layout': QGridLayout()}
 
         self.radios['layout'].addWidget(self.ion_radio['frame'], 0, 0, 1, 1)
@@ -300,72 +314,13 @@ class CaseDashboard(QWidget):
         self.gas_radio['items'][self.gasarray[0]].setChecked(True)
 
 
-    def _createCmapRadio(self):
-        from matplotlib.pyplot import colormaps
-        self.cmap_radio = {
-            'frame': QFrame(),
-            'layout': QVBoxLayout(),
-            'group': QButtonGroup(),
-            'title': QLabel(self.title("Colormaps")),
-            'labels': [
-                'magma',
-                'bwr',
-                'hsv',
-                'gnuplot2',
-                'hot',
-                'jet',
-            ],
-            'items': {
-                'dropdown': QComboBox()
-            }
-        }
-        self.cmap_radio['layout'].addWidget(self.cmap_radio['title'])
-        ind = 0
-        for label in self.cmap_radio['labels']:
-            self.cmap_radio['items'][label] = QRadioButton(label)
-            self.cmap_radio['layout'].addWidget(\
-                    self.cmap_radio['items'][label])
-            self.cmap_radio['group'].addButton(\
-                    self.cmap_radio['items'][label], ind)
-            self.cmap_radio['items'][label].clicked.connect(self.cmap_radio_clicked)
-            ind += 1
-        self.cmap_radio['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
-        self.cmap_radio['frame'].setLayout(self.cmap_radio['layout'])
-        self.cmap_radio['items'][self.cmap_radio['labels'][0]].setChecked(True)
-
-        self.cmap_radio['layout'].addWidget(self.cmap_radio['items']["dropdown"])
-
-        self.cmap_radio['items']['dropdown'].addItem('', 0)
-        i = 1
-        for  colormap in colormaps():
-            self.cmap_radio['items']['dropdown'].addItem(colormap, 1)
-            i+=1
-        self.cmap_radio['items']['dropdown'].setFixedWidth(150)
-        self.cmap_radio['items']['dropdown'].activated[str].connect(self.set_custom_cmap)
-        #self.cmap_radio['items']['cmap'].mousePressEvent = \
-        #        lambda _ : self.cmap_radio['items']['cmap'].selectAll()
-        #self.cmap_radio['items']['cmap'].setToolTip("Hit return to apply.")
-        #self.cmap_radio['layout'].addStretch()
-
-
-
     """ ===========================
                  ACTIONS
         ==========================="""
 
-    def set_custom_cmap(self, cmap):
-        if len(cmap) > 0:
-            self.cmap = cmap
-            self.caseplot.setCmap(cmap)
-            self.cmap_radio['group'].setExclusive(False)
-            for key, item in self.cmap_radio['items'].items():
-                try:
-                    item.setChecked(False)
-                except:
-                    pass
-            self.cmap_radio['group'].setExclusive(True)
-        else:
-            self.cmap_radio['items']['dropdown'].setCurrentIndex(0)
+    def set_cmap(self, cmap):
+        self.cmap = cmap
+        self.caseplot.setCmap(cmap)
 
     def toggle_abs(self):
         self.caseplot.toggleAbs()
@@ -383,12 +338,6 @@ class CaseDashboard(QWidget):
         self.caseplot.setLowerSlider(float(self.misc['items']['llim'].text()))
         self.misc['items']['llim'].clear()
         self.misc['items']['llim'].clearFocus()
-
-
-    def cmap_radio_clicked(self):
-        self.cmap = self.cmap_radio['group'].checkedButton().text()
-        self.caseplot.setCmap(self.cmap)
-        self.cmap_radio['items']['dropdown'].setCurrentIndex(0)
 
     def ion_radio_clicked(self):
         self.ionspecies = self.ion_radio['group'].checkedId()
@@ -420,12 +369,8 @@ class CaseDashboard(QWidget):
         }
         
         grid = QHBoxLayout()
-        col = [QVBoxLayout(), QVBoxLayout(), QVBoxLayout()]
-        grid.addLayout(col[0])
-        grid.addLayout(col[1])
-        grid.addLayout(col[2])
-        col[0].setContentsMargins(10,0,10,5)
-        col[1].setContentsMargins(10,0,10,5)
+        col = QHBoxLayout()
+        grid.addLayout(col)
 
         self.switches['layout'].addWidget(self.switches['title'])
         self.switches['layout'].addLayout(grid)
@@ -456,9 +401,8 @@ class CaseDashboard(QWidget):
             tmpsw['layout'].addWidget(tmpsw[off.lower()])
             tmpsw['layout'].setContentsMargins(0,0,0,0)
             tmpsw['layout'].setSpacing(0)
-            col[int(i/5)].addLayout(tmpsw['layout'])
+            col.addLayout(tmpsw['layout'])
             i += 1
-        col[-1].addStretch()
         self.switches['items']['vessel']['on'].setChecked(True)
         self.switches['items']['plates']['on'].setChecked(True)
         self.switches['items']['separatrix']['on'].setChecked(True)
@@ -1149,6 +1093,7 @@ class MainMenu(QMainWindow):
         self._createMenuBar()
         self._connectActions()
         self._createStatusBar()
+        
 
         self.centralWidget = QTabWidget(self)#QLabel("Hello, World")
         self.centralWidget.setMinimumWidth(1300)
@@ -1176,7 +1121,7 @@ class MainMenu(QMainWindow):
             self.lastpath = "/".join(file.split("/")[:-1])
         else:
             file = "/Users/holm10/Documents/fusion/uedge/src/"+\
-                    "UETOOLS/jupyter/testcase_hires/dashtest.hdf5"
+                    "UETOOLS/dashboard_test/testcase_hires/nc20.hdf5"
             print("USING TUTORIAL CASE")
         if len(file.strip()) == 0:
             return
