@@ -116,16 +116,21 @@ class Interpolate():
     # centered at 'cuts'. Scheme can be upgraded to include magnetics,
     # and calculating parallel distances rather than poloidal
 
-    def gridmorph(self, newgrid, **kwargs):
+    def gridmorph(self, newgrid, var={}, gridtarget=1, **kwargs):
         """ Uses the continuation solver to morph the UEDGE grids """
         from copy import deepcopy
 
         manualgrid = deepcopy(self.get('manualgrid'))
+        self.oldgrid = {}
+        for grdvar in ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b"]:
+            self.oldgrid[grdvar] = deepcopy(self.getue(grdvar))
+        
         self.setue('gridmorph', 0)
         self.setue('manualgrid', 1)
+        var['gridmorph'] = {'target': gridtarget}
+
         self.continuation_solve(
-                "gridmorph", 
-                1, 
+                var, 
                 commands=[f"self.morphed_mesh('{newgrid}',"+\
                         "self.getue('gridmorph'), standalone=False)",
                 ],
@@ -160,6 +165,7 @@ class Interpolate():
             for var in variables:
                 self.griddata['old'][var] = deepcopy(self.getue(var))
                 self.griddata['new'][var] = self.hdf5search(newgrid, var)
+        self.griddata['old'] = self.oldgrid
         for var in variables:
             self.setue(var, (1-fraction)*self.griddata['old'][var] \
                     + fraction*self.griddata['new'][var])
