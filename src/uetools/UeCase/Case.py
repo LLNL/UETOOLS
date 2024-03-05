@@ -981,17 +981,30 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 for key, value in dictobj.items():
                     dictobj = setinputrecursive(value, group + [key])
                 return dictobj
-
         # Set group order to assure proper allocation and avoid warnings
-        for allokey in ["grid", "species"]:
-            try:
-                allolist = setup.pop(allokey)
-            except KeyError:
-                print(f"WARNING: Expecting setup group '{allokey}'")
-                continue
-            setinputrecursive(allolist)
-            self.allocate()
-
+        if "grid" in setup.keys():
+            setinputrecursive(setup.pop("grid"))
+        else:
+            print("Setup group 'grid' not detected: trying to set terms"+\
+                    " individually from input file")
+            for var in ['mhdgeo', 'gengrid', 'isgriduehdf5', 'GridFileName',
+                'geometry', 'isnonog'
+            ]:
+                self.setue(var, self.hdf5search(setupfile, var))
+        if "species" in setup.keys():
+            setinputrecursive(setup.pop("species"))
+        else:
+            print("Setup group 'species' not detected: trying to set terms"+\
+                    " individually from input file")
+            for var in ['ngsp', 'nhsp', 'nhgsp', 'isimpon', 'nzsp', 'isupgon',
+                'ziin', 'ismctab', 'mcfilename', 'znuclin', 'nusp_imp'
+            ]:
+                self.setue(var, self.hdf5search(setupfile, var))
+        try:
+            self.setue('restart', self.hdf5search(setupfile, 'restart'))
+        except:
+            pass
+        self.allocate()
         if restore is True:
             setinputrecursive(setup)
             self.allocate()

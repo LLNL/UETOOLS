@@ -12,6 +12,7 @@ restore:
         - 'tgs' 
         - 'ups'
         - 'phis'
+        - 'restart'
 
 grid:
     com:
@@ -62,6 +63,9 @@ grid:
         - 'gyf'
         - 'rr'
         - 'rrv'
+        - 'isgriduehdf5'
+        - 'geometry'
+        - 'isnonog'
     grd:
         - 'nplate1'
         - 'rplate1'
@@ -70,6 +74,9 @@ grid:
         - 'rplate2'
         - 'zplate2'
     bbb:
+        - 'mhdgeo'
+        - 'gengrid'
+        - 'GridFileName'
         - 'ixmp'
         - 'ixp1'
         - 'ixm1'
@@ -105,14 +112,20 @@ species:
         - 'nzsp'
         - 'nusp'
         - 'nisp'
+        - 'mcfilename'
     bbb:
         - 'ishymol'
         - 'minu' 
         - 'znuclin'
         - 'isimpon'
         - 'zi'
+        - 'ziin'
+        - 'znucl'
         - 'mp'
         - 'mg'
+        - 'ismctab'
+        - 'nusp_imp'
+        - 'isupgon'
         - 'nusp_imp'
 
 # ====================================================
