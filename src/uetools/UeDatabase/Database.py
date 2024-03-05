@@ -289,7 +289,7 @@ class Database(DB_1DPlots, DB_2DPlots):
                         verbose=False
                 )
 
-    def get(self, var, **kwargs):
+    def get(self, var, ravel=False, **kwargs):
         """Returns an array of var for all cases
 
         Note: This can fail if the variable is not the same size for
@@ -301,7 +301,10 @@ class Database(DB_1DPlots, DB_2DPlots):
 
         ret = []
         for key, case in self.cases.items():
-            ret.append(case.get(var, **kwargs))
+            if ravel:
+                ret = list(ret) + list(case.get(var, **kwargs).ravel())
+            else:
+                ret.append(case.get(var, **kwargs))
         return array(ret)
 
     def getcase(self, index):

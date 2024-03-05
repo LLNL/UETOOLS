@@ -30,7 +30,9 @@ class Plot:
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             self.disp = 0
             if self.get("rmagx") + self.get("zmagx") == 0:
-                self.disp = -(-zm).min()
+                # Normalizing to -min(-zm) results in "jumping" USN cases when
+                # the core surfaces change: revert to using set 2.8m displacement
+                self.disp = 2.8
             else:
                 self.disp = 2 * self.get("zmagx")
             self.uppersnvertices = self.createpolycollection(

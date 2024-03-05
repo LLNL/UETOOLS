@@ -60,7 +60,7 @@ class  DB_2DPlots:
 
 
 class InteractivePlot():
-    def __init__(self, vararray, db, **kwargs):
+    def __init__(self, vararray, db, xlim=None, ylim=None, **kwargs):
         """Returns a series of figures to scroll through"""
         from matplotlib.pyplot import subplots, ion, ioff
         from matplotlib.widgets import Slider, RangeSlider
@@ -74,7 +74,6 @@ class InteractivePlot():
         ioff()
         self.f, self.ax = subplots(figsize=(7, 8))
 
-        print(vararray.shape, db.nx, db.ny)
         try:
             kwargs["zrange"]
             origrange = kwargs["zrange"]
@@ -109,20 +108,26 @@ class InteractivePlot():
             valinit=(origrange),
             orientation="vertical",
         )
-        xlim = [self.db.get('rm').min(), self.db.get('rm').max()]
-        ylim = [self.db.get('zm').min(), self.db.get('zm').max()]
-        for var in ['xlim', 'rplate1', 'rplate2']:
-            xlim[0] = min(self.db.get(var).min(), xlim[0])
-            xlim[1] = max(self.db.get(var).max(), xlim[1])
-        for var in ['ylim', 'zplate1', 'zplate2']:
-            ylim[0] = min(self.db.get(var).min(), ylim[0])
-            ylim[1] = max(self.db.get(var).max(), ylim[1])
+        if xlim is None:
+            xlim = [self.db.get('rm').min(), self.db.get('rm').max()]
+            for var in ['xlim', 'rplate1', 'rplate2']:
+                xlim[0] = min(self.db.get(var, ravel=True).min(), xlim[0])-0.03
+                xlim[1] = max(self.db.get(var, ravel=True).max(), xlim[1])+0.03
+        if ylim is None:
+            ylim = [self.db.get('zm').min(), self.db.get('zm').max()]
+            for var in ['ylim', 'zplate1', 'zplate2']:
+                ylim[0] = min(self.db.get(var, ravel=True).min(), ylim[0])-0.03
+                ylim[1] = max(self.db.get(var, ravel=True).max(), ylim[1])+0.03
         if self.flip is True:
             ylim = [db.getcase(0).disp - x for x in ylim[::-1]]
+        # TODO:
+        # Normalize view to the X-point location?
 
 
-        self.ax.set_xlim((xlim[0]-0.03, xlim[1]+0.03))
-        self.ax.set_ylim((ylim[0]-0.03, ylim[1]+0.03))
+        self.ax.set_xlim((xlim[0], xlim[1]))
+        self.ax.set_ylim((ylim[0], ylim[1]))
+        self.fpos = self.f.get_axes()[0].get_position()
+        self.cpos = ax.get_position()
 
         def update(val):
             from numpy import where
@@ -145,7 +150,6 @@ class InteractivePlot():
             else:
                 self.verts.set_edgecolors(linecolor)
                 self.verts.set_linewidths(linewidth)
-            self.verts.set_cmap(self.cmap)
             
             self.verts.set_array(
                 vararray[index, 1:-1, 1:-1].reshape(
@@ -153,6 +157,12 @@ class InteractivePlot():
                 )
             )
 
+            for ax in self.f.get_axes():
+                if 'colorbar' in str(ax.get_label()):
+                    ax.remove()
+            self.cbar = self.f.colorbar(self.verts, ax=self.ax)
+            self.f.get_axes()[0].set_position(self.fpos)
+            self.f.get_axes()[-1].set_position(self.cpos)
             for line in self.ax.get_lines():
                 line.remove()
             if self.lcfs:
@@ -162,6 +172,7 @@ class InteractivePlot():
             if self.vessel:
                 buffcase.plotvessel(self.ax, self.flip)#flip)
             self.verts.set_clim(self.zrange_slider.val)
+            self.verts.set_cmap(self.cmap)
 
         self.slice_slider.on_changed(update)
         self.zrange_slider.on_changed(update)
