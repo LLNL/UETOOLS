@@ -8,4 +8,5 @@ from .UeCase import Case
 from .UeDatabase import Database
 from . import UeCase
 from . import UeConfig
-#from .UeDashboard import MainMenu
+#from . import Dashboard
+from .UeDashboard import uedashboard

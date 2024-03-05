@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uedgetools"
-version = "1.1.5"
+version = "1.1.6rc1"
 authors = [
   { name="Andreas Holm", email="holm10@llnl.gov" },
 ]
@@ -38,6 +38,9 @@ uedge = [
     "Forthon",
     "uedge"
 ]
+gui = [
+    "PyQt5"
+]
 
 [project.urls]
 Homepage = "https://github.com/LLNL/UETOOLS"
@@ -51,3 +54,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "*" = ["*.*"]
+
+[project.scripts]
+ue-dashboard = "uetools:uedashboard"

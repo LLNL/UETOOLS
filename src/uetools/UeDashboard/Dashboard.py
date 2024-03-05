@@ -1,5 +1,4 @@
 import sys
-from uetools import Case
 import matplotlib
 matplotlib.use('Qt5Agg')
 
@@ -20,7 +19,7 @@ from PyQt5.QtGui import (
     QDoubleValidator,
     QStatusTipEvent,
 )
-from range_slider import RangeSlider
+from .range_slider import RangeSlider
 from functools import partial
 from PyQt5.QtWidgets import (
     QAction,
@@ -1116,6 +1115,7 @@ class MainMenu(QMainWindow):
 
 
     def openFile(self):#, caseobj=None):
+        from uetools import Case
         # Logic for opening an existing file goes here...
         if 1==1:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
@@ -1274,10 +1274,15 @@ if __name__ == "__main__":
     win = MainMenu()
     win.show()
     sys.exit(app.exec_())
-else:
+
+def uedashboard():
     app = QApplication(sys.argv)
-    win = CaseDashboard(self)
-    
-     
+    win = MainMenu()
     win.show()
     sys.exit(app.exec_())
+    
+#else:
+#    app = QApplication(sys.argv)
+#    win = CaseDashboard(self)    
+#    win.show()
+#    sys.exit(app.exec_())
