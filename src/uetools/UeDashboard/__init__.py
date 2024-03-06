@@ -1,1 +1,1 @@
-from .Dashboard import *
+from .Dashboard import uedashboard

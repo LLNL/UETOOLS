@@ -1,12 +1,4 @@
-import sys
-import matplotlib
-matplotlib.use('Qt5Agg')
-
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
-from matplotlib.figure import Figure
-from matplotlib import rcParams
-
-#from range_slider import RangeSlider
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from PyQt5.QtCore import (
     Qt, 
     QMargins,
@@ -678,6 +670,7 @@ class CaseDashboard(QWidget):
 class HeatmapInteractiveFigure(QWidget):
     """Figure Widget with slider."""
     def __init__(self, case, parent=None):
+        from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
         """Initializer."""
         from numpy import zeros
         super().__init__(parent)
@@ -693,6 +686,7 @@ class HeatmapInteractiveFigure(QWidget):
         self.verts = self.case.Qvertices
         
         self._createSlider()
+        # TODO: moce to MplCanvas??
         self.canvastoolbar = NavigationToolbar2QT(self.canvas, self)
         self.test = QVBoxLayout()
         self.test.addWidget(self.canvastoolbar)
@@ -1056,6 +1050,7 @@ class HeatmapInteractiveFigure(QWidget):
 
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=2, height=4, dpi=300):
+        from matplotlib.figure import Figure
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_subplot(111)
         super(MplCanvas, self).__init__(self.fig)
@@ -1269,6 +1264,10 @@ class MainMenu(QMainWindow):
 
 
 if __name__ == "__main__":
+    import sys
+    import matplotlib
+    matplotlib.use('Qt5Agg')
+
     app = QApplication(sys.argv)
 
     win = MainMenu()
@@ -1276,6 +1275,10 @@ if __name__ == "__main__":
     sys.exit(app.exec_())
 
 def uedashboard():
+    import sys
+    import matplotlib
+    matplotlib.use('Qt5Agg')
+
     app = QApplication(sys.argv)
     win = MainMenu()
     win.show()
