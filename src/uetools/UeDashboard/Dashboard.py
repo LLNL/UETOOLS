@@ -11,7 +11,10 @@ from PyQt5.QtGui import (
     QDoubleValidator,
     QStatusTipEvent,
 )
-from .range_slider import RangeSlider
+try:
+    from .range_slider import RangeSlider
+except:
+    from range_slider import RangeSlider
 from functools import partial
 from PyQt5.QtWidgets import (
     QAction,
@@ -54,6 +57,72 @@ from PyQt5.QtWidgets import (
 # TODO: How to deal with CX/psorx?
 # TODO: Set zeros to 1e-10
 
+
+class DatabaseDashboard(QWidget):
+    """ Main Window """
+    def __init__(self, database, parent=None):
+        """Initializer."""
+        super().__init__(parent)
+        self.ind = 0
+        self.db = database
+        self.values = self.db.sortvalues
+        self.sortlabel = self.db.sortlabel
+        self.range = (self.values.min(), self.values.max())
+
+        self.dbtools = QHBoxLayout()
+
+        self.button1 = QPushButton("Button1")
+        self.button2 = QPushButton("Button1")
+        self.button3 = QPushButton("Button1")
+        self.button4 = QPushButton("Button1")
+        self.slider = QSlider(Qt.Horizontal)
+        self.label = QLabel("")
+        self.updateLabel()
+        self.label.setFixedWidth(200)
+
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(1000)
+        self.slider.setValue(0)
+        self.slider.sliderMoved.connect(\
+                self.update_case)
+        
+        self.dbtools.addWidget(self.button1)
+        self.dbtools.addWidget(self.button2)
+        self.dbtools.addWidget(self.button3)
+        self.dbtools.addWidget(self.button4)
+        self.dbtools.addWidget(self.label)
+        self.dbtools.addWidget(self.slider)
+
+        self.layout = QVBoxLayout()
+        self.dash = CaseDashboard(self.db.getcase(0))
+        self.layout.addWidget(self.dash)
+        self.layout.addLayout(self.dbtools)
+        self.centralWidget = QWidget(self)
+
+#        self.centralWidget.setLayout(self.layout)
+        self.setLayout(self.layout)
+
+    def updateLabel(self):
+        self.label.setText("<b><font size=4>{} = {:.3g}</font></b>".format(
+            self.sortlabel, self.values[self.ind]
+        ))
+
+
+    def update_case(self, val):
+        val = self.range[0] + 0.001*val*(self.range[1]-self.range[0])
+        newind = abs(self.values - val).argmin()
+        if self.ind != newind:
+            newcase = self.db.getcase(self.ind)
+            self.ind = newind
+            self.updateLabel()
+            self.dash.case = newcase
+            self.dash.get = newcase.get
+            self.dash.caseplot.verts.set_verts(newcase.nodes)
+            self.dash.caseplot.updatePlot()
+            self.dash.updateVar()
+            # Update val of self.dash
+            # Update nodes of self.dash
+            # TODO: Update plot!
 
 class CaseDashboard(QWidget):
     """Main Window."""
@@ -107,7 +176,8 @@ class CaseDashboard(QWidget):
         self.layout.addLayout(self.fullmenu)
         self.layout.addWidget(self.caseplot)
     
-        self.centralWidget.setLayout(self.layout)
+#        self.centralWidget.setLayout(self.layout)
+        self.setLayout(self.layout)
 
         
     """ ===========================
@@ -467,6 +537,13 @@ class CaseDashboard(QWidget):
         self.buttons['items']['dropdown'].setCurrentIndex(0)
         command = self.buttons['items']['custom'].clear()
  
+    def updateVar(self):
+        if self.buttons['items']['dropdown'].currentIndex == 0:
+            self.lastfunc()
+        else:
+            self.lastfunc(self.buttons['items']['dropdown'].itemText(
+                    self.buttons['items']['dropdown'].currentIndex()
+            ))
 
     def plot_dropdown(self, text):
         # TODO: attempt auto-detecting shape
@@ -503,6 +580,7 @@ class CaseDashboard(QWidget):
             self.raise_message(f"Could not determine shape of {text}")
             return
         self.buttons['items']['custom'].clear()
+        self.lastfunc = self.plot_dropdown
 
     def plot_custom(self):
         try:
@@ -538,21 +616,21 @@ class CaseDashboard(QWidget):
                 command = command.replace(substr, '')
             self.caseplot.setTitle(command)
             self.buttons['items']['custom'].clearFocus()
-
-
-       
+        self.lastfunc = self.plot_custom
 
     def plot_te(self):
         self.plot_driver(
             self.get('te')/1.602e-19,
             'Electron temperature [eV]',
         )
+        self.lastfunc = self.plot_te
 
     def plot_ti(self):
         self.plot_driver(
             self.get('ti')/1.602e-19,
             'Ion temperature [eV]',
         )
+        self.lastfunc = self.plot_ti
 
     def plot_tg(self):
         self.plot_driver(
@@ -560,12 +638,14 @@ class CaseDashboard(QWidget):
             'Gas temperature [eV]',
             'gas'
         )
+        self.lastfunc = self.plot_tg
 
     def plot_ne(self):
         self.plot_driver(
             self.get('ne'),
             r'Electron density [m$\mathrm{{}^{-3}}$]',
         )
+        self.lastfunc = self.plot_ne
 
     def plot_ni(self):
         self.plot_driver(
@@ -573,6 +653,7 @@ class CaseDashboard(QWidget):
             r'Ion density [m$\mathrm{{}^{-3}}$]',
             'ion'
         )
+        self.lastfunc = self.plot_ni
 
     def plot_ng(self):
         self.plot_driver(
@@ -580,30 +661,35 @@ class CaseDashboard(QWidget):
             r'Gas density [m$\mathrm{{}^{-3}}$]',
             'gas'
         )
+        self.lastfunc = self.plot_ng
 
     def plot_phi(self):
         self.plot_driver(
             self.get('phi'),
             'Electrical potential [V]',
         )
+        self.lastfunc = self.plot_phi
 
     def plot_prad(self):
         self.plot_driver(
             self.get('prad')+self.get('pradhyd'),
             'Total radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
+        self.lastfunc = self.plot_prad
 
     def plot_pradhyd(self):
         self.plot_driver(
             self.get('pradhyd'),
             'Hydrogenic radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
+        self.lastfunc = self.plot_pradhyd
 
     def plot_pradimp(self):
         self.plot_driver(
             self.get('prad'),
             'Impurity radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
+        self.lastfunc = self.plot_pradimp
 
     def plot_psorc(self):
         self.plot_driver(
@@ -611,6 +697,7 @@ class CaseDashboard(QWidget):
             'Ion ionization source [parts/s]',
             'ion'
         )
+        self.lastfunc = self.plot_psorc
 
     def plot_psorgc(self):
         self.plot_driver(
@@ -618,6 +705,7 @@ class CaseDashboard(QWidget):
             'Gas ionization sink [parts/s]',
             'gas'
         )
+        self.lastfunc = self.plot_psorgc
 
     def plot_psorxrc(self):
         self.plot_driver(
@@ -625,6 +713,7 @@ class CaseDashboard(QWidget):
             'Ion recombination + CX sink [parts/s]',
             'ion'
         )
+        self.lastfunc = self.plot_psorxrc
 
     def plot_psorrgc(self):
         self.plot_driver(
@@ -632,6 +721,7 @@ class CaseDashboard(QWidget):
             'Gas recombination source [parts/s]',
             'gas'
         )
+        self.lastfunc = self.plot_prorrgz
 
     def plot_psorcxg(self):
         self.plot_driver(
@@ -639,6 +729,7 @@ class CaseDashboard(QWidget):
             'Gas CX source [parts/s]',
             'gas'
         )
+        self.lastfunc = self.plot_psorcxg
 
     """ ===========================
                 FORMATTERS 
@@ -665,20 +756,17 @@ class CaseDashboard(QWidget):
             focused_widget.clearFocus()
         QMainWindow.mousePressEvent(self, event)
 
-
-
 class HeatmapInteractiveFigure(QWidget):
     """Figure Widget with slider."""
     def __init__(self, case, parent=None):
-        from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
         """Initializer."""
         from numpy import zeros
         super().__init__(parent)
 
         # TODO: Figure out what is needed to initialize a figure!
-        self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
-        self.canvas.setMinimumWidth(650)
-        self.canvas.setMinimumHeight(750)
+        self.canvas = WidgetPlot(self, width=3, height=4, dpi=100)
+        self.canvas.setMinimumWidth(550)
+        self.canvas.setMinimumHeight(100)
         self.case = case        
 #        self.case.plotmesh(ax=self.canvas.axes, colorbar=True)
         self.case.te2D(ax=self.canvas.axes)
@@ -687,10 +775,6 @@ class HeatmapInteractiveFigure(QWidget):
         
         self._createSlider()
         # TODO: moce to MplCanvas??
-        self.canvastoolbar = NavigationToolbar2QT(self.canvas, self)
-        self.test = QVBoxLayout()
-        self.test.addWidget(self.canvastoolbar)
-        self.test.addWidget(self.canvas)
         self.sliderControl = QGridLayout()
         self.sliderControl.addWidget(self.slider['items']['ulim'],
             0,0,1,3)
@@ -702,7 +786,7 @@ class HeatmapInteractiveFigure(QWidget):
 #        self.cvl2.addWidget(self.canvastoolbar)
 #        self.slider = VerticalSlider(self.verts, self)
 #        self.canvaslayout.addWidget(self.canvas)
-        self.canvaslayout.addLayout(self.test)
+        self.canvaslayout.addWidget(self.canvas)
         self.canvaslayout.addLayout(self.sliderControl)
 #        self.canvaslayout.addWidget(self.slider)
 #        self.get_lims = self.slider.get_lims
@@ -1048,6 +1132,20 @@ class HeatmapInteractiveFigure(QWidget):
     def hide_message(self):
         QApplication.sendEvent(self, QStatusTipEvent(''))
 
+class WidgetPlot(QWidget):
+    def __init__(self, *args, width=2, height=4, dpi=300, parent=None, **kwargs):
+        from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+        super(WidgetPlot, self).__init__(parent)
+        
+        self.setLayout(QVBoxLayout())
+        self.canvas = MplCanvas(self, width=width, height=height, dpi=dpi)
+        self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        self.layout().addWidget(self.toolbar)
+        self.layout().addWidget(self.canvas)
+        self.axes = self.canvas.axes
+        self.fig = self.canvas.fig
+        self.draw = self.canvas.draw
+
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=2, height=4, dpi=300):
         from matplotlib.figure import Figure
@@ -1065,6 +1163,19 @@ class PopUp(QMainWindow):
     def __init__(self, parent=None):
         super(PopUp, self).__init__(parent)
  
+class StandaloneDashboard(QMainWindow):
+    def __init__(self, case, parent = None):
+        super().__init__(parent)
+        
+        self.case = case
+        self.setFocus()
+        self.resize(1250, 850)
+    
+        self.statusbar = self.statusBar()
+        self.centralWidget =  CaseDashboard(self.case)
+        self.centralWidget.setMinimumWidth(1250)
+        self.centralWidget.setMinimumHeight(850)
+        self.setCentralWidget(self.centralWidget)
 
 class MainMenu(QMainWindow):
     """Main Window."""
@@ -1093,7 +1204,7 @@ class MainMenu(QMainWindow):
 
         self.centralWidget = QTabWidget(self)#QLabel("Hello, World")
         self.centralWidget.setMinimumWidth(1300)
-        self.centralWidget.setMinimumHeight(900)
+        self.centralWidget.setMinimumHeight(800)
         self.centralWidget.setTabsClosable(True)
         self.centralWidget.tabCloseRequested.connect(self.closeTab)
         self.setCentralWidget(self.centralWidget)
@@ -1107,6 +1218,14 @@ class MainMenu(QMainWindow):
         self.centralWidget.removeTab(index)
         if self.centralWidget.count() == 0:
             self.tabMenu.setDisabled(True)
+
+    def openDatabase(self):
+        from uetools import Database
+
+        path = "/Users/holm10/Documents/fusion/uedge/src/UETOOLS/dashboard_test/testcase_hires"
+        self.tablist.append(self.centralWidget.addTab(
+            DatabaseDashboard(Database(path)), f"DBtest")
+        )
 
 
     def openFile(self):#, caseobj=None):
@@ -1262,18 +1381,6 @@ class MainMenu(QMainWindow):
     def raise_message(self, message, time=5000):
         self.statusbar.showMessage(message, time)
 
-
-if __name__ == "__main__":
-    import sys
-    import matplotlib
-    matplotlib.use('Qt5Agg')
-
-    app = QApplication(sys.argv)
-
-    win = MainMenu()
-    win.show()
-    sys.exit(app.exec_())
-
 def uedashboard():
     import sys
     import matplotlib
@@ -1284,6 +1391,17 @@ def uedashboard():
     win.show()
     sys.exit(app.exec_())
     
+
+
+if __name__ == "__main__":
+    import sys
+    import matplotlib
+    matplotlib.use('Qt5Agg')
+    app = QApplication(sys.argv)
+    win = MainMenu()
+    win.openDatabase()
+    win.show()
+    sys.exit(app.exec_())
 #else:
 #    app = QApplication(sys.argv)
 #    win = CaseDashboard(self)    

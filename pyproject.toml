@@ -54,4 +54,4 @@ where = ["src"]
 "*" = ["*.*"]
 
 [project.scripts]
-ue-dashboard = "uetools:uedashboard"
+uetools = "uetools:uedashboard"

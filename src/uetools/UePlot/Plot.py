@@ -27,6 +27,7 @@ class Plot:
         from numpy import zeros, transpose, cross, sum
         # CREATE POLYGON COLLECTIONS TO USE
         self.vertices = self.createpolycollection(rm, zm)
+        self.disp=0
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             self.disp = 0
             if self.get("rmagx") + self.get("zmagx") == 0:
@@ -178,6 +179,7 @@ class Plot:
                 for k in [1, 2, 4, 3]:
                     vert.append([rm[i, j, k], zm[i, j, k]])
                 vertices.append(vert)
+        self.nodes = vertices
         return PolyCollection(vertices)
 
     def checkusn(self, array, flip=True):

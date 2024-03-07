@@ -10,3 +10,4 @@ from . import UeCase
 from . import UeConfig
 #from . import Dashboard
 from .UeDashboard import uedashboard
+from .UeDashboard import StandaloneDashboard

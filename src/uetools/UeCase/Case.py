@@ -1315,37 +1315,12 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.load_state(savefile, **kwargs)
         self.populate(**kwargs)
 
-    def dashboard(
-        self,
-        ):
-        from PyQt5 import QtCore, QtWidgets
+    def dashboard(self):
+        """ Opens a Dashboard for Self """
+        from uetools import StandaloneDashboard 
+        from PyQt5.QtWidgets import QApplication
         import sys
-
-        app = QtWidgets.QApplication(sys.argv)
-        w = CaseDashboard2D(self,
-        flip=True, 
-        grid=False,
-        cmap='magma',
-        linewidth=0.05, 
-        linecolor='k',
-        lcfscolor='grey', 
-        lcfs=True,
-        platecolor='r', 
-        plates=True, 
-        vessel=True,
-        )
+        app = QApplication([])
+        win = StandaloneDashboard(self)    
+        win.show()
         app.exec_()
-
-        return
-        return CaseDashboard2D(self,
-        flip=True, 
-        grid=False,
-        cmap='magma',
-        linewidth=0.05, 
-        linecolor='k',
-        lcfscolor='grey', 
-        lcfs=True,
-        platecolor='r', 
-        plates=True, 
-        vessel=True,
-        )

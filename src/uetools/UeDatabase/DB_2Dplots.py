@@ -118,7 +118,9 @@ class InteractivePlot():
             for var in ['ylim', 'zplate1', 'zplate2']:
                 ylim[0] = min(self.db.get(var, ravel=True).min(), ylim[0])-0.03
                 ylim[1] = max(self.db.get(var, ravel=True).max(), ylim[1])+0.03
-        if self.flip is True:
+        if (
+            self.db.getcase(0).get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
+        ) and (self.flip is True):
             ylim = [db.getcase(0).disp - x for x in ylim[::-1]]
         # TODO:
         # Normalize view to the X-point location?
@@ -127,22 +129,31 @@ class InteractivePlot():
         self.ax.set_xlim((xlim[0], xlim[1]))
         self.ax.set_ylim((ylim[0], ylim[1]))
         self.fpos = self.f.get_axes()[0].get_position()
-        self.cpos = ax.get_position()
+        self.cpos = self.ax.get_position()
 
         def update(val):
             from numpy import where
 
             slce = self.slice_slider.val
             index = where(self.db.sortvalues == slce)[0][0]
+            self.verts.set_verts(self.db.getcase(index).nodes)
+            self.verts.set_array(
+                vararray[index, 1:-1, 1:-1].reshape(
+                    self.db.getcase(index).get("nx") * self.db.getcase(index).get("ny")
+                )
+            )
+            self.verts.set_clim(self.zrange_slider.val)
+            self.verts.set_cmap(self.cmap)
+            return
             buffcase = self.db.getcase(index)
-            self.verts.remove()
+#            self.verts.remove()
             if (
                 buffcase.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
             ) and (self.flip is True):
                 self.verts = deepcopy(buffcase.uppersnvertices)
             else:
                 self.verts = deepcopy(buffcase.vertices)
-            self.ax.add_collection(self.verts)
+#            self.ax.add_collection(self.verts)
             
             if self.grid is False:
                 self.verts.set_linewidths(1)
@@ -157,12 +168,12 @@ class InteractivePlot():
                 )
             )
 
-            for ax in self.f.get_axes():
-                if 'colorbar' in str(ax.get_label()):
-                    ax.remove()
-            self.cbar = self.f.colorbar(self.verts, ax=self.ax)
-            self.f.get_axes()[0].set_position(self.fpos)
-            self.f.get_axes()[-1].set_position(self.cpos)
+#            for ax in self.f.get_axes():
+#                if 'colorbar' in str(ax.get_label()):
+#                    ax.remove()
+#            self.cbar = self.f.colorbar(self.verts, ax=self.ax)
+#            self.f.get_axes()[0].set_position(self.fpos)
+#            self.f.get_axes()[-1].set_position(self.cpos)
             for line in self.ax.get_lines():
                 line.remove()
             if self.lcfs:
@@ -173,6 +184,7 @@ class InteractivePlot():
                 buffcase.plotvessel(self.ax, self.flip)#flip)
             self.verts.set_clim(self.zrange_slider.val)
             self.verts.set_cmap(self.cmap)
+            self.f.canvas.draw()
 
         self.slice_slider.on_changed(update)
         self.zrange_slider.on_changed(update)
