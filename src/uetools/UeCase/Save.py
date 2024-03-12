@@ -223,20 +223,43 @@ class Save:
 #                self.casename = savefile.attrs["casename"]
 #        except:
 #            pass
-            try:
-                for group, variables in savefile["restore"].items():
-                    for variable, value in variables.items():
-                        self.setue(variable, value[()])
-                        self.vars[variable] = value[()]
-            # If not, try reading old-style save file
-            except:
-                for group, variables in self.varinput["restore"].items():
-                    for variable in variables:
-                        self.setue(variable, savefile[group][variable][()])
-                        self.vars[variable] = savefile[group][variable][()]
+            if "restore" in savefile.keys():
+                try:
+                    for group, variables in savefile["restore"].items():
+                        for variable, value in variables.items():
+                            self.setue(variable, value[()])
+                            self.vars[variable] = value[()]
+                # If not, try reading old-style save file
+                except:
+                    for group, variables in self.varinput["restore"].items():
+                        for variable in variables:
+                            self.setue(variable, savefile[group][variable][()])
+                            self.vars[variable] = savefile[group][variable][()]
+                if self.verbose:
+                    print("UETOOLS-style save successfully restored "+\
+                            "from {}".format(savefname))
+            elif "bbb" in savefile.keys():
+                statevars = ['nis', 'ngs', 'tes', 'tis', 'ups', 'phis']
+                for var in ['tipers', 'tgs']:
+                    try:
+                        self.getue(var)
+                        statevars.append(var)
+                    except:
+                        pass
+                for var in statevars:
+                    if var in savefile['bbb'].keys():
+                        try:
+                            self.setue(var, savefile['bbb'][var][()])
+                            self.vars[var] = savefile['bbb'][var][()]
+                        except Exception as e:
+                            raise Exception(f"Could not read variable {var}: {e}")
+                if self.verbose:
+                    print("Native UEDGE-style save successfully restored "+\
+                            "from {}".format(savefname))
+            else:
+                raise ValueError(f"Save file {savefname} format not recognized")
+                            
 
             # TODO
             # Implement structure to read and restore auto-detected changes
 
-        if self.verbose:
-            print("Saved solution successfully restored from {}".format(savefname))
