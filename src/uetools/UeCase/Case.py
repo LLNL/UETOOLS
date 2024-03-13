@@ -12,16 +12,13 @@ from uetools.UeUtils.AboutSetup import AboutSetup
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
+import uetools
+
 try:
     from uedge import bbb, com, aph, api, svr
     uedge_is_installed = True
 except:
     uedge_is_installed = False
-try:
-    from uetools import __version__ as uetoolsversion
-except:
-    uetoolsversion = 'N/A'
-    
 try:
     from uedge import __version__
 except:
@@ -257,7 +254,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
-        self.uetoolsversion = uetoolsversion
+        self.uetoolsversion = uetools.__version__
+
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
         except:
