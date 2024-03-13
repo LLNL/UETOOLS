@@ -17,6 +17,10 @@ try:
     uedge_is_installed = True
 except:
     uedge_is_installed = False
+try:
+    from uetools import __version__ as uetoolsversion
+except:
+    uetoolsversion = 'N/A'
     
 try:
     from uedge import __version__
@@ -253,7 +257,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
-        self.uetoolsversion = "1.1.6rc4"  # UEtools version
+        self.uetoolsversion = uetoolsversion
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
         except:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uedgetools"
-version = "1.1.6rc4"
+dynamic = ["version"]
 authors = [
   { name="Andreas Holm", email="holm10@llnl.gov" },
 ]
@@ -55,3 +55,6 @@ where = ["src"]
 
 [project.scripts]
 uetools = "uetools:uedashboard"
+
+[tool.setuptools.dynamic]
+version = {file = ["src/uetools/VERSION"]}

@@ -11,3 +11,7 @@ from . import UeConfig
 #from . import Dashboard
 from .UeDashboard import uedashboard
 from .UeDashboard import StandaloneDashboard
+from os import path
+
+with open(path.join(__path__[0],"VERSION")) as f:
+    __version__ = f.read().replace('\n', '').strip()
