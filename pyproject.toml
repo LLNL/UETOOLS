@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uedgetools"
-version = "1.1.5"
+dynamic = ["version"]
 authors = [
   { name="Andreas Holm", email="holm10@llnl.gov" },
 ]
@@ -26,6 +26,7 @@ dependencies = [
     "Forthon",
     "matplotlib",
     "h5pickle",
+    "PyQt5",
 ]
 
 [project.optional-dependencies]
@@ -51,3 +52,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "*" = ["*.*"]
+
+[project.scripts]
+uetools = "uetools:uedashboard"
+
+[tool.setuptools.dynamic]
+version = {file = ["src/uetools/VERSION"]}

@@ -207,3 +207,55 @@ class Misc():
                
 
 
+    def is_case(self, filename: str) -> bool:
+        """
+        Returns True if the given file is a valid HDF5 UEDGE case file
+
+        Arguments
+        ---------
+        filename: string
+            Path to a UEDGE HDF5 case file
+
+        """
+        from h5py import File
+
+        try:
+            with File(filename, "r") as f:
+                # Check that necessary groups are present in file
+                for entry in ["centered", "staggered", "restore", "grid", "setup"]:
+                    if entry not in f.keys():
+                        return False
+            return True
+        except:
+            return False
+
+
+    def count_cases(self, path, omit=['ignore', 'archive'], duplicates=True):
+        """ Returns number of cases detected in all subfolders 
+        path - path to directory to count files in
+        omit ['ignore', 'archive'] - list of directories to omit in counting
+        duplicates [True] - whether to count duplicate save names (True) or 
+            not (False)
+        """
+        from os import walk
+        from os.path import join
+        cases = []
+        do_omit=False
+        for root, dirs, files in walk(path):
+            for omitdir in omit:
+                if omitdir in root:
+                    do_omit=True
+                else:
+                    do_omit=False
+            if do_omit is False:
+                for name in files:
+                    buff = join(root, name)
+                    if self.is_case(buff):
+                        cases.append(name)
+        if duplicates is False:
+            res = []
+            [res.append(x) for x in cases if x not in res]
+        else:
+            res = cases
+
+        return len(res)

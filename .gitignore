@@ -93,3 +93,4 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 *.swo
+/dashboard_test

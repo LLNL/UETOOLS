@@ -291,11 +291,19 @@ class Caseplot(Plot):
     def grid(self, **kwargs):
         return self.plotmesh(**kwargs)
     
-    def grid_hdf5(self, file, **kwargs):
+    def grid_hdf5(self, file, flip=True, **kwargs):
+
+        rm=self.hdf5search(file,'rm')[1:-1,1:-1]
+        zm=self.hdf5search(file,'zm')[1:-1,1:-1]
+        if (
+            self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
+        ) and (flip is True):
+            zm = self.disp-zm        
         return self.plotmesh( 
-            rm=self.hdf5search(file,'rm')[1:-1,1:-1],
-            zm=self.hdf5search(file,'zm')[1:-1,1:-1],
             lcfs=False,
+            rm=rm,
+            zm=zm,
+            flip=flip,
             **kwargs
             )
 
@@ -536,7 +544,7 @@ class Caseplot(Plot):
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline("fngx", "fngy", s, surfnorm, **kwargs)
 
-    def plot_driftdirection(self, ax=None, width=0.02, color='k', flip=False,
+    def plot_driftdirection(self, ax=None, width=0.02, color='k', flip=True,
         **kwargs):
         ''' Plots the drift direction on the requested axis '''
         """
@@ -562,7 +570,9 @@ class Caseplot(Plot):
         x0 = mean(self.get('rm')[self.get(\
             'ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
         zm = self.get('zm')
-        if flip is True:
+        if (
+            self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
+        ) and (flip is True):
             zm = -zm + self.disp 
         y0 = mean(zm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
 

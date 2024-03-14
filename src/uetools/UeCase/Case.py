@@ -1,7 +1,7 @@
 from .CasePlot import Caseplot
 from .Solver import Solver
 from .Save import Save
-from uetools.UeDashboard import Dashboard
+#from uetools.UeDashboard import CaseDashboard2D
 from uetools.UeUtils.Misc import Misc
 from uetools.UeUtils.Tracker import Tracker
 from uetools.UeUtils.Convert import Convert
@@ -12,12 +12,13 @@ from uetools.UeUtils.AboutSetup import AboutSetup
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
+import uetools
+
 try:
     from uedge import bbb, com, aph, api, svr
     uedge_is_installed = True
 except:
     uedge_is_installed = False
-    
 try:
     from uedge import __version__
 except:
@@ -174,6 +175,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         diff_file=None,
         aphdir=None,
         apidir=None,
+        restoresave=True,
         **kwargs,
     ):
         """Initializes the UeCase object.
@@ -209,7 +211,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             Path to directory with impurity rate files. Kwarg 
             defintion takes precedence over input file and run command
             files. Reads apidir from run comand files or input if None.
-
+        restoresave : bool (default = True)
+            Switch whether to restore save file or not during reading
         """
         import uetools
         import os
@@ -240,12 +243,19 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         # Checksum whether to update data
 
         # Initialize parameters
-        self.casename = casename
+        if casename is None:
+            try:
+                self.casename = "/".join(".".join(filename.split(".")[:-1]).split("/")[-2:])
+            except:
+                self.casename = "/".join((".".join(getcwd().split(".")[:-1]).split("/")[-1],"Case()"))
+        else:
+            self.casename = casename
         self.savefile = savefile
         self.inplace = inplace
         self.verbose = verbose
         self.restored_from_hdf5 = False
-        self.uetoolsversion = "1.1.5"  # UEtools version
+        self.uetoolsversion = uetools.__version__
+
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
         except:
@@ -344,7 +354,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 self.varinput.update(self.readyaml(variableyamlfile))  # Read to memory
 
             if self.filename is not None:
-                self.restore_input(self.filename, self.savefile)
+                self.restore_input(self.filename, self.savefile, 
+                    restoresave=restoresave)
             else:
                 self.reload()
                 # TODO:
@@ -972,17 +983,30 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 for key, value in dictobj.items():
                     dictobj = setinputrecursive(value, group + [key])
                 return dictobj
-
         # Set group order to assure proper allocation and avoid warnings
-        for allokey in ["grid", "species"]:
-            try:
-                allolist = setup.pop(allokey)
-            except KeyError:
-                print(f"WARNING: Expecting setup group '{allokey}'")
-                continue
-            setinputrecursive(allolist)
-            self.allocate()
-
+        if "grid" in setup.keys():
+            setinputrecursive(setup.pop("grid"))
+        else:
+            print("Setup group 'grid' not detected: trying to set terms"+\
+                    " individually from input file")
+            for var in ['mhdgeo', 'gengrid', 'isgriduehdf5', 'GridFileName',
+                'geometry', 'isnonog'
+            ]:
+                self.setue(var, self.hdf5search(setupfile, var))
+        if "species" in setup.keys():
+            setinputrecursive(setup.pop("species"))
+        else:
+            print("Setup group 'species' not detected: trying to set terms"+\
+                    " individually from input file")
+            for var in ['ngsp', 'nhsp', 'nhgsp', 'isimpon', 'nzsp', 'isupgon',
+                'ziin', 'ismctab', 'mcfilename', 'znuclin', 'nusp_imp'
+            ]:
+                self.setue(var, self.hdf5search(setupfile, var))
+        try:
+            self.setue('restart', self.hdf5search(setupfile, 'restart'))
+        except:
+            pass
+        self.allocate()
         if restore is True:
             setinputrecursive(setup)
             self.allocate()
@@ -1240,7 +1264,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             self.setue("iprint", old_iprint)  # Restore
 
     def restore_input(self, inputfname=None, savefile=None, 
-        populate=True, **kwargs):
+        populate=True, restoresave=True, **kwargs):
         """ Restores a full case into memory and object.
 
         Keyword arguments
@@ -1268,10 +1292,10 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
-        self.setinput(inputfname, savefile=savefile, restoresave=True, 
+        self.setinput(inputfname, savefile=savefile, restoresave=restoresave, 
                 **kwargs
         )
-        if populate is True:
+        if (restoresave is True) and (populate is True):
             self.populate(silent=True, **kwargs)
 
     def restore_save(self, savefile, **kwargs):
@@ -1292,3 +1316,13 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         """
         self.load_state(savefile, **kwargs)
         self.populate(**kwargs)
+
+    def dashboard(self):
+        """ Opens a Dashboard for Self """
+        from uetools import StandaloneDashboard 
+        from PyQt5.QtWidgets import QApplication
+        import sys
+        app = QApplication([])
+        win = StandaloneDashboard(self)    
+        win.show()
+        app.exec_()

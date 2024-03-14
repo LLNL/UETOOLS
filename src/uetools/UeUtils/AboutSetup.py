@@ -41,32 +41,87 @@ class AboutSetup():
     def about_sputtering(self):
         print('TBD')
 
-    def about_species_setup(self):
-        """ Displays the species included """
+
+    def set_speciesarrays(self):
         from sys import modules
         from numpy import count_nonzero
 
         # Initialize local variables
-        for var in ['ngsp', 'nhsp', 'nisp', 'nusp', 'nzsp', 'minu', 
-            'znuclin', 'isngon', 'isupgon', 'ishymol', 'nhgsp',
-            'isimpon', 'atn', 'atw', 'zi', 'mp', 'mg', 'nusp_imp',
+        for var in ['ngsp', 'nhsp', 'nisp', 'nzsp', 'minu', 
+            'znuclin', 'ishymol', 'nhgsp', 'zi', 'mp', 'mg',
         ]:
             setattr(modules[__name__], var, self.get(var))
         # Get the elemental arrays
         elements = self.elements()
         # Total number of hydrogenic species
-        nhydrogenic = nhsp + ishymol
+        try:
+            self.nhydrogenic = nhsp + ishymol
+        except:
+            self.nhydrogenic = nhgsp + 1
         # Total number of impurity species
-        nimp = count_nonzero(nzsp)
+        self.nimp = count_nonzero(nzsp)
+        # Get arrays for ion species
+        ionarray = []
+        for i in range(nisp):
+            charge = '{}'.format(('+'+str(int(zi[i])))*(zi[i]>0)+"0"*(zi[i]==0))
+            sign = ''.join((x for x in elements[znuclin[i]][minu[i]] \
+                if not x.isdigit())
+            )
+            ionarray.append('{}{}'.format(sign, charge))#.center(5))
+        for i in range(nhsp-1):
+            ionarray[i] = ionarray[i][:-1]
+        # Get arrays for gaseous species
+        gasarray = []
+        for i in range(ngsp):
+            if i > nhgsp-1:
+                z = znuclin[nhsp+sum(nzsp[:i-nhgsp+1])-1]
+            else:
+                z = zi[0]
+            sign = ''.join((x for x in elements[z][int(mg[i]/mp)] \
+                if not x.isdigit())
+            )
+            if (i ==1) and (ishymol > 0):
+                sign = sign + '_2'
+            else:
+                sign = sign +"0"
+            gasarray.append(sign)#.center(5))
+        self.ionarray = ionarray
+        self.gasarray = gasarray 
+
+        # TODO: add option for detecting mixes
+
+
+    def about_species_setup(self):
+        """ Displays the species included """
+        from sys import modules
+
+        # Initialize local variables
+        for var in [
+            'ngsp', 'nhsp', 'nisp', 'nusp', 'nzsp', 'minu', 
+            'znuclin', 'isngon', 'isupgon', 'ishymol', 'nhgsp',
+            'isimpon', 'atn', 'atw', 'zi', 'mp', 'mg', 'nusp_imp',
+        ]:
+            setattr(modules[__name__], var, self.get(var))
+        self.set_speciesarrays()
+        elements = self.elements()
+        # Get atomic transport model
+        if (isngon[0] == 1) and (isupgon[0] == 0):
+            atommodel = 'Diffusive '
+        elif (isngon[0] == 0) and (isupgon[0] == 1):
+            atommodel = 'Inertial '
+        else:
+            atommodel = 'Undefined transport model '
+        # Hydrogen key
+        hysign = elements[znuclin[0]][minu[0]]
         # Impurity species signs
         impsign = []
         # Get resolved impurity 
-        for iimp in range(nimp):
+        for iimp in range(self.nimp):
             impind = nhsp+sum(nzsp[:iimp+1])-1
             impsign.append(elements[znuclin[impind]][minu[impind]])
         # Get impurity transport model
         imp_transp = []
-        for iimp in range(nimp):
+        for iimp in range(self.nimp):
             if nusp_imp == 0:
                 imp_transp.append('Fully force-balance')
             elif nusp_imp >= sum(nzsp[:iimp+1]):
@@ -80,51 +135,21 @@ class AboutSetup():
         # Get potential force-balance information
         ffimp = isimpon in [2, 7]
         if ffimp:
-            nimp += 1
+            self.nimp += 1
             ffsign = elements[atn][atw]
-        # Get arrays for ion species
-        idxarr = []
-        ionarray = []
-        for i in range(nisp):
-            charge = '{}'.format(('+'+str(int(zi[i])))*(zi[i]>0))
-            sign = ''.join((x for x in elements[znuclin[i]][minu[i]] \
-                if not x.isdigit())
-            )
-            ionarray.append('{}{}'.format(sign, charge).center(5))
-            idxarr.append(str(i).center(5))
-        # Get arrays for gaseous species
-        gasarray = []
-        for i in range(ngsp):
-            if i > nhgsp-1:
-                z = znuclin[nhsp+sum(nzsp[:i-nhgsp+1])-1]
-            else:
-                z = zi[0]
-            sign = ''.join((x for x in elements[z][int(mg[i]/mp)] \
-                if not x.isdigit())
-            )
-            if (i ==1) and (ishymol > 0):
-                sign = sign + '_2'
-            gasarray.append(sign.center(5))
-        # Get atomic transport model
-        if (isngon[0] == 1) and (isupgon[0] == 0):
-            atommodel = 'Diffusive '
-        elif (isngon[0] == 0) and (isupgon[0] == 1):
-            atommodel = 'Inertial '
-        else:
-            atommodel = 'Undefined transport model '
-        # Hydrogen key
-        # TODO: add option for detecting mixes
-        hysign = elements[znuclin[0]][minu[0]]
+        ionarray = [x.center(5) for x in self.ionarray]
+        gasarray = [x.center(5) for x in self.gasarray]
+        idxarr = [str(x).center(5) for x in range(max(len(ionarray), len(gasarray)))]
         # Output species setup
         print('The UEDGE set-up contains:')
-        print('  - {} hydrogenic species:'.format(nhydrogenic))
+        print('  - {} hydrogenic species:'.format(self.nhydrogenic))
         print('    - {} ions'.format(hysign))
         if nhsp > 1:
             print('    - {}{} atoms'.format(atommodel, hysign))
         if ishymol != 0:
             print('    - {}2 molecules'.format(hysign))
-        if nimp > 0:
-            print('  - {} impurity species:'.format(nimp))
+        if self.nimp > 0:
+            print('  - {} impurity species:'.format(self.nimp))
             for i in range(len(impsign)):
                 print('    - Charge-state resolved {}'.format(impsign[i]))
                 print('      - {}'.format(imp_transp[i]))

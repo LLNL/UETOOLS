@@ -27,10 +27,13 @@ class Plot:
         from numpy import zeros, transpose, cross, sum
         # CREATE POLYGON COLLECTIONS TO USE
         self.vertices = self.createpolycollection(rm, zm)
+        self.disp=0
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             self.disp = 0
             if self.get("rmagx") + self.get("zmagx") == 0:
-                self.disp = -(-zm).min()
+                # Normalizing to -min(-zm) results in "jumping" USN cases when
+                # the core surfaces change: revert to using set 2.8m displacement
+                self.disp = 2.8
             else:
                 self.disp = 2 * self.get("zmagx")
             self.uppersnvertices = self.createpolycollection(
@@ -176,13 +179,16 @@ class Plot:
                 for k in [1, 2, 4, 3]:
                     vert.append([rm[i, j, k], zm[i, j, k]])
                 vertices.append(vert)
+        self.nodes = vertices
         return PolyCollection(vertices)
 
-    def checkusn(self, array, flip=False):
+    def checkusn(self, array, flip=True):
         if flip is False:
             return array
         elif self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             return -array + self.disp
+        else:
+            return array
 
     def plotprofile(
         self,
@@ -255,11 +261,12 @@ class Plot:
         lcfscolor='grey',
         title=None,
         grid=False,
-        flip=False,
+        flip=True,
         watermark=True,
         mask=None,
-        colorbar=True,
+        colorbar=False,
         interactive=False,
+        **kwargs,
     ):
         """General plotting function
         z - values, if any. If None, plots grid
@@ -311,8 +318,8 @@ class Plot:
             vertices.set_linewidths(1)
             vertices.set_edgecolors("face")
         else:
-            vertices.set_edgecolors(linecolor)
-            vertices.set_linewidths(linewidth)
+            vertices.set_edgecolors("lightgrey")
+            vertices.set_linewidths(0.08)
         if z is None:  # Plot grid
             vertices.set_facecolor((0, 0, 0, 0))
             vertices.set_edgecolors(linecolor)
@@ -343,19 +350,20 @@ class Plot:
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
         ax.set_aspect(aspect)
-        if (z is not None) and (colorbar is True):
+        if (z is not None) or (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")
 
         if watermark is True:
             self.watermark(ax.get_figure(), bottom=0.1, left=0.02, right=0.95)
 
+        self.Qvertices = vertices
         if interactive is True:
             return cbar, vertices
         else:
             return ax.get_figure()
 
-    def plotlcfs(self, ax, flip=False, color="grey", linewidth=0.5, **kwargs):
+    def plotlcfs(self, ax, flip=True, color="grey", linewidth=0.5, **kwargs):
         """Plots LCFS on ax"""
         try:
             from uedge import com, bbb, grd
@@ -370,42 +378,49 @@ class Plot:
                     self.checkusn(com.zbdry, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.isepr,
                     self.checkusn(self.isepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.osepr,
                     self.checkusn(self.osepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.pfrboundr,
                     self.checkusn(self.pfrboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.otboundr,
                     self.checkusn(self.otboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.itboundr,
                     self.checkusn(self.itboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.solboundr,
                     self.checkusn(self.solboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 plotted = True
         except:
@@ -417,42 +432,49 @@ class Plot:
                     self.checkusn(self.get("zbdry"), flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.isepr,
                     self.checkusn(self.isepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.osepr,
                     self.checkusn(self.osepz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.pfrboundr,
                     self.checkusn(self.pfrboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.otboundr,
                     self.checkusn(self.otboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.itboundr,
                     self.checkusn(self.itboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 ax.plot(
                     self.solboundr,
                     self.checkusn(self.solboundz, flip),
                     color=color,
                     linewidth=linewidth,
+                    label='lcfs'
                 )
                 plotted = True
         except:
@@ -463,45 +485,52 @@ class Plot:
                 self.checkusn(self.sepcorez, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.isepr,
                 self.checkusn(self.isepz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.osepr,
                 self.checkusn(self.osepz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.pfrboundr,
                 self.checkusn(self.pfrboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.otboundr,
                 self.checkusn(self.otboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.itboundr,
                 self.checkusn(self.itboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
             ax.plot(
                 self.solboundr,
                 self.checkusn(self.solboundz, flip),
                 color=color,
                 linewidth=linewidth,
+                label='lcfs'
             )
 
-    def plotvessel(self, ax, flip=False):
+    def plotvessel(self, ax, flip=True):
         """Plots vessel on ax"""
         try:
             from uedge import com, bbb, grd
@@ -520,18 +549,20 @@ class Plot:
                     self.checkusn(self.get("ylim"), flip),
                     "k-",
                     linewidth=3,
+                    label='vessel',
                 )
                 ax.plot(
                     self.get("xlim"),
                     self.checkusn(self.get("ylim"), flip),
                     "y-",
                     linewidth=1,
+                    label='vessel',
                 )
         except:
             pass
 
 
-    def plotplates(self, ax, flip=False, color=None):
+    def plotplates(self, ax, flip=True, color=None):
         """Plot plates on ax"""
         try:
             from uedge import com, bbb, grd
@@ -558,6 +589,7 @@ class Plot:
                     "-",
                     color=p1c,
                     linewidth=1.5,
+                    label='plate1',
                 )
                 ax.plot(
                     self.get("rplate2"),
@@ -565,6 +597,7 @@ class Plot:
                     "-",
                     color=p2c,
                     linewidth=1.5,
+                    label='plate2',
                 )
         except:
             pass
@@ -612,7 +645,7 @@ class Plot:
         width=3e-3,
         headwidth=3,
         headlength=2,
-        flip=False,
+        flip=True,
         plates=False,
         vessel=False,
         lcfs=True,
@@ -782,7 +815,7 @@ class Plot:
         var,
         resolution=(500j, 800j),
         color="k",
-        flip=False,
+        flip=True,
         levels=14,
         linewidth=0.5,
         interplcfs=1,
