@@ -66,19 +66,21 @@ class DatabaseDashboard(QWidget):
         self.ind = 0
         self.db = database
         self.values = self.db.sortvalues
-        self.sortlabel = self.db.sortlabel
+        self.db.sortlabel = self.db.sortlabel.replace(" ", ",")
         self.range = (self.values.min(), self.values.max())
 
-        self.dbtools = QHBoxLayout()
+        self.dbtools = QGridLayout()
 
-        self.button1 = QPushButton("Button1")
-        self.button2 = QPushButton("Button1")
-        self.button3 = QPushButton("Button1")
-        self.button4 = QPushButton("Button1")
+        self.sortbutton = QPushButton("Sort")
+        self.sortbutton.clicked.connect(self.sort)
+        
+        self.animate = QPushButton("Create animation")
+        self.animate.setEnabled(False)
+
         self.slider = QSlider(Qt.Horizontal)
         self.label = QLabel("")
         self.updateLabel()
-        self.label.setFixedWidth(200)
+        self.label.setFixedWidth(250)
 
         self.slider.setMinimum(0)
         self.slider.setMaximum(1000)
@@ -86,15 +88,20 @@ class DatabaseDashboard(QWidget):
         self.slider.sliderMoved.connect(\
                 self.update_case)
         
-        self.dbtools.addWidget(self.button1)
-        self.dbtools.addWidget(self.button2)
-        self.dbtools.addWidget(self.button3)
-        self.dbtools.addWidget(self.button4)
-        self.dbtools.addWidget(self.label)
-        self.dbtools.addWidget(self.slider)
+        self.buttons = QHBoxLayout()
+        self.buttons.addWidget(self.sortbutton)
+        self.buttons.addWidget(self.animate)
+
+        self.sliderbar = QHBoxLayout()
+        self.sliderbar.addWidget(self.label)
+        self.sliderbar.addWidget(self.slider)
+
+        self.dbtools.addLayout(self.buttons, 0, 0, 1, 1)
+        self.dbtools.addLayout(self.sliderbar, 0, 1, 1, 2)
 
         self.layout = QVBoxLayout()
         self.dash = CaseDashboard(self.db.getcase(0))
+        self.case = self.db.getcase(0)
         self.layout.addWidget(self.dash)
         self.layout.addLayout(self.dbtools)
         self.centralWidget = QWidget(self)
@@ -104,25 +111,363 @@ class DatabaseDashboard(QWidget):
 
     def updateLabel(self):
         self.label.setText("<b><font size=4>{} = {:.3g}</font></b>".format(
-            self.sortlabel, self.values[self.ind]
+            self.db.sortlabel, self.values[self.ind]
         ))
 
 
     def update_case(self, val):
-        val = self.range[0] + 0.001*val*(self.range[1]-self.range[0])
-        newind = abs(self.values - val).argmin()
+        if self.range[0] != self.range[1]:
+            val = self.range[0] + 0.001*val*(self.range[1]-self.range[0])
+            newind = abs(self.values - val).argmin()
+        else:
+            self.dash.raise_message("Sorting variable constant! Change variable/location.")
+            return
         if self.ind != newind:
-            newcase = self.db.getcase(self.ind)
+            self.case = self.db.getcase(self.ind)
             self.ind = newind
             self.updateLabel()
-            self.dash.case = newcase
-            self.dash.get = newcase.get
-            self.dash.caseplot.verts.set_verts(newcase.nodes)
+            self.dash.case = self.case
+            self.dash.get = self.case.get
+            self.dash.caseplot.verts.set_verts(self.case.nodes)
             self.dash.caseplot.updatePlot()
             self.dash.updateVar()
-            # Update val of self.dash
-            # Update nodes of self.dash
-            # TODO: Update plot!
+            lines = {}
+            for line in self.dash.caseplot.canvas.axes.lines:
+                lines[line.get_label()] = line.get_visible()
+                line.remove()
+            self.case.plotlcfs(ax=self.dash.caseplot.canvas.axes, flip=True)
+            if not lines['lcfs']:
+                self.dash.caseplot.toggleSeparatrix()
+            self.case.plotplates(ax=self.dash.caseplot.canvas.axes, flip=True)
+            if not lines['plate1']:
+                self.dash.caseplot.togglePlates()
+            self.case.plotvessel(ax=self.dash.caseplot.canvas.axes, flip=True)
+            if not lines['vessel']:
+                self.dash.caseplot.toggleVessel()
+
+    def sort(self):
+        dlg = DatabaseSort(self.db)
+        if dlg.exec():
+            self.values = self.db.sortvalues
+            self.range = (self.values.min(), self.values.max())
+            self.slider.setValue(0)
+            self.update_case(self.range[0])
+            # TODO: Updating stuff goes here!
+
+class DatabaseSort(QDialog):
+    def __init__(self, db, parent=None):
+        super().__init__(parent)
+        self.setFocus()
+        self.complete = False
+        self.db = db
+        self.setWindowTitle("Sort Database")
+
+        self.setMinimumSize(400,500)
+        self.layout = QVBoxLayout()
+        message = QLabel("Select a variable to sort the Database by:")
+        self.layout.addWidget(message)
+
+        self.type = QComboBox()
+        self.type.addItem("Predefined", 0)
+        self.type.addItem("Variable", 1)
+        self.type.addItem("Custom", 2)
+        self.type.activated[str].connect(self.sort_var)
+        self.layout.addWidget(self.type)
+
+        self.selector = QVBoxLayout()
+        self.layout.addLayout(self.selector)
+        self.layout.addStretch()
+
+        self.layout.addWidget(QLabel("Scaling factor"))
+        self.scaling = MyLineEdit("1")
+        self.layout.addWidget(self.scaling)
+        # Connect
+        # Make float        
+
+        self.layout.addWidget(QLabel("Label"))
+        self.label = MyLineEdit(self.db.sortlabel)
+        self.label.mousePressEvent = lambda _ : self.label.selectAll()
+        self.layout.addWidget(self.label)
+
+        QBtn =  QDialogButtonBox.Ok | \
+                QDialogButtonBox.Cancel
+        self.buttonBox = QDialogButtonBox(QBtn)
+        self.buttonBox.accepted.connect(self.sortdb)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.message = QLabel()
+        self.layout.addWidget(self.message)    
+
+        self.layout.addWidget(self.buttonBox)
+        self.setLayout(self.layout)
+        # Add text-box for label
+
+        self.omitvar = [
+            "equationkey",
+        ]
+        self.predef_loc = {
+            "OMP separatrix": [0, "OMP-sep"],
+            "LFS target separatrix": [11, "LFSt-sep"],
+            "HFS target separatrix": [12, "HFSt-sep"],
+            "LFS target max": [21, "LFSt-max"],
+            "HFS target max": [22, "HFSt-max"],
+            "LFS target min": [31, "LFSt-min"],
+            "HFS target min": [32, "HFSt-max"],
+        }
+        self.predef_var = {
+            "Electron density": ["ne", 1],
+            "Electron temperature": ["te", 1/1.602e-19],
+            "Ion temperature": ["ti", 1/1.602e-19],
+            "Ion density": ["ni", 1],
+        }
+        self.sort_var("Predefined")
+
+
+    def sort_var(self, text):
+        self.complete=False
+        self.setFocus()
+        for i in reversed(range(self.selector.count())): 
+            try:
+                self.selector.itemAt(i).widget().setParent(None)
+            except:
+                layout_item = self.selector.itemAt(i)
+                if isinstance(layout_item, (QHBoxLayout, QVBoxLayout)):
+                    for j in reversed(range(layout_item.count())): 
+                        layout_item.itemAt(j).widget().setParent(None)
+                    self.selector.removeItem(layout_item)
+        if text == "Variable":
+            self.variable = QComboBox()
+            self.vardict = {}
+            self.variable.addItem("", 0)
+            for var, path in self.db.getcase(0).vars.items():
+                try:
+                    if (len(var)>0) and ("detected" not in path):
+                        shape = [x for x in self.db.getcase(0).get(var).shape if x>1]
+                        if (len(shape) > 0) and (var not in self.omitvar): 
+                            self.vardict[var] = tuple(shape)
+                except:
+                    pass
+
+            varlist = list(self.vardict.keys())
+            varlist.sort()
+            for var in varlist:
+                self.variable.addItem(var, 1+len(self.vardict))
+            self.variable.activated[str].connect(self.pick_location)
+            self.selector.addWidget(self.variable)
+        elif text == "Custom":
+            self.selector.addWidget(QLabel("Command to evaluate for each Case"))
+            self.customvar = MyLineEdit()
+            self.selector.addWidget(self.customvar)
+            self.complete=True
+            message = QLabel("  ixpt1: {}".format(self.db.ixpt1))
+            self.selector.addWidget(message)
+            message = QLabel("  ixpt2: {}".format(self.db.ixpt2))
+            self.selector.addWidget(message)
+            message = QLabel("  ixmp: {}".format(self.db.ixmp))
+            self.selector.addWidget(message)
+            message = QLabel("  iysptrx: {}".format(self.db.iysptrx))
+            self.selector.addWidget(message)
+        elif text == "Predefined":
+            self.selector.addWidget(QLabel("Location"))
+            self.location = QComboBox()
+            for label, ind in self.predef_loc.items():
+                self.location.addItem(label, ind[0])
+            self.selector.addWidget(self.location)
+            self.location.activated[str].connect(self.predef_update)
+            self.variable = QComboBox()
+            i = 0
+            for label in self.predef_var.keys():
+                self.variable.addItem(label, i)
+                i += 1
+            self.variable.activated[str].connect(self.predef_update)
+            self.selector.addWidget(self.variable)
+
+            self.predef_update("")
+            self.complete = True
+    
+            
+    def predef_update(self, text):
+        for i in reversed(range(3,self.selector.count())): 
+            try:
+                self.selector.itemAt(i).widget().setParent(None)
+            except:
+                layout_item = self.selector.itemAt(i)
+                if isinstance(layout_item, (QHBoxLayout, QVBoxLayout)):
+                    for j in reversed(range(layout_item.count())): 
+                        layout_item.itemAt(j).widget().setParent(None)
+                    self.selector.removeItem(layout_item)
+        self.label.setText(",".join([
+            self.predef_loc[self.location.currentText()][1],
+            self.predef_var[self.variable.currentText()][0],
+        ]))
+        self.scaling.setText("{:.3g}".format(self.predef_var[self.variable.currentText()][1]))
+        var = self.db.get(self.predef_var[self.variable.currentText()][0])[0]
+        if len(var.shape) == 3:
+            self.species = QComboBox()
+            for i in range(var.shape[2]):
+                self.species.addItem(str(i+1))
+            self.species.activated[str].connect(self.update_species_label)
+            self.selector.addWidget(self.species)
+            self.label.setText(self.label.text() +  "[{}]".format(
+                self.species.currentText()
+            ))
+
+    def update_species_label(self, text):
+        text = self.label.text().split('[')[0]
+        self.label.setText(text +  "[{}]".format(
+            self.species.currentText()
+        ))
+
+    def pick_location(self, text):
+        self.setFocus()
+        self.var = self.variable.currentText()
+        for i in reversed(range(1,self.selector.count())): 
+            try:
+                self.selector.itemAt(i).widget().setParent(None)
+            except:
+                layout_item = self.selector.itemAt(i)
+                if isinstance(layout_item, (QHBoxLayout, QVBoxLayout)):
+                    for j in reversed(range(layout_item.count())): 
+                        layout_item.itemAt(j).widget().setParent(None)
+                    self.selector.removeItem(layout_item)
+        self.indices = QHBoxLayout()
+        if len(self.vardict[text])==1:
+            self.indices.addWidget(QLabel("Select index: "))
+        else:
+            self.indices.addWidget(QLabel("Select indices: "))
+        self.indarr = []
+        for i in self.vardict[text]:
+            self.indarr.append(QComboBox())
+            for j in range(1,i+1):
+                self.indarr[-1].addItem(f"{j}", j)
+            self.indices.addWidget(self.indarr[-1])
+            self.indarr[-1].activated[str].connect(self.set_index)
+        self.selector.addLayout(self.indices)
+        try:
+            self.selector.addWidget(QLabel("Array shape: "+str(self.vardict[text])))
+        except:
+            return
+        message = QLabel("  ixpt1: {}".format(self.db.ixpt1))
+        self.selector.addWidget(message)
+        message = QLabel("  ixpt2: {}".format(self.db.ixpt2))
+        self.selector.addWidget(message)
+        message = QLabel("  ixmp: {}".format(self.db.ixmp))
+        self.selector.addWidget(message)
+        message = QLabel("  iysptrx: {}".format(self.db.iysptrx))
+        self.selector.addWidget(message)
+        self.set_index("")
+
+    def set_index(self, text):
+        var = self.db.getcase(0).get(self.var)
+        i = 0
+        self.indices = []
+        for j in range(len(var.shape)):
+            if var.shape[j] == 1:
+                self.indices.append(0)
+            else:
+                self.indices.append(int(self.indarr[i].currentText()))
+                i += 1
+        self.complete = True
+
+    def sortdb(self):
+        from numpy import sum, mod
+        if self.complete:
+            sortarr = []
+            if self.type.currentText() == "Variable":
+                for _, case in self.db.cases.items():
+                    var = case.get(self.var)
+                    for i in self.indices:
+                        var = var[i]
+                    sortarr.append(var)
+            elif self.type.currentText() == "Custom":
+                for _, case in self.db.cases.items():
+                    ixpt1 = case.get("ixpt1")[0]
+                    ixpt2 = case.get("ixpt2")[0]
+                    ixmp = case.get("ixmp")
+                    iysptrx = case.get("iysptrx")
+                    get = case.get
+                    try:
+                        exec("sortarr.append(" + self.customvar.text() + ")")
+                    except:
+                        self.raise_message("Expression could not be parsed")
+                        return
+                    if not isinstance(sortarr[-1], (int, float)):
+                        self.raise_message("Expression did not yield int/float")
+                        return
+            if self.type.currentText() == "Predefined":
+                # Determine location
+                locind = self.predef_loc[self.location.currentText()][0]
+                x = mod(locind, 10)
+                y = int(locind/10)
+                for _, case in self.db.cases.items():
+                    indices = []
+                    ixpt1 = case.get("ixpt1")[0]
+                    ixpt2 = case.get("ixpt2")[0]
+                    ixmp = case.get("ixmp")
+                    iysptrx = case.get("iysptrx")
+                    [varname, _] = self.predef_var[self.variable.currentText()]
+                    var = case.get(varname)
+                    if len(var.shape) == 3:
+                        species = int(self.species.currentText())
+                        var = var[:,:,species-1]
+
+                    if x == 0:
+                        var = var[ixmp]
+                    elif x == 1:
+                        var = var[1]
+                    elif x == 2:
+                        var = var[-2]
+                    if y in [0, 1]:
+                        var = var[iysptrx+1]
+                    elif y == 2:
+                        var = var.max()
+                    elif y == 3:
+                        var = var.min()
+
+                    sortarr.append(var)
+            try:
+                exec("locals()['sort'] = [x*float({}) for x in sortarr]".format(
+                    self.scaling.text()
+                ))
+            except:
+                self.raise_message("Invalid scaling factor")
+                return
+            self.db.sort(locals()['sort'])
+            self.db.sortlabel = self.label.text()
+            self.accept()
+        else:
+            self.raise_message("Sorting setup is incomplete!")
+            return
+
+
+    def raise_message(self, message, time=5000):
+        self.message.setText(message)
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.hide_message)
+        self.timer.start(time)
+
+    def hide_message(self):
+        self.message.setText("")
+
+
+
+    """dd
+        for vartype in ['centered', 'staggered']:
+            if self.inplace:
+                for var, path in self.casevars.items():
+                    if (vartype in path) and (var not in varlist):
+                        if (len(self.get(var).shape) <= 3) and \
+                            (len(self.get(var).shape) > 1):
+                            self.buttons['items']['dropdown'].addItem(var, i)
+        """
+    """
+            self.layout.
+            print("Variable")
+        elif text == "Custom":
+            print("Custom")
+        """
+        
 
 class CaseDashboard(QWidget):
     """Main Window."""
@@ -224,7 +569,9 @@ class CaseDashboard(QWidget):
 
         form.addRow("Colormap", tmp["cmap"])
         i = 0
-        for  colormap in colormaps():
+        cmaps = colormaps()
+        cmaps.sort()
+        for  colormap in cmaps:
             if colormap == self.caseplot.cmap:
                 default = i
             tmp['cmap'].addItem(colormap, i)
@@ -538,7 +885,7 @@ class CaseDashboard(QWidget):
         command = self.buttons['items']['custom'].clear()
  
     def updateVar(self):
-        if self.buttons['items']['dropdown'].currentIndex == 0:
+        if self.buttons['items']['dropdown'].currentIndex() == 0:
             self.lastfunc()
         else:
             self.lastfunc(self.buttons['items']['dropdown'].itemText(
@@ -721,7 +1068,7 @@ class CaseDashboard(QWidget):
             'Gas recombination source [parts/s]',
             'gas'
         )
-        self.lastfunc = self.plot_prorrgz
+        self.lastfunc = self.plot_psorrgc
 
     def plot_psorcxg(self):
         self.plot_driver(
@@ -766,7 +1113,7 @@ class HeatmapInteractiveFigure(QWidget):
         # TODO: Figure out what is needed to initialize a figure!
         self.canvas = WidgetPlot(self, width=3, height=4, dpi=100)
         self.canvas.setMinimumWidth(550)
-        self.canvas.setMinimumHeight(100)
+        self.canvas.setMinimumHeight(700)
         self.case = case        
 #        self.case.plotmesh(ax=self.canvas.axes, colorbar=True)
         self.case.te2D(ax=self.canvas.axes)
@@ -1163,6 +1510,22 @@ class PopUp(QMainWindow):
     def __init__(self, parent=None):
         super(PopUp, self).__init__(parent)
  
+ 
+class StandaloneDatabaseDashboard(QMainWindow):
+    def __init__(self, case, parent = None):
+        super().__init__(parent)
+        
+        self.case = case
+        self.setFocus()
+        self.resize(1250, 850)
+    
+        self.statusbar = self.statusBar()
+        self.centralWidget =  DatabaseDashboard(self.case)
+        self.centralWidget.setMinimumWidth(1250)
+        self.centralWidget.setMinimumHeight(850)
+        self.setCentralWidget(self.centralWidget)
+
+
 class StandaloneDashboard(QMainWindow):
     def __init__(self, case, parent = None):
         super().__init__(parent)
@@ -1210,8 +1573,8 @@ class MainMenu(QMainWindow):
         self.setCentralWidget(self.centralWidget)
         self.tabMenu.setDisabled(True)
 
-        if case is not None:
-            self.openFile(case)
+#        if case is not None:
+#            self.openFile(case)
 
 
     def closeTab(self, index):
@@ -1219,16 +1582,8 @@ class MainMenu(QMainWindow):
         if self.centralWidget.count() == 0:
             self.tabMenu.setDisabled(True)
 
-    def openDatabase(self):
-        from uetools import Database
 
-        path = "/Users/holm10/Documents/fusion/uedge/src/UETOOLS/dashboard_test/testcase_hires"
-        self.tablist.append(self.centralWidget.addTab(
-            DatabaseDashboard(Database(path)), f"DBtest")
-        )
-
-
-    def openFile(self):#, caseobj=None):
+    def openHDF5(self):#, caseobj=None):
         from uetools import Case
         # Logic for opening an existing file goes here...
         if 1==1:
@@ -1253,8 +1608,36 @@ class MainMenu(QMainWindow):
         )
         self.centralWidget.setTabToolTip(self.tablist[-1], file)
         self.centralWidget.setCurrentIndex(self.tablist[-1])
-        self.raise_message(f"File > Opened {file}.")
+        self.raise_message(f"File > Opened HDF5 file {file}.")
         self.tabMenu.setDisabled(False)
+
+    def openDatabase(self):
+        from uetools import Database
+        if 1==0:
+            path = "/Users/holm10/Documents/fusion/uedge/src/UETOOLS/dashboard_test/testcase_hires"
+            self.tablist.append(self.centralWidget.addTab(
+                DatabaseDashboard(Database(path)), f"test DB")
+            )
+            print("USING TEST DATABASE")
+        else:
+            path = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
+            if len(path) == 0:
+                return
+            name = path.split('/')[-1]
+            try:
+                self.tablist.append(self.centralWidget.addTab(
+                    DatabaseDashboard(Database(path)), f"{name} DB heatmap")
+                )
+            except:
+                self.raise_message(f"Database could not be created from {path}!")
+                return
+
+        self.centralWidget.setTabToolTip(self.tablist[-1], path)
+        self.centralWidget.setCurrentIndex(self.tablist[-1])
+        self.raise_message(f"File > Opened Database at {path}.")
+        self.tabMenu.setDisabled(False)
+#        self.centralWidget.widget(self.tablist[-1]).sort()
+            
 
 
     def _createMenuBar(self):
@@ -1263,7 +1646,8 @@ class MainMenu(QMainWindow):
         # File menu
         fileMenu = QMenu("&File", self)
         menuBar.addMenu(fileMenu)
-        fileMenu.addAction(self.openAction)
+        fileMenu.addAction(self.openHDF5Action)
+        fileMenu.addAction(self.openDBAction)
         fileMenu.addSeparator()
         fileMenu.addAction(self.exitAction)
         self.tabMenu = menuBar.addMenu("&Tab")
@@ -1277,7 +1661,8 @@ class MainMenu(QMainWindow):
 
     def _createActions(self):
         # Creating actions using the second constructor
-        self.openAction = QAction("Open heatmap from HDF5 save...", self)
+        self.openHDF5Action = QAction("Open heatmap from HDF5 save...", self)
+        self.openDBAction = QAction("Create database from folder...", self)
         self.renameTabAction = QAction("Rename tab", self)
         self.popOutTabAction = QAction("Pop out figure", self)
         self.exitAction = QAction("&Exit", self)
@@ -1289,7 +1674,8 @@ class MainMenu(QMainWindow):
 
     def _connectActions(self):
         # Connect File actions
-        self.openAction.triggered.connect(self.openFile)
+        self.openHDF5Action.triggered.connect(self.openHDF5)
+        self.openDBAction.triggered.connect(self.openDatabase)
         self.renameTabAction.triggered.connect(self.renameTab)
         self.popOutTabAction.triggered.connect(self.popTab)
         self.exitAction.triggered.connect(self.close)
@@ -1399,7 +1785,6 @@ if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
     app = QApplication(sys.argv)
     win = MainMenu()
-    win.openDatabase()
     win.show()
     sys.exit(app.exec_())
 #else:

@@ -343,3 +343,12 @@ class Database(DB_1DPlots, DB_2DPlots):
         return self.cases[self.get_closest_key(target, var, index, species)]
         
 
+    def dashboard(self):
+        """ Opens a Dashboard for Self """
+        from uetools import StandaloneDatabaseDashboard 
+        from PyQt5.QtWidgets import QApplication
+        import sys
+        app = QApplication([])
+        win = StandaloneDatabaseDashboard(self)    
+        win.show()
+        app.exec_()

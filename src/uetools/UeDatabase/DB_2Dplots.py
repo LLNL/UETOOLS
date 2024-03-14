@@ -26,7 +26,7 @@ class  DB_2DPlots:
         grid=False,
         linewidth=0.05, 
         linecolor='k',
-        flip=False, 
+        flip=True, 
         lcfscolor='grey', 
         lcfs=True,
         platecolor='r', 
@@ -60,7 +60,7 @@ class  DB_2DPlots:
 
 
 class InteractivePlot():
-    def __init__(self, vararray, db, xlim=None, ylim=None, **kwargs):
+    def __init__(self, vararray, db, flip=True, xlim=None, ylim=None, **kwargs):
         """Returns a series of figures to scroll through"""
         from matplotlib.pyplot import subplots, ion, ioff
         from matplotlib.widgets import Slider, RangeSlider
@@ -70,7 +70,8 @@ class InteractivePlot():
         self.db = db
         for key, value in kwargs.items():
             self.__setattr__(key, value)
-        
+        self.flip=flip
+
         ioff()
         self.f, self.ax = subplots(figsize=(7, 8))
 
@@ -86,6 +87,7 @@ class InteractivePlot():
 
         self.cbar, self.verts = db.getcase(0).plotmesh(
                 vararray[0], 
+                flip=self.flip,
                 ax=self.ax, 
                 **kwargs
         )
@@ -128,66 +130,46 @@ class InteractivePlot():
 
         self.ax.set_xlim((xlim[0], xlim[1]))
         self.ax.set_ylim((ylim[0], ylim[1]))
-        self.fpos = self.f.get_axes()[0].get_position()
-        self.cpos = self.ax.get_position()
 
+        self.lcfs = False
+        self.plates = False
+        self.vessel = False
         def update(val):
-            from numpy import where
+            from numpy import where, array
 
-            slce = self.slice_slider.val
-            index = where(self.db.sortvalues == slce)[0][0]
-            self.verts.set_verts(self.db.getcase(index).nodes)
-            self.verts.set_array(
-                vararray[index, 1:-1, 1:-1].reshape(
-                    self.db.getcase(index).get("nx") * self.db.getcase(index).get("ny")
+            if self.slice_slider.val != self.slce:
+                self.slce = self.slice_slider.val
+                index = where(self.db.sortvalues == self.slce)[0][0]
+                c = self.db.getcase(index)
+                nodes = array(c.nodes)
+                if not self.flip:
+                    nodes[:,:,1] = c.disp-nodes[:,:,1]
+                self.verts.set_verts(nodes)
+                self.verts.set_array(
+                    vararray[index, 1:-1, 1:-1].reshape(c.get("nx") * c.get("ny"))
                 )
-            )
+                for line in self.ax.lines:
+                    if line.get_label() == 'lcfs':
+                        self.lcfs = True
+                    elif 'plate' in line.get_label():
+                        self.plates = True
+                    elif line.get_label() == 'vessel':
+                        self.vessel = True
+                    line.remove()
+                if self.lcfs:
+                    c.plotlcfs(self.ax, flip=self.flip, color="grey", linewidth=0.5)
+                if self.vessel:
+                    c.plotvessel(self.ax, flip=self.flip)
+                if self.plates:
+                    c.plotplates(self.ax, flip=self.flip)
+
             self.verts.set_clim(self.zrange_slider.val)
             self.verts.set_cmap(self.cmap)
             return
-            buffcase = self.db.getcase(index)
-#            self.verts.remove()
-            if (
-                buffcase.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
-            ) and (self.flip is True):
-                self.verts = deepcopy(buffcase.uppersnvertices)
-            else:
-                self.verts = deepcopy(buffcase.vertices)
-#            self.ax.add_collection(self.verts)
-            
-            if self.grid is False:
-                self.verts.set_linewidths(1)
-                self.verts.set_edgecolors("face")
-            else:
-                self.verts.set_edgecolors(linecolor)
-                self.verts.set_linewidths(linewidth)
-            
-            self.verts.set_array(
-                vararray[index, 1:-1, 1:-1].reshape(
-                    buffcase.get("nx") * buffcase.get("ny")
-                )
-            )
-
-#            for ax in self.f.get_axes():
-#                if 'colorbar' in str(ax.get_label()):
-#                    ax.remove()
-#            self.cbar = self.f.colorbar(self.verts, ax=self.ax)
-#            self.f.get_axes()[0].set_position(self.fpos)
-#            self.f.get_axes()[-1].set_position(self.cpos)
-            for line in self.ax.get_lines():
-                line.remove()
-            if self.lcfs:
-                buffcase.plotlcfs(self.ax, self.flip, 'grey')#flip, color=lcfscolor)
-            if self.plates:
-                buffcase.plotplates(self.ax, self.flip, 'r')#flip, color=platecolor)
-            if self.vessel:
-                buffcase.plotvessel(self.ax, self.flip)#flip)
-            self.verts.set_clim(self.zrange_slider.val)
-            self.verts.set_cmap(self.cmap)
-            self.f.canvas.draw()
-
+        self.slce = self.slice_slider.val
         self.slice_slider.on_changed(update)
         self.zrange_slider.on_changed(update)
+        
 
         self.f.show()
         ion()
