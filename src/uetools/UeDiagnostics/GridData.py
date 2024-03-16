@@ -1,18 +1,17 @@
 
 class Grid():
-    def __init__(self, case, flip=True):
+    def __init__(self, case, flip=True, variables = ['te', 'ne', 'ni']):
         self.case = case
+        self.geometry = self.case.get("geometry")[0].strip().lower().decode("UTF-8")
         self.cells = []
         rm = self.case.get('rm')
         zm = self.case.get('zm')
         self.vars = {}
-        for var in ['te', 'ne', 'ni']:
+        for var in variables:
             self.vars[var] = self.case.get(var)
 
-        if (
-            self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
-        ) and (flip is True):
-            zm = self.disp - zm
+        if (self.geometry == "uppersn") and (flip is True):
+            zm = self.case.disp - zm
         # Create polygons for all cells
         (nx, ny, _) = rm.shape
         for ix in range(1,nx-1):
@@ -21,6 +20,13 @@ class Grid():
                 for iv in [1, 2, 4, 3]:
                     verts.append([rm[ix, iy, iv], zm[ix, iy, iv]])
                 self.cells.append(Cell(verts, (ix,iy), self.vars))
+
+
+
+
+
+
+
 
     def plot_intensity(self, interval, ax=None,crm=None,zrange=(None,None), mol=True, cbar=True,zscale=1):
         from matplotlib.pyplot import subplots

@@ -1,21 +1,56 @@
 
 class Chord():
     ''' Creates a single chord object '''
-    def __init__(self, points, width, grid):
+    def __init__(self, p0, p1, grid, width=None, omega=None):
         from shapely.geometry import Point
-        self.points = (Point((points[0][0], points[0][1])), 
-                        Point((points[1][0], points[1][1])))
-        self.width = width
+        from numpy import pi
+        self.p0 = p0 # Chord starting point
+        self.p1 = p1 # Chord end point
+
+        self.length = ( (p0.x - p1.x)**2 + (p0.y - p1.y)**2)**0.5
+
+        if (width is None) and (omega is None):
+            self.width = 1e-9 # Pencil beam
+            self.omega = self.calc_solidangle(self.width)
+        elif (width is None) and (omega is not None):
+            self.omega = omega
+            self.width = self.calc_width(self.omega)
+        elif (width is not None) and (omega is None):
+            self.width = width
+            self.omega = self.calc_solidangle(self.width)
+        else:
+            raise ValueError("Set either width or omega, not both")
+
         self.create_poly()
         self.contained = {}
         self.intersected = {}
         self.dL = {}
         self.cell_polys = []
+        # TODO: Implement check on end-point in grid cell!
         for cell in grid.cells:
-            if self.poly.contains(cell.polygon):
+            if cell.polygon.contains(self.p0):
+                raise ValueError("Chord start point inside grid")
+            elif cell.polygon.contains(self.p1):
+                raise ValueError("Chord end point inside grid")
+            elif self.poly.contains(cell.polygon):
                 self.add_contained_cell(cell)
             elif self.poly.intersects(cell.polygon):
                 self.add_intersected_cell(cell)
+
+
+    def calc_width(self, omega):
+        ''' Calculates the 2D 2*r at the end-point for a given solid angle '''
+        # Calculates 
+        from numpy import pi
+        return self.length*(2/(2*pi-omega))*(4*pi*omega-omega**2)**0.5
+
+    def calc_solidangle(self, w):
+        ''' Calculates the solid angle for a give 2D width 2*r at the end-point '''
+        from numpy import pi
+        return 2*pi*(1-1/(1+w**2/4/self.length**2)**0.5)
+
+    def calc_L(self, point1, point2):
+        return ( (point1.x - point2.x)**2 + (point1.y - point2.y)**2 )**0.5
 
     def add_contained_cell(self, cell):
         from numpy import sqrt, pi
@@ -27,17 +62,10 @@ class Chord():
         # area of the original cell and width determined by the
         # distance of the cell from the origin of the LOS and
         # the width of the LOS at its end:
-        L_cell = (
-                    (cell.polygon.centroid.x - self.points[0].x)**2 + \
-                    (cell.polygon.centroid.y - self.points[0].y)**2
-                )**0.5
-        w_orthog = L_cell/(
-                        (self.points[1].x - self.points[0].x)**2 + \
-                        (self.points[1].y - self.points[0].y)**2
-                )**0.5*self.width
+        L_cell = self.calc_L(cell.polygon.centroid, self.p0)
+        w_orthog = L_cell/self.length*self.width
         dL = cell.polygon.area/w_orthog
         
-#        self.contained[str(cell.indices)] = {
         self.dL[str(cell.indices)] = {
             'cell': cell,
             'dL': dL,
@@ -57,17 +85,10 @@ class Chord():
         # area of the original cell and width determined by the
         # distance of the cell from the origin of the LOS and
         # the width of the LOS at its end: 
-        L_cell = (
-                    (clipped.centroid.x - self.points[0].x)**2 + \
-                    (clipped.centroid.y - self.points[0].y)**2
-                )**0.5
-        w_orthog = L_cell/(
-                        (self.points[1].x - self.points[0].x)**2 + \
-                        (self.points[1].y - self.points[0].y)**2
-                )**0.5*self.width
+        L_cell = self.calc_L(clipped.centroid, self.p0)
+        w_orthog = L_cell/self.length*self.width
         dL = clipped.area/w_orthog
             
-#        self.intersected[str(cell.indices)] = {
         self.dL[str(cell.indices)] = {
             'cell': cell,
             'dL': dL,
@@ -80,34 +101,30 @@ class Chord():
         from numpy import sqrt, cos, sin, arctan
         from shapely.geometry import Polygon
 
-        L = sqrt((self.points[1].x - self.points[0].x)**2 + 
-                        (self.points[1].y - self.points[0].y)**2)
-        theta = arctan((self.points[1].x - self.points[0].x)/(self.points[1].y - 
-                        self.points[0].y))
-        
-        # Elongate the LOS arbitrarily to make sure that it crosses the
-        # wall boundary and calculate the new end coordinates, length
-        # and end width of the LOS:
-        r_elong = self.points[1].x - 1.0 * sin(theta)
-        z_elong = self.points[1].y - 1.0 * cos(theta)
-        L_elong = sqrt(
-                    (r_elong - self.points[0].x)**2 + \
-                    (z_elong - self.points[0].y)**2
-        )
-        w_elong = L_elong/L*self.width
+        denom = self.p1.y - self.p0.y
+        # Avoid zero-divisors
+        if denom == 0:
+            denom = 1e-10
+        theta = arctan((self.p1.x - self.p0.x)/denom)
         
         # Add the elongated line-of-sight to the list of LOS polygons: 
-        self.poly = Polygon([(self.points[0].x, self.points[0].y), 
-                                (r_elong - 0.5*w_elong*cos(theta), 
-                                    z_elong + 0.5*w_elong*sin(theta)), 
-                                (r_elong + 0.5*w_elong*cos(theta), 
-                                    z_elong - 0.5*w_elong*sin(theta))])
+        self.poly = Polygon([
+            (self.p0.x, self.p0.y), 
+            (self.p1.x - 0.5*self.width*cos(theta), 
+                                self.p1.y + 0.5*self.width*sin(theta)), 
+            (self.p1.x + 0.5*self.width*cos(theta), 
+                                self.p1.y - 0.5*self.width*sin(theta))
+            ]
+        )
 
     def integrate(self, variable=None):
+        ret = 0
         if variable is None:
-            ret = 0
             for key, obj in self.dL.items():
                 ret += obj['dL']
+        else:
+            for key, obj in self.dL.items():
+                ret += obj['dL']*obj['dL'].__getattribute__(variable)
         return ret
 
 
@@ -122,8 +139,8 @@ class Chord():
         elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
         if line is True:
-            (p1, p2) = self.points
-            ax.plot([p1.x, p2.x], [p1.y, p2.y], '-', linewidth=0.5,color=color)
+            ax.plot([self.p0.x, self.p1.x], [self.p0.y, self.p1.y], '-', 
+                linewidth=0.5,color=color)
         if poly is True:
              xs, ys = self.poly.exterior.xy    
              ax.fill(xs, ys, alpha=alpha, fc=color, ec='none')
@@ -294,14 +311,24 @@ class Chord():
 
 class Spectrometer():
 
-    def __init__(self, case, fname=None, width=0.001, flip=True):
+    def __init__(self, case, fname=None, width=None, omega=1e-6, flip=True):
 #, displ=0, width = 0.017226946, norm_zmag=True, crm=None):
         ''' Creates polygons for the chords from a data file '''
         from .GridData import Grid
+        uevars = [
+            "ne",
+            "te",
+            "ni",
+            "prad",
+            "pradcff",
+            "pradhyd",
+        ]
+
         self.case = case
-        self.grid = Grid(case, flip=flip)
+        self.grid = Grid(case, flip=flip, variables=uevars)
         self.chords = []
         self.width = width
+        self.omega = omega
         if fname is not None:
             self.read_chordfile(fname)
 
@@ -316,12 +343,22 @@ class Spectrometer():
                 except:
                     print(f"Could not read line: '{line}'")
 
-    def add_chord(self, points, width):
+    def add_chord(self, points, width=None, omega=None):
+        from shapely.geometry import Point
+        if (width is None) and (omega is None):
+            width = self.width
+            omega = self.omega
+
+        p0 = Point((points[0][0], points[0][1]))
+        p1 = Point((points[1][0], points[1][1]))
+
         self.chords.append(
             Chord(
-                points,
-                width,
-                self.grid
+                p0,
+                p1,
+                self.grid,
+                width = width,
+                omega = omega
             )
         )
 
@@ -337,15 +374,14 @@ class Spectrometer():
         from matplotlib.pyplot import subplots, Figure
         if ax is None:
             f, ax = subplots()
-            ret = True
-        else:
-            ret = False
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
 
         for chord in self.chords:
             chord.plot_chord(ax, **kwargs)
 
-        if ret is True:
-            return f
+
+        return ax.get_figure()
 
     def calculate_LOS_integral(self, grid, **kwargs):
         ''' Calculates the LOS integrals from a Grid object '''
