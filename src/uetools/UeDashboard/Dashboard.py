@@ -46,16 +46,10 @@ from PyQt5.QtWidgets import (
 
 
     # update permanent bar
-# TODO: Display file name somewhere else
 
-
+# TODO: Add "Grid" plot, plotting a B&W grid only
+# TODO: Implement diagnostics GUI 
 # TODO: Store previously opened files in separate yaml under .uedgerc
-# TODO: Make dialogue work with active UEDGE run
-# TODO: make raise_message bolded red in bar
-
-
-# TODO: How to deal with CX/psorx?
-# TODO: Set zeros to 1e-10
 
 
 class DatabaseDashboard(QWidget):
@@ -77,10 +71,13 @@ class DatabaseDashboard(QWidget):
         self.animate = QPushButton("Create animation")
         self.animate.setEnabled(False)
 
+        self.makecase = QPushButton("Open Case in new tab")
+        self.makecase.setEnabled(False)
+
         self.slider = QSlider(Qt.Horizontal)
         self.label = QLabel("")
         self.updateLabel()
-        self.label.setFixedWidth(250)
+        self.label.setFixedWidth(220)
 
         self.slider.setMinimum(0)
         self.slider.setMaximum(1000)
@@ -91,6 +88,7 @@ class DatabaseDashboard(QWidget):
         self.buttons = QHBoxLayout()
         self.buttons.addWidget(self.sortbutton)
         self.buttons.addWidget(self.animate)
+        self.buttons.addWidget(self.makecase)
 
         self.sliderbar = QHBoxLayout()
         self.sliderbar.addWidget(self.label)
@@ -150,6 +148,7 @@ class DatabaseDashboard(QWidget):
         if dlg.exec():
             self.values = self.db.sortvalues
             self.range = (self.values.min(), self.values.max())
+            self.ind = -1
             self.slider.setValue(0)
             self.update_case(self.range[0])
             # TODO: Updating stuff goes here!
