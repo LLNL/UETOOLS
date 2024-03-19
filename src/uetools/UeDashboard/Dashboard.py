@@ -579,8 +579,10 @@ class CaseDashboard(QWidget):
             if self.inplace:
                 for var, path in self.casevars.items():
                     if (vartype in path) and (var not in varlist):
-                        if (len(self.get(var).shape) <= 3) and \
-                            (len(self.get(var).shape) > 1):
+                        getvar = self.get(var)
+                        if (len(getvar.shape) <= 3) and \
+                            (len(getvar.shape) > 1) and \
+                            (abs(getvar).max() > 0):
                             self.buttons['items']['dropdown'].addItem(var, i)
 
         cols[-1].addWidget(self.buttons['items']['dropdown'])
@@ -591,7 +593,7 @@ class CaseDashboard(QWidget):
         self.buttons['items']['custom'] = MyLineEdit()
         self.buttons['items']['custom'].mousePressEvent = \
             lambda _ : self.buttons['items']['custom'].selectAll()
-        self.buttons['items']['custom'].returnPressed.connect(self.plot_custom)
+        self.buttons['items']['custom'].editingFinished.connect(self.plot_custom)
         self.buttons['items']['custom'].setToolTip("Plots custom formula. "+
             "Access var by get('var'). Python syntax applies. Expects output"+
             "of shape ({},{}). Hit return to apply. ".format(self.nx, self.ny))
@@ -765,7 +767,7 @@ class CaseDashboard(QWidget):
 
         self.switches['items']['varscale'] =  MyLineEdit("1")
         self.switches['items']['varscale'].setValidator(QDoubleValidator())
-        self.switches['items']['varscale'].returnPressed.connect(self.change_varscale)
+        self.switches['items']['varscale'].editingFinished.connect(self.change_varscale)
         self.switches['items']['varscale'].mousePressEvent = lambda _ : self.switches['items']['varscale'].selectAll()
         self.switches['items']['varscale'].setToolTip("Hit return to apply.")
         
@@ -984,8 +986,10 @@ class CaseDashboard(QWidget):
             locals()['var'].shape # Fails non-ndarray results
         except:
             self.raise_message(f"{command} not recognized!")
+            self.buttons['items']['custom'].setFocus()
+            self.buttons['items']['custom'].selectAll()
             return
-        if len(locals()['var'].shape) > 2:
+        if len(locals()['var'].shape) != 2:
             self.raise_message("Command variable has wrong shape: "+
                 "{}, expected ({},{})".format(\
                     locals()['var'].shape,
@@ -993,10 +997,15 @@ class CaseDashboard(QWidget):
                     self.ny+2
                 )
             )
+            self.buttons['items']['custom'].setFocus()
+            self.buttons['items']['custom'].selectAll()
+            return
         else:
             self.var = locals()['var']
             self.multispecies = False
             if not self.is_nonzero():
+                self.buttons['items']['custom'].setFocus()
+                self.buttons['items']['custom'].selectAll()
                 return
             self.caseplot.setVar(self.var)
             for substr in ['get', '("', '")', "('", "')",
@@ -1230,12 +1239,13 @@ class HeatmapInteractiveFigure(QWidget):
 
 
         self.slider['items']['ulim'].setValidator(QDoubleValidator())
-        self.slider['items']['ulim'].returnPressed.connect(
+        self.slider['items']['ulim'].editingFinished.connect(
             self.changeUpperSlider
         )
+        
 
         self.slider['items']['llim'].setValidator(QDoubleValidator())
-        self.slider['items']['llim'].returnPressed.connect(
+        self.slider['items']['llim'].editingFinished.connect(
             self.changeLowerSlider
         )
 
@@ -1485,10 +1495,16 @@ class HeatmapInteractiveFigure(QWidget):
     def changeUpperSlider(self):
         if self.setUpperSlider(float(self.slider['items']['ulim'].text())):
             self.slider['items']['ulim'].clearFocus()
+        else:
+            self.slider['items']['ulim'].setFocus()
+            self.slider['items']['ulim'].selectAll()
         
     def changeLowerSlider(self):
         if self.setLowerSlider(float(self.slider['items']['llim'].text())):
             self.slider['items']['llim'].clearFocus()
+        else:
+            self.slider['items']['llim'].setFocus()
+            self.slider['items']['llim'].selectAll()
 
     def setUpperSlider(self, ulim):
         clim = self.verts.get_clim()
