@@ -515,63 +515,6 @@ class CaseDashboard(QWidget):
     """ ===========================
                WIDGET CREATION
         ==========================="""
-
-    def _createMiscOptions(self):
-        from matplotlib.pyplot import colormaps
-        self.misc = {
-            'frame': QFrame(),
-            'items': {
-                'abs': QCheckBox(),
-                'varscale': MyLineEdit("1"),
-                'ulim': MyClearLineEdit(),
-                'llim': MyClearLineEdit(),
-                'cmap': QComboBox(),
-            }
-        }
-        tmp = self.misc['items']
-
-        form =  QFormLayout()
-        form.addRow("Variable absolute value", tmp["abs"])
-        tmp['abs'].toggled.connect(self.toggle_abs)
-        tmp['abs'].setToolTip("Plots the absolute value of variables.")
-
-        tmp['varscale'].setValidator(QDoubleValidator())
-        tmp['varscale'].returnPressed.connect(self.change_varscale)
-        tmp['varscale'].setFixedWidth(50)
-        form.addRow("Variable scaling factor", tmp["varscale"])
-        tmp['varscale'].mousePressEvent = lambda _ : tmp['varscale'].selectAll()
-        tmp['varscale'].setToolTip("Hit return to apply.")
-
-        tmp['ulim'].setValidator(QDoubleValidator())
-        tmp['ulim'].returnPressed.connect(self.change_ulim)
-        tmp['ulim'].setFixedWidth(50)
-        tmp['ulim'].setToolTip("Hit return to apply.")
-        form.addRow("Set upper plot range", tmp ['ulim'])
-
-        tmp['llim'].setValidator(QDoubleValidator())
-        tmp['llim'].returnPressed.connect(self.change_llim)
-        tmp['llim'].setFixedWidth(50)
-        tmp['llim'].setToolTip("Hit return to apply.")
-        form.addRow("Set lower plot range", tmp ['llim'])
-
-        form.addRow("Colormap", tmp["cmap"])
-        i = 0
-        cmaps = colormaps()
-        cmaps.sort()
-        for  colormap in cmaps:
-            if colormap == self.caseplot.cmap:
-                default = i
-            tmp['cmap'].addItem(colormap, i)
-            i+=1
-        tmp["cmap"].setCurrentIndex(default) 
-        tmp['cmap'].activated[str].connect(self.set_cmap)
-
-        self.misc['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel(self.title("Plot options")))
-        layout.addLayout(form)
-        self.misc['frame'].setLayout(layout)
-
     def _createVarButtons(self):
         from numpy import sum
         self.buttons = {
@@ -744,16 +687,6 @@ class CaseDashboard(QWidget):
     def change_varscale(self):
         self.caseplot.setVarscale(float(self.switches['items']['varscale'].text()))
         self.switches['items']['varscale'].clearFocus()
-
-    def change_ulim(self):
-        self.caseplot.setUpperSlider(float(self.misc['items']['ulim'].text()))
-        self.misc['items']['ulim'].clear()
-        self.misc['items']['ulim'].clearFocus()
-
-    def change_llim(self):
-        self.caseplot.setLowerSlider(float(self.misc['items']['llim'].text()))
-        self.misc['items']['llim'].clear()
-        self.misc['items']['llim'].clearFocus()
 
     def ion_radio_clicked(self):
         self.ionspecies = self.ion_radio['group'].checkedId()
@@ -1275,20 +1208,41 @@ class HeatmapInteractiveFigure(QWidget):
         self.centralWidget = QWidget(self)
         self.canvas.draw()
 
-    def title(self, text):
-        return f"<b><font size=4>{text}</font></b>"
-
-
     def _createSlider(self):
         lims = self.get_lims()
         self.slider = {
             'layout': QVBoxLayout(),
             'items': {
-                'ulim': QLabel(self.title("{:.3g}".format(lims[1]))),
+                'ulim': QLineEdit(),
                 'slider': RangeSlider(Qt.Vertical),
-                'llim': QLabel(self.title("{:.3g}".format(lims[0]))),
+                'llim': QLineEdit(),
             }
         }
+
+        font = self.slider['items']['ulim'].font()
+        font.setPointSize(18)               # change it's size
+        font.setBold(True)            # change it's size
+
+        self.slider['items']['ulim'].setFont(font) 
+        self.slider['items']['ulim'].setText(
+            "{:.3g}".format(lims[1])
+        )
+
+
+        self.slider['items']['ulim'].setValidator(QDoubleValidator())
+        self.slider['items']['ulim'].returnPressed.connect(
+            self.changeUpperSlider
+        )
+
+        self.slider['items']['llim'].setValidator(QDoubleValidator())
+        self.slider['items']['llim'].returnPressed.connect(
+            self.changeLowerSlider
+        )
+
+        self.slider['items']['llim'].setFont(font) 
+        self.slider['items']['llim'].setText(
+            "{:.3g}".format(lims[0])
+        )
 
         self.slider['items']['llim'].setAlignment(\
                         Qt.AlignHCenter | \
@@ -1298,8 +1252,8 @@ class HeatmapInteractiveFigure(QWidget):
                         Qt.AlignHCenter | \
                         Qt.AlignVCenter
         )
-        self.slider['items']['ulim'].setFixedWidth(80)
-        self.slider['items']['llim'].setFixedWidth(80)
+        self.slider['items']['ulim'].setFixedWidth(90)
+        self.slider['items']['llim'].setFixedWidth(90)
 
         self.slider['items']['slider'].setMinimum(0)
         self.slider['items']['slider'].setMaximum(1000)
@@ -1366,8 +1320,8 @@ class HeatmapInteractiveFigure(QWidget):
                 return 0
         self.verts.set_clim((nl, nu))
         self.verts.set_cmap(self.verts.get_cmap())
-        self.slider['items']['llim'].setText(self.title("{:.3g}".format(nl)))
-        self.slider['items']['ulim'].setText(self.title("{:.3g}".format(nu)))
+        self.slider['items']['llim'].setText("{:.3g}".format(nl))
+        self.slider['items']['ulim'].setText("{:.3g}".format(nu))
         self.canvas.draw()
 
 
@@ -1513,11 +1467,11 @@ class HeatmapInteractiveFigure(QWidget):
         self.verts.set_clim((llim, ulim))
         self.verts.set_clim((llim, ulim))
         self.slider['items']['ulim'].setText(\
-                self.title("{:.3g}".format(ulim)
-        ))
+                "{:.3g}".format(ulim)
+        )
         self.slider['items']['llim'].setText(\
-                self.title("{:.3g}".format(llim)
-        ))
+                "{:.3g}".format(llim)
+        )
         self.slider['items']['slider'].setHigh(
             int( self.value2position(ulim)
         ))
@@ -1528,22 +1482,31 @@ class HeatmapInteractiveFigure(QWidget):
         self.canvas.fig.suptitle(self.suptitle)
         self.canvas.draw()
 
+    def changeUpperSlider(self):
+        if self.setUpperSlider(float(self.slider['items']['ulim'].text())):
+            self.slider['items']['ulim'].clearFocus()
+        
+    def changeLowerSlider(self):
+        if self.setLowerSlider(float(self.slider['items']['llim'].text())):
+            self.slider['items']['llim'].clearFocus()
+
     def setUpperSlider(self, ulim):
         clim = self.verts.get_clim()
         lims = self.get_lims()
         if ulim <= clim[0]:
             self.raise_message("Requested upper range {:.3g} is".format(ulim)+
                 " below the current lower limit {:.3g}".format(clim[0]))
-            return
+            return False
         ulim = min(ulim, lims[1])
         self.verts.set_clim((clim[0], ulim))
         self.slider['items']['ulim'].setText(\
-                self.title("{:.3g}".format(ulim)
-        ))
+                "{:.3g}".format(ulim)
+        )
         self.slider['items']['slider'].setHigh(
            int( self.value2position(ulim)
         ))
         self.canvas.draw()
+        return True
 
     def setLowerSlider(self, llim):
         clim = self.verts.get_clim()
@@ -1551,16 +1514,17 @@ class HeatmapInteractiveFigure(QWidget):
         if llim >= clim[1]:
             self.raise_message("Requested lower range {:.3g} is".format(llim)+
                 " above the current upper limit {:.3g}".format(clim[1]))
-            return
+            return False
         llim = max(llim, lims[0])
         self.verts.set_clim((llim, clim[1]))
         self.slider['items']['llim'].setText(\
-                self.title("{:.3g}".format(llim)
-        ))
+                "{:.3g}".format(llim)
+        )
         self.slider['items']['slider'].setLow(
            int( self.value2position(llim)
         ))
         self.canvas.draw()
+        return True
 
 
     def raise_message(self, message, time=5000):
