@@ -104,7 +104,6 @@ class DatabaseDashboard(QWidget):
         self.layout.addLayout(self.dbtools)
         self.centralWidget = QWidget(self)
 
-#        self.centralWidget.setLayout(self.layout)
         self.setLayout(self.layout)
 
     def updateLabel(self):
@@ -180,8 +179,6 @@ class DatabaseSort(QDialog):
         self.layout.addWidget(QLabel("Scaling factor"))
         self.scaling = MyLineEdit("1")
         self.layout.addWidget(self.scaling)
-        # Connect
-        # Make float        
 
         self.layout.addWidget(QLabel("Label"))
         self.label = MyLineEdit(self.db.sortlabel)
@@ -199,7 +196,6 @@ class DatabaseSort(QDialog):
 
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)
-        # Add text-box for label
 
         self.omitvar = [
             "equationkey",
@@ -491,26 +487,19 @@ class CaseDashboard(QWidget):
         self.species = ''
 
 
+        self._createRadios()
         self._createVarButtons()
         self._createSwitches()
-        self._createRadios()
-        self._createMiscOptions()
 
         self.plot_te()
         self.caseplot.setTitle("Electron temperature [eV]")
 
         self.settings = QVBoxLayout()
-        self.settings.addWidget(self.misc['frame'])
         self.settings.addWidget(self.switches['frame'])
 
-        self.menu = QGridLayout()
-        self.menu.addLayout(self.buttons['layout'],    
-                0, 0, 1, 2
-        )
-        self.menu.addLayout(self.radios['layout'],
-                0, 2, 1, 1
-        )
-#        self.menu.addLayout(self.settings, 1, 0, 1, 3)
+        self.menu = QHBoxLayout()
+        self.menu.addLayout(self.buttons['layout'])
+        self.menu.addWidget(self.radios['frame'])
         self.fullmenu = QVBoxLayout()
         self.fullmenu.addLayout(self.menu)
         self.fullmenu.addStretch()
@@ -520,7 +509,6 @@ class CaseDashboard(QWidget):
         self.layout.addLayout(self.fullmenu)
         self.layout.addWidget(self.caseplot)
     
-#        self.centralWidget.setLayout(self.layout)
         self.setLayout(self.layout)
 
         
@@ -576,7 +564,6 @@ class CaseDashboard(QWidget):
             tmp['cmap'].addItem(colormap, i)
             i+=1
         tmp["cmap"].setCurrentIndex(default) 
-#        tmp['cmap'].setFixedWidth(150)
         tmp['cmap'].activated[str].connect(self.set_cmap)
 
         self.misc['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
@@ -586,6 +573,7 @@ class CaseDashboard(QWidget):
         self.misc['frame'].setLayout(layout)
 
     def _createVarButtons(self):
+        from numpy import sum
         self.buttons = {
             'layout': QGridLayout(),
             'title': QLabel(self.title("Plots")),
@@ -613,16 +601,32 @@ class CaseDashboard(QWidget):
         maxbuttons = 8
         cols = [QVBoxLayout() for x in range(int(len(self.buttons['items'])/maxbuttons+1))]
         i = 0
+        self.buttongroup = QButtonGroup()
         for key, setup in self.buttons['items'].items():
             self.buttons['items'][key] = QPushButton(setup)
+            self.buttongroup.addButton(self.buttons['items'][key], i)
+            self.buttons['items'][key].setCheckable(True)
             self.buttons['items'][key].clicked.connect(
                 self.__getattribute__(f"plot_{key}"))
             cols[int(i/maxbuttons)].addWidget(
                 self.buttons['items'][key], 
             )
+            # TODO: Implement smarter check to deactivat buttons
+            buttonvar = self.get(key)
+            vis = True
+            if len(buttonvar.shape) == 3:
+                varsum = 0
+                for species in range(buttonvar.shape[-1]):
+                    varsum += abs(sum(buttonvar[:,:,species]))
+                if varsum == 0:
+                    self.buttons['items'][key].setEnabled(False)
+            else:
+                if sum(self.get(key)) == 0:
+                    self.buttons['items'][key].setEnabled(False)
             i += 1
-        for vbox in cols:
-            vbox.addStretch()
+        self.checkedButton = self.buttongroup.button(0)
+        self.checkedButton.setChecked(True)
+
         # Add drop-down
         self.buttons['items']['dropdown'] = QComboBox()
         varlist = list(self.buttons['items'].keys())
@@ -649,7 +653,6 @@ class CaseDashboard(QWidget):
             "Access var by get('var'). Python syntax applies. Expects output"+
             "of shape ({},{}). Hit return to apply. ".format(self.nx, self.ny))
         custom.addWidget(self.buttons['items']['custom'])
-        custom.addStretch()
 
         self.buttons['layout'].addWidget(self.buttons['title'],0,0,1, len(cols))
         for i in range(len(cols)):
@@ -657,17 +660,15 @@ class CaseDashboard(QWidget):
         self.buttons['layout'].addLayout(custom, 2,0,1,len(cols))
 
 
+
+
     def _createRadios(self):
-        self._createIonRadio()
-        self._createGasRadio()
-        self.radios = {'layout': QGridLayout()}
-
-        self.radios['layout'].addWidget(self.ion_radio['frame'], 0, 0, 1, 1)
-        self.radios['layout'].addWidget(self.gas_radio['frame'], 1, 0, 1, 1)
-
-    def _createIonRadio(self):
-        self.ion_radio = {
+        self.radios = {
             'frame': QFrame(),
+            'layout': QVBoxLayout(),
+        }
+
+        self.ion_radio = {
             'layout': QVBoxLayout(),
             'group': QButtonGroup(),
             'title': QLabel(self.title("Ion species")),
@@ -678,7 +679,6 @@ class CaseDashboard(QWidget):
                     Qt.AlignHCenter |\
                     Qt.AlignVCenter
         )
-        self.ion_radio['layout'].addWidget(self.ion_radio['title'])
         ind = 0
         for label in self.ion_radio['labels']:
             self.ion_radio['items'][label] = QRadioButton(label)
@@ -688,13 +688,11 @@ class CaseDashboard(QWidget):
                     self.ion_radio['items'][label], ind)
             self.ion_radio['items'][label].clicked.connect(self.ion_radio_clicked)
             ind += 1
-        self.ion_radio['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
-        self.ion_radio['frame'].setLayout(self.ion_radio['layout'])
         self.ion_radio['items'][self.ionarray[0]].setChecked(True)
+        self.ion_radio['layout'].addStretch()
+        self.activeIonRadio = self.ion_radio['items'][self.ionarray[0]]
 
-    def _createGasRadio(self):
         self.gas_radio = {
-            'frame': QFrame(),
             'layout': QVBoxLayout(),
             'group': QButtonGroup(),
             'title': QLabel(self.title("Gas species")),
@@ -705,7 +703,6 @@ class CaseDashboard(QWidget):
                     Qt.AlignHCenter |\
                     Qt.AlignVCenter
         )
-        self.gas_radio['layout'].addWidget(self.gas_radio['title'])
         ind = 0
         for label in self.gas_radio['labels']:
             self.gas_radio['items'][label] = QRadioButton(label)
@@ -716,9 +713,21 @@ class CaseDashboard(QWidget):
             self.gas_radio['items'][label].clicked.connect(self.gas_radio_clicked)
             ind += 1
         self.gas_radio['layout'].addStretch()
-        self.gas_radio['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
-        self.gas_radio['frame'].setLayout(self.gas_radio['layout'])
+        
         self.gas_radio['items'][self.gasarray[0]].setChecked(True)
+        self.activeGasRadio = self.gas_radio['items'][self.gasarray[0]]
+
+        radios = QHBoxLayout()
+        radios.addLayout(self.ion_radio['layout'])
+        radios.addLayout(self.gas_radio['layout'])
+        label = QLabel(self.title("Species"))
+        label.setAlignment(Qt.AlignHCenter)
+        self.radios['layout'].addWidget(label)
+        self.radios['layout'].addLayout(radios)
+        self.radios['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
+        self.radios['frame'].setLayout(self.radios['layout'])
+        self.radios['frame'].setMaximumWidth(150)
+        self.radios['frame'].setMaximumHeight(250)
 
 
     """ ===========================
@@ -733,8 +742,8 @@ class CaseDashboard(QWidget):
         self.caseplot.toggleAbs()
 
     def change_varscale(self):
-        self.caseplot.setVarscale(float(self.misc['items']['varscale'].text()))
-        self.misc['items']['varscale'].clearFocus()
+        self.caseplot.setVarscale(float(self.switches['items']['varscale'].text()))
+        self.switches['items']['varscale'].clearFocus()
 
     def change_ulim(self):
         self.caseplot.setUpperSlider(float(self.misc['items']['ulim'].text()))
@@ -749,15 +758,22 @@ class CaseDashboard(QWidget):
     def ion_radio_clicked(self):
         self.ionspecies = self.ion_radio['group'].checkedId()
         title = self.caseplot.getTitle()
+        if not self.is_nonzero():
+            self.activeIonRadio.setChecked(True)
+            return
         if self.multispecies == 'ion':
             if " for " in title:
                 title = title.split("for")[0] + "for {}".format(
                     self.ionarray[self.ionspecies])
             self.caseplot.setTitle(title)
         self.caseplot.setVar(self.get_speciesvar())
+        self.activeIonRadio = self.ion_radio["group"].checkedButton()
         
     def gas_radio_clicked(self):
         self.gasspecies = self.gas_radio['group'].checkedId()
+        if not self.is_nonzero():
+            self.activeGasRadio.setChecked(True)
+            return
         if self.multispecies == 'gas':
             title = self.caseplot.getTitle()
             if " for " in title:
@@ -765,13 +781,15 @@ class CaseDashboard(QWidget):
                     self.gasarray[self.gasspecies])
             self.caseplot.setTitle(title)
         self.caseplot.setVar(self.get_speciesvar())
+        self.activeGasRadio = self.gas_radio["group"].checkedButton()
 
 
     def _createSwitches(self):
+        from matplotlib.pyplot import colormaps
         self.switches = {
             'frame': QFrame(),
-            'layout': QVBoxLayout(),
-            'title': QLabel(self.title("Switches")),
+            'layout': QGridLayout(),
+            'title': QLabel(self.title("Plot options")),
             'items': {}
         }
         
@@ -779,47 +797,87 @@ class CaseDashboard(QWidget):
         col = QHBoxLayout()
         grid.addLayout(col)
 
-        self.switches['layout'].addWidget(self.switches['title'])
-        self.switches['layout'].addLayout(grid)
-        self.switches['layout'].setSpacing(5)
-        grid.setSpacing(5)
+        self.switches['layout'].addWidget(self.switches['title'], 0, 0, 1, 2)
+        self.switches['layout'].setSpacing(2)
         self.switches['frame'].setLayout(self.switches['layout'])
+        self.switches['frame'].setMaximumWidth(500)
         self.switches['frame'].setFrameStyle(QFrame.Panel | QFrame.Raised)
 
-        i = 0
-        for switch in ["Vessel", "Plates", "Separatrix", "Grid", "Scale"]:
-            if switch != "Scale":
-                on, off = "On", "Off"
-            else:
-                on, off = "Lin", "Log"
-            self.switches['items'][switch.lower()] = {
-                    'group': QButtonGroup(),
-                    on.lower(): QRadioButton(on),
-                    off.lower(): QRadioButton(off),
-                    'layout': QVBoxLayout()
-            }
-            tmpsw = self.switches['items'][switch.lower()]
-            tmpsw[on.lower()].toggled.connect(self.__getattribute__(\
-                "{}_switch_clicked".format(switch.lower())))
-            tmpsw['group'].addButton(tmpsw[on.lower()], 1)
-            tmpsw['group'].addButton(tmpsw[off.lower()], 0)
-            tmpsw['layout'].addWidget(QLabel(f"<b>{switch}</b>"))
-            tmpsw['layout'].addWidget(tmpsw[on.lower()])
-            tmpsw['layout'].addWidget(tmpsw[off.lower()])
-            tmpsw['layout'].setContentsMargins(0,0,0,0)
-            tmpsw['layout'].setSpacing(0)
-            col.addLayout(tmpsw['layout'])
-            i += 1
-        self.switches['items']['vessel']['on'].setChecked(True)
-        self.switches['items']['plates']['on'].setChecked(True)
-        self.switches['items']['separatrix']['on'].setChecked(True)
-        self.switches['items']['grid']['off'].setChecked(True)
-        self.switches['items']['scale']['lin'].setChecked(True)
-        self.plates_switch_clicked()
-        self.vessel_switch_clicked()
-        self.separatrix_switch_clicked()
-        self.scale_switch_clicked()
+        self.switches['items']['Vessel'] = QPushButton("Vessel")
+        self.switches['items']['Vessel'].setCheckable(True)
+        self.switches['items']['Vessel'].setChecked(True)
+        self.switches['items']['Vessel'].clicked.connect(self.vessel_switch_clicked)
 
+        self.switches['items']['Plates'] = QPushButton("Plates")
+        self.switches['items']['Plates'].setCheckable(True)
+        self.switches['items']['Plates'].setChecked(True)
+        self.switches['items']['Plates'].clicked.connect(self.plates_switch_clicked)
+
+        self.switches['items']['Separatrix'] = QPushButton("Separatrix")
+        self.switches['items']['Separatrix'].setCheckable(True)
+        self.switches['items']['Separatrix'].setChecked(True)
+        self.switches['items']['Separatrix'].clicked.connect(self.separatrix_switch_clicked)
+
+        self.switches['items']['Grid'] = QPushButton("Grid")
+        self.switches['items']['Grid'].setCheckable(True)
+        self.switches['items']['Grid'].clicked.connect(self.grid_switch_clicked)
+
+        self.switches['items']['Logarithmic'] = QPushButton("Logarithmic")
+        self.switches['items']['Logarithmic'].setCheckable(True)
+        self.switches['items']['Logarithmic'].clicked.connect(self.log_switch_clicked)
+
+        self.switches['items']['Abs'] = QPushButton("Absolute Value")
+        self.switches['items']['Abs'].setCheckable(True)
+        self.switches['items']['Abs'].clicked.connect(self.toggle_abs)
+
+        self.switches['items']['varscale'] =  MyLineEdit("1")
+        self.switches['items']['varscale'].setValidator(QDoubleValidator())
+        self.switches['items']['varscale'].returnPressed.connect(self.change_varscale)
+        self.switches['items']['varscale'].mousePressEvent = lambda _ : self.switches['items']['varscale'].selectAll()
+        self.switches['items']['varscale'].setToolTip("Hit return to apply.")
+        
+        self.switches['items']['cmap'] = QComboBox()
+        i = 0
+        cmaps = colormaps()
+        cmaps.sort()
+        for  colormap in cmaps:
+            if colormap == self.caseplot.cmap:
+                default = i
+            self.switches['items']['cmap'].addItem(colormap, i)
+            i+=1
+        self.switches['items']["cmap"].setCurrentIndex(default) 
+        self.switches['items']['cmap'].activated[str].connect(self.set_cmap)
+
+
+        labels = [QLabel("Multiplier"), QLabel("Colormap")]
+        for label in labels:
+            label.setMaximumWidth(120)
+            label.setAlignment( Qt.AlignRight | Qt.AlignVCenter )
+        self.switches['layout'].addWidget(self.switches['items']['Vessel'],
+                1, 0, 1, 1)
+        self.switches['layout'].addWidget(self.switches['items']['Plates'],
+                2, 0, 1, 1)
+        self.switches['layout'].addWidget(self.switches['items']['Separatrix'],
+                1, 1, 1, 1)
+        self.switches['layout'].addWidget(self.switches['items']['Grid'],
+                2, 1, 1, 1)
+        self.switches['layout'].addWidget(self.switches['items']['Logarithmic'],
+                1, 2, 1, 1)
+        self.switches['layout'].addWidget(self.switches['items']['Abs'],
+                2, 2, 1, 1)
+        self.switches['layout'].addWidget(labels[0],
+                1, 3, 1, 1)
+        self.switches['layout'].addWidget(labels[1],
+                2, 3, 1, 1)
+        self.switches['layout'].addWidget(self.switches['items']['varscale'],
+                1, 4, 1, 1)
+        self.switches['layout'].addWidget(self.switches['items']['cmap'],
+                2, 4, 1, 1)
+
+        for switch in ['Vessel', 'Plates', 'Separatrix', 'Grid', 'Logarithmic', 
+            'Abs', 'varscale', 'cmap'
+        ]:
+            self.switches['items'][switch].setMaximumWidth(120)
 
     def plates_switch_clicked(self):
         self.caseplot.togglePlates()
@@ -833,7 +891,7 @@ class CaseDashboard(QWidget):
     def vessel_switch_clicked(self):
         self.caseplot.toggleVessel()
 
-    def scale_switch_clicked(self):
+    def log_switch_clicked(self):
         from matplotlib.colors import LogNorm, Normalize
         from numpy import log
         lims = self.caseplot.get_lims()
@@ -848,23 +906,67 @@ class CaseDashboard(QWidget):
 
     def get_speciesvar(self):
         if self.multispecies == 'gas':
+            self.enable_ionradio(False)
+            self.enable_gasradio(True)
             self.species = self.gasarray[self.gasspecies]
             return self.var[:, :, self.gasspecies]
         elif self.multispecies == 'ion':
+            self.enable_ionradio(True)
+            self.enable_gasradio(False)
             self.species = self.ionarray[self.ionspecies]
             return self.var[:, :, self.ionspecies]
         else:
+            self.enable_ionradio(False)
+            self.enable_gasradio(False)
             return self.var
 
     def is_nonzero(self):
-        from numpy import sum
-        if sum(self.get_speciesvar()) == 0:
+        if abs(self.get_speciesvar()).max() == 0:
             self.raise_message("Requested variable unpopulated! "+
-                "Select another variable or species to plot.")
-            return False
+                "Selecting populated species index.")
+            # Find acceptable species index
+            if self.multispecies == 'gas':
+                self.gasspecies = 0
+                while not abs(self.get_speciesvar()).max():
+                    self.gasspecies += 1
+                    if self.gasspecies > 30:
+                        raise ValueError("Out of loop!")
+                self.gas_radio['group'].button(self.gasspecies).setChecked(True)
+            elif self.multispecies == 'ion':
+                self.ionspecies = 0
+                while not abs(self.get_speciesvar()).max():
+                    self.ionspecies += 1
+                    if self.ionspecies > 30:
+                        raise ValueError("Out of loop!")
+                self.ion_radio['group'].button(self.ionspecies).setChecked(True)
+            else:
+                raise ValueError("SHOULD NOT BE HERE")
         else:
-            return True
+            self.currentButton = self.buttongroup.checkedButton()
+        return True
 
+    def enable_ionradio(self, status):
+        for button in self.ion_radio['group'].buttons():
+            button.setEnabled(status)
+        if status is True:  
+            for i in range(len(self.ionarray)):
+                if abs(self.var[:,:,i]).max() == 0:
+                    self.ion_radio['group'].button(i).setEnabled(False)
+
+    def enable_gasradio(self, status):
+        for button in self.gas_radio['group'].buttons():
+            button.setEnabled(status)
+        if status is True:  
+            for i in range(len(self.gasarray)):
+                if abs(self.var[:,:,i]).max() == 0:
+                    self.gas_radio['group'].button(i).setEnabled(False)
+        
+
+    def uncheck_buttons(self):
+        self.buttongroup.setExclusive(False)
+        for button in self.buttongroup.buttons():
+            button.setChecked(False)
+        self.buttongroup.setExclusive(True)
 
     def plot_driver(self, var, title, multispecies=False):
         from numpy.ma import masked_array
@@ -904,6 +1006,8 @@ class CaseDashboard(QWidget):
                 self.caseplot.setTitle(text + " for {}".format(\
                     self.ionarray[self.ionspecies]))
                 self.caseplot.setVar(self.get_speciesvar())
+                self.enable_ionradio(True)
+                self.enable_gasradio(False)
             elif var.shape[-1] == len(self.gasarray):
                 self.multispecies = 'gas'
                 self.var = var
@@ -912,21 +1016,27 @@ class CaseDashboard(QWidget):
                 self.caseplot.setTitle(text + " for {}".format(\
                     self.gasarray[self.gasspecies]))
                 self.caseplot.setVar(self.get_speciesvar())
+                self.enable_ionradio(False)
+                self.enable_gasradio(True)
             else:
                 self.raise_message("Could not determine species"+
                     f" index of {text}")
                 return
         elif len(var.shape) == 2:
+            self.multispecies = False
             self.var = var
             self.caseplot.setVar(self.var)
             if not self.is_nonzero():
                 return
             self.caseplot.setTitle(text)
+            self.enable_ionradio(False)
+            self.enable_gasradio(False)
         else:
             self.raise_message(f"Could not determine shape of {text}")
             return
         self.buttons['items']['custom'].clear()
         self.lastfunc = self.plot_dropdown
+        self.uncheck_buttons()
 
     def plot_custom(self):
         try:
@@ -963,6 +1073,9 @@ class CaseDashboard(QWidget):
             self.caseplot.setTitle(command)
             self.buttons['items']['custom'].clearFocus()
         self.lastfunc = self.plot_custom
+        self.enable_gasradio(False)
+        self.enable_ionradio(False)
+        self.uncheck_buttons()
 
     def plot_te(self):
         self.plot_driver(
@@ -1114,7 +1227,6 @@ class HeatmapInteractiveFigure(QWidget):
         self.canvas.setMinimumWidth(550)
         self.canvas.setMinimumHeight(700)
         self.case = case        
-#        self.case.plotmesh(ax=self.canvas.axes, colorbar=True)
         self.case.te2D(ax=self.canvas.axes)
         self.case.set_speciesarrays()
         self.verts = self.case.Qvertices
@@ -1129,23 +1241,13 @@ class HeatmapInteractiveFigure(QWidget):
         self.sliderControl.addWidget(self.slider['items']['llim'],
             2,0,1,3)
         self.canvaslayout = QHBoxLayout(self)
-#        self.cvl2.addWidget(self.canvastoolbar)
-#        self.slider = VerticalSlider(self.verts, self)
-#        self.canvaslayout.addWidget(self.canvas)
         self.canvaslayout.addWidget(self.canvas)
         self.canvaslayout.addLayout(self.sliderControl)
-#        self.canvaslayout.addWidget(self.slider)
-#        self.get_lims = self.slider.get_lims
-#        self.get_slider_values = self.slider.get_slider_values 
-#        self.value2position = self.slider.value2position
-
-#        self.canvaslayout.addWidget(self.canvastoolbar)
-#        self.canvaslayout.addWidget(self.canvas)
 
         (ax, cax) = self.canvas.fig.get_axes()
         old_cax = cax.get_position()
         old_ax = ax.get_position()
-        dx = 0.055
+        dx = 0.03
         cax.set_position([old_cax.x0+dx, old_cax.y0, old_cax.x1+dx, 0.85])
         ax.set_anchor("C")
         ax.set_position([0.1, old_ax.y0, 0.75, 0.85])
@@ -1169,12 +1271,8 @@ class HeatmapInteractiveFigure(QWidget):
                 line.remove()
 
 
-#        self.layout = QHBoxLayout()
-#        self.layout.addLayout(self.canvaslayout)
-#        self.layout.addLayout(self.sliderControl)
 
         self.centralWidget = QWidget(self)
-#        self.centralWidget.setLayout(self.layout)
         self.canvas.draw()
 
     def title(self, text):
@@ -1391,9 +1489,6 @@ class HeatmapInteractiveFigure(QWidget):
             return
         if self.abs:
             var = abs(var)
-#        if (var.min() < 0) and self.log:
-#            self.raise_message("Negative values in var: masking array!")
-#            var.mask=(var<=0)
         # Record old values slider values
         [llim, ulim] = deepcopy(self.verts.get_clim())
         self.verts.set_array(var[1:-1,1:-1].reshape(self.xy))
@@ -1572,8 +1667,6 @@ class MainMenu(QMainWindow):
         self.setCentralWidget(self.centralWidget)
         self.tabMenu.setDisabled(True)
 
-#        if case is not None:
-#            self.openFile(case)
 
 
     def closeTab(self, index):
@@ -1585,7 +1678,7 @@ class MainMenu(QMainWindow):
     def openHDF5(self):#, caseobj=None):
         from uetools import Case
         # Logic for opening an existing file goes here...
-        if 1==1:
+        if 1==0:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
             self.lastpath, "All files (*.*)")[0]
             self.lastpath = "/".join(file.split("/")[:-1])
@@ -1595,6 +1688,7 @@ class MainMenu(QMainWindow):
             print("USING TUTORIAL CASE")
         if len(file.strip()) == 0:
             return
+        case =  CaseDashboard(Case(file, inplace=True))
         try:
             case =  CaseDashboard(Case(file, inplace=True))
         except:
@@ -1784,6 +1878,7 @@ if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
     app = QApplication(sys.argv)
     win = MainMenu()
+    win.openHDF5()
     win.show()
     sys.exit(app.exec_())
 #else:
