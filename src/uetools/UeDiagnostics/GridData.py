@@ -1,9 +1,10 @@
 
 class Grid():
-    def __init__(self, case, flip=True, variables = ['te', 'ne', 'ni']):
+    def __init__(self, case, flip=True, variables = ['te', 'ne', 'ni', 'ng']):
         self.case = case
         self.geometry = self.case.get("geometry")[0].strip().lower().decode("UTF-8")
         self.cells = []
+        self.case.set_speciesarrays()
         rm = self.case.get('rm')
         zm = self.case.get('zm')
         self.vars = {}
@@ -19,16 +20,14 @@ class Grid():
                 verts = []
                 for iv in [1, 2, 4, 3]:
                     verts.append([rm[ix, iy, iv], zm[ix, iy, iv]])
-                self.cells.append(Cell(verts, (ix,iy), self.vars))
+                self.cells.append(Cell(verts, (ix,iy), self.vars,
+                    case.ionarray, case.gasarray
+                ))
 
 
-
-
-
-
-
-
-    def plot_intensity(self, interval, ax=None,crm=None,zrange=(None,None), mol=True, cbar=True,zscale=1):
+    def plot_intensity(self, interval, ax=None,crm=None,zrange=(None,None), 
+        mol=True, cbar=True,zscale=1
+    ):
         from matplotlib.pyplot import subplots
         from numpy import array, nonzero, transpose, log10, floor
         from tqdm import tqdm
@@ -113,19 +112,46 @@ class Cell():
     ''' Containter object for grid cell info '''
     
     # TODO: create function calculating and storing the spectra
-    def __init__(self, vertices, indices, variables):
+    def __init__(self, vertices, indices, variables, ionarray=None,
+        gasarray=None
+    ):
         from shapely.geometry import Polygon
         self.vertices = vertices
         self.indices = indices
+        self.ionarray = ionarray
+        self.gasarray = gasarray
         self.polygon = Polygon(vertices)
         for var, value in variables.items():
             self.__setattr__(var, variables[var][*indices])
+        self.emission = {}
 
-            
+        self.nh = self.ng[0]
+        for species in self.gasarray:
+            species = species.split("0")[0].lower()
+            if '2' in species:
+                continue
+            self.__setattr__(f"n{species}", [])
+            for i in range(len(self.gasarray)):
+                if (species in self.gasarray[i].lower()) and \
+                    ('2' not in self.gasarray[i]) and \
+                    (species not in ['h','d','t']):
+                    self.__getattribute__(f"n{species}").append(self.ng[i])
+            for i in range(len(self.ionarray)):
+                if species in self.ionarray[i].lower():
+                    self.__getattribute__(f"n{species}").append(self.ni[i])
+                    
     def plot_cell(self, ax=None):
         if ax is None:
             f, ax = subplots()
         ax.plot(*self.polygon.exterior.xy, 'k-', linewidth=0.5) 
-   
+
+    def set_emission(self, adasspecies, lam=None, chargestate=None,
+        rtype = ['excit', 'recom', 'chexc']):
+        species = adasspecies.species.lower()
+        self.emission[species] = adasspecies.calc_emission(
+            self.ne, self.te, self.__getattribute__(f"n{species}"), self.nh, 
+            lam, chargestate, rtype)
+        
+        
 
 

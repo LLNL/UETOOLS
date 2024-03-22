@@ -446,24 +446,6 @@ class DatabaseSort(QDialog):
         self.message.setText("")
 
 
-
-    """dd
-        for vartype in ['centered', 'staggered']:
-            if self.inplace:
-                for var, path in self.casevars.items():
-                    if (vartype in path) and (var not in varlist):
-                        if (len(self.get(var).shape) <= 3) and \
-                            (len(self.get(var).shape) > 1):
-                            self.buttons['items']['dropdown'].addItem(var, i)
-        """
-    """
-            self.layout.
-            print("Variable")
-        elif text == "Custom":
-            print("Custom")
-        """
-        
-
 class CaseDashboard(QWidget):
     """Main Window."""
     def __init__(self, case, parent=None):

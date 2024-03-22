@@ -26,6 +26,7 @@ class Chord():
         self.intersected = {}
         self.dL = {}
         self.cell_polys = []
+        self.emission = {}
         # TODO: Implement check on end-point in grid cell!
         for cell in grid.cells:
             if cell.polygon.contains(self.p0):
@@ -155,15 +156,27 @@ class Chord():
              xs, ys = poly.exterior.xy    
              ax.fill(xs, ys, fc='g', ec='none')
 
+    def add_emission(self, emission, dL):
+        for lam, e in emission.items():
+            try:
+                self.emission[lam] += e*dL
+            except:
+                self.emission[lam] = e*dL
 
-
-
-
-
-
-
-
-
+    def calc_emission(self, rates, lam=None, chargestate=None, rerun=False,
+        rtype = ['excit', 'recom', 'chexc']):
+        species = rates.species.lower()
+        for _, obj in self.dL.items():
+            if rerun or (species not in obj['cell'].emission.keys()):
+                obj['cell'].set_emission(rates, lam, chargestate, rtype)
+            self.add_emission(obj['cell'].emission[species], obj['dL'])
+             
+    def plot_emission(self):
+        from matplotlib.pyplot import subplots
+        f, ax = subplots()
+        for x, y in self.emission.items():
+            ax.plot([x,x], [0,y], 'r-')
+        return f
 
     def calc_LOS_spectra(self,lower, upper):
         from numpy import nonzero
@@ -320,6 +333,7 @@ class Spectrometer():
             "te",
             "ni",
             "prad",
+            "ng",
             "pradcff",
             "pradhyd",
         ]
@@ -362,6 +376,15 @@ class Spectrometer():
             )
         )
 
+    def add_rates(self, path, species, ratetype, **kwargs):
+        from uetools.UePostproc.ADASclass import ADASSpecies
+        self.rates = ADASSpecies(path, species, ratetype, **kwargs)
+
+    
+    def calc_chord_emission(self, lam=None, chargestate=None, rerun=False,
+        rtype = ['excit', 'recom', 'chexc']):
+        for chord in self.chords:
+            chord.calc_emission(self.rates, lam, chargestate, rerun, rtype)
 
 
 

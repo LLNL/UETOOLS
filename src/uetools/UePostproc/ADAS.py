@@ -1,5 +1,5 @@
 class ADAS:
-    def emission_CIII(self, fname):
+    def emission_CIII(self, fname, lam=4650.1):
         from numpy import log10
 
         # Create self.adf15
@@ -8,14 +8,14 @@ class ADAS:
         for rate in ["excit", "recom", "chexc"]:
             self.__setattr__(
                 "CIII_pec_{}".format(rate),
-                self.adf15[4650.1][rate].ev(
+                self.adf15[lam][rate].ev(
                     log10(self.get("ne") / 1e6), log10(self.get("te") / 1.602e-19)
                 ),
             )
             self.__setattr__(
                 "CIII_emission_{}".format(rate),
                 10 ** self.__getattribute__("CIII_pec_{}".format(rate))
-                * (self.get("ne")*(rate != "chexc") + self.get("ng")[:,:,0]*(rate == "chexc"))
+                * (self.get("ne")*(rate != "chexc") + self.get("ng")[:,:,1]*(rate == "chexc"))
                 * self.get("ni")[:, :, 4 - (rate == "excit")]
                 / 1e12,
             )
