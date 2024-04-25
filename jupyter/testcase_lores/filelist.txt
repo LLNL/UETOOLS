@@ -1,0 +1,8 @@
+# Define files
+
+ncore_down_ncore=1.400e+19_last_ii2.hdf5 # Inline comments work, too
+ncore_down_ncore=1.500e+19_last_ii2.hdf5
+ncore_down_ncore=1.600e+19_last_ii2.hdf5
+ncore_down_ncore=1.700e+19_last_ii2.hdf5
+ncore_down_ncore=1.800e+19_last_ii2.hdf5
+ncore_down_ncore=1.900e+19_last_ii2.hdf5
