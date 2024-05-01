@@ -32,11 +32,18 @@ class ConvergeStep:
             else:
                 try:
                     _var[ivar] += increment
-                    currval = self.getue(var)[ivar]
                 except:
                     _var += increment
-                    currval = self.getue(var)
 
+            try:
+                self.getue(var, copy=False)[ivar] = _var
+            except:
+                self.setue(var, _var)
+            try:
+                currval = self.getue(var)[ivar]
+            except:
+                currval = self.getue(var)
+ 
             casename = "{}_{}={:.3e}".format(name, var, currval)
             print("======================================")
             print("Solving for {}={:.2E}".format(varstr, currval))
