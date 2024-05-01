@@ -88,20 +88,21 @@ class Grid():
 
     def plot_grid(self, ax=None):
         ''' Plots a polygrid of Patches '''
-        from matplotlib.pyplot import subplots
+        from matplotlib.pyplot import subplots, Figure
         if ax is None:
             f, ax = subplots()
-            ret = True
-        else:
-            ret = False
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
 
         for cell in self.cells:
             cell.plot_cell(ax)
 
+        self.case.plotvessel(f)
+        self.case.plotplates(f)
+
 
         ax.set_aspect('equal')
-        if ret is True:
-            return f
+        return ax.get_figure()
   
 
 
@@ -140,10 +141,10 @@ class Cell():
                 if species in self.ionarray[i].lower():
                     self.__getattribute__(f"n{species}").append(self.ni[i])
                     
-    def plot_cell(self, ax=None):
+    def plot_cell(self, ax=None, linewidth = 0.05):
         if ax is None:
             f, ax = subplots()
-        ax.plot(*self.polygon.exterior.xy, 'k-', linewidth=0.5) 
+        ax.plot(*self.polygon.exterior.xy, 'k-', linewidth=linewidth) 
 
     def set_emission(self, adasspecies, lam=None, chargestate=None,
         rtype = ['excit', 'recom', 'chexc']):

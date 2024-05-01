@@ -9,9 +9,18 @@ from .UeDatabase import Database
 from . import UeCase
 from . import UeConfig
 #from . import Dashboard
-from .UeDashboard import uedashboard
-from .UeDashboard import StandaloneDashboard
-from .UeDashboard import StandaloneDatabaseDashboard
+try:
+    from .UeDashboard import uedashboard
+except:
+    pass
+try:
+    from .UeDashboard import StandaloneDashboard
+except:
+    pass
+try:
+    from .UeDashboard import StandaloneDatabaseDashboard
+except:
+    pass
 from os import path
 
 with open(path.join(__path__[0],"VERSION")) as f:

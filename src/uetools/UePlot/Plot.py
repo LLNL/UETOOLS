@@ -23,10 +23,24 @@ class Plot:
         super().__init__(*args, **kwargs)
         return
 
+    def getomit(self, var):
+        """ Helper function to handled partial grids w/ omits """
+        nyomit = self.get('nyomitmx', verbose=False)
+        nxomit = self.get('nxomit', verbose = False)
+        if nxomit is None:
+            nxomit = 0
+        if nyomit is None:
+            nyomit = 0
+        if isinstance(var, str):
+            var = self.get(var)
+        if nyomit > 0:
+            var = var[:,:-nyomit]
+        return var[nxomit:]
+
     def createvertices(self, rm, zm):
         from numpy import zeros, transpose, cross, sum
         # CREATE POLYGON COLLECTIONS TO USE
-        self.vertices = self.createpolycollection(rm, zm)
+        self.vertices = self.createpolycollection(self.getomit(rm), self.getomit(zm))
         self.disp=0
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             self.disp = 0
@@ -37,13 +51,13 @@ class Plot:
             else:
                 self.disp = 2 * self.get("zmagx")
             self.uppersnvertices = self.createpolycollection(
-                rm, -zm + self.disp, setparams=False
+                self.getomit(rm), self.getomit(self.disp -zm), setparams=False
             )
 
         # CREATE NORMAL VECTOR IN LOCAL CELL COORDINATES
         nodes = zeros((self.get("nx") + 2, self.get("ny") + 2, 5, 2))
-        nodes[:, :, :, 0] = self.get("rm")
-        nodes[:, :, :, 1] = self.get("zm")
+        nodes[:, :, :, 0] = self.getomit("rm")
+        nodes[:, :, :, 1] = self.getomit("zm")
         nodes = transpose(nodes, (2, 3, 0, 1))
 
         # TODO: rather than align poloidal/radial in direction of cell,
@@ -137,6 +151,7 @@ class Plot:
         from numpy import concatenate
 
         if setparams is True:
+            '''
             try:
                 self.nx
             except:
@@ -145,6 +160,9 @@ class Plot:
                 self.ny
             except:
                 self.ny = rm.shape[1] - 2
+            '''
+            self.nx = self.get('nx')
+            self.ny = self.get('ny')
             ixpt1 = self.get("ixpt1")[0]
             ixpt2 = self.get("ixpt2")[0]
             iysptrx = self.get("iysptrx")
@@ -154,22 +172,22 @@ class Plot:
             self.osepr = rm[ixpt2 : -1, iysptrx + 1, 2]
             self.osepz = zm[ixpt2 : -1, iysptrx + 1, 2]
 
-            self.sepcorer = self.get("rm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
-            self.sepcorez = self.get("zm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
-            self.solboundr = self.get("rm")[:, -2, 3:]
-            self.solboundz = self.get("zm")[:, -2, 3:]
+            self.sepcorer = self.getomit("rm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
+            self.sepcorez = self.getomit("zm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
+            self.solboundr = self.getomit("rm")[:, -2, 3:]
+            self.solboundz = self.getomit("zm")[:, -2, 3:]
             self.pfrboundr = concatenate((
-                                self.get("rm")[: ixpt1+1, 1, 2], 
-                                self.get("rm")[ixpt2+1 :, 1, 1]
+                                self.getomit("rm")[: ixpt1+1, 1, 2], 
+                                self.getomit("rm")[ixpt2+1 :, 1, 1]
                             ))
             self.pfrboundz = concatenate((
-                                self.get("zm")[: ixpt1+1, 1, 2],
-                                self.get("zm")[ixpt2+1 :, 1, 1] 
+                                self.getomit("zm")[: ixpt1+1, 1, 2],
+                                self.getomit("zm")[ixpt2+1 :, 1, 1] 
                             ))
-            self.itboundr = self.get("rm")[1, :, 1]
-            self.itboundz = self.get("zm")[1, :, 1]
-            self.otboundr = self.get("rm")[-2, :, 2]
-            self.otboundz = self.get("zm")[-2, :, 2]
+            self.itboundr = self.getomit("rm")[1, :, 1]
+            self.itboundz = self.getomit("zm")[1, :, 1]
+            self.otboundr = self.getomit("rm")[-2, :, 2]
+            self.otboundz = self.getomit("zm")[-2, :, 2]
 
         vertices = []
         # Loop through all cells, omitting guard cells
@@ -292,8 +310,8 @@ class Plot:
             if isinstance(z, str):
                 # Read data into local vars to be used to create vertices later
                 with File(z) as f:
-                    rm = f['grid/com/rm'][()]
-                    zm = f['grid/com/zm'][()]
+                    rm = self.getomit(f['grid/com/rm'][()])
+                    zm = self.getomit(f['grid/com/zm'][()])
                     z = None
             else:
                 if len(z.shape) != 2:
@@ -827,6 +845,7 @@ class Plot:
         latecolor='k',
         lcfs=True,
         gridlinewidth=0.01,
+        watermark=False,
         lcfscolor='grey',
         gridlinecolor='k',
         plotgrid=False,
@@ -853,7 +872,7 @@ class Plot:
             f = ax.get_figure()
         if plotgrid is True:
             self.plotmesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
-                flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor, ax=ax)
+                flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor, ax=ax, watermark=watermark)
 
         rm = self.get("rm")
         zm = self.get("zm")

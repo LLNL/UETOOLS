@@ -421,7 +421,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                                 self.get("zm")
                             )
 
-    def get_inplace(self, variable, s=None, **kwargs):
+    def get_inplace(self, variable, s=None, verbose=True, **kwargs):
         """Returns variable from HDF5 file
 
         Arguments
@@ -448,7 +448,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         try:
             retvar = self.hdf5case[self.vars[variable]][()]
         except:
-            print("{} not found in {}".format(variable, self.filename))
+            if verbose:
+                print("{} not found in {}".format(variable, self.filename))
             return
 
         if isinstance(retvar, (ndarray, list)):
@@ -1316,6 +1317,17 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         """
         self.load_state(savefile, **kwargs)
         self.populate(**kwargs)
+
+    def add_spectrometer(self):
+        from uetools.UeDiagnostics import Spectrometer
+        try:
+            self.spectrometer
+            if not isinstance(self.spectrometer, list):
+                self.spectrometer = [self.spectrometer]
+            self.append(Spectrometer(self))
+        except:
+            self.spectrometer = Spectrometer(self)
+
 
     def dashboard(self):
         """ Opens a Dashboard for Self """
