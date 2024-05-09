@@ -63,7 +63,11 @@ class ADASSpecies:
                 if (chargestate is not None) and (zi not in chargestate):
                     continue
                 else:
-                    intensity += line[zi](lam, ne, te, nz, self.resolved, rtype) 
+                    for r in rtype:
+                        try:
+                            intensity += line[zi][r](ne, te, nz, self.resolved) 
+                        except:
+                            pass
             if intensity != 0:
                 output[lam] = intensity
         return output
@@ -100,17 +104,23 @@ class ADASSpecies:
                 if path.isfile(filepath) and (f.split('#')[1][-1]=='u'):
                     chargestate = int(f.split("#")[-1][1])
                     rateobj = ADASRate(filepath)
-                    self.rates[chargestate] = rateobj
+                    try: 
+                        self.rates[chargestate].append(rateobj)
+                    except:
+                        self.rates[chargestate] = []
+                        self.rates[chargestate].append(rateobj)
                     for lam, obj in rateobj.adf15.items():
                         if not lam in self.lines.keys():
                             self.lines[lam] = {}
                         if not chargestate in self.lines[lam].keys():
-                            self.lines[lam][chargestate] = {}
-                        try:
-                            self.lines[lam][chargestate]
-                        except:
-                            raise Exception(f"Duplicate rates found for {lam} A!")
-                        self.lines[lam][chargestate] = rateobj.get_emission
+                            self.lines[lam][chargestate] = []
+                        rate = {}
+                        for rtype in ['excit', 'recom', 'chexc']:
+                            try:
+                                rate[rtype] = rateobj.adf15[lam][rtype]['emission']
+                            except:
+                                pass
+                        self.lines[lam][chargestate] = rate
         self.linelist = list(self.lines.keys())
         self.linelist.sort()
 
@@ -146,6 +156,7 @@ class ADASRate:
                 try:
                     nn = nz[self.chargestate+1]*nh
                 except: 
+                    print("WARNING")
                     nn = 1
             elif rate == 'excit':
                 nn = nz[self.chargestate]*ne
@@ -154,6 +165,7 @@ class ADASRate:
                     nn = nz[self.chargestate+1]*ne
                 except:
                     nn = 1
+                    print("WARNING")
             else:   
                 raise Exception(f"Unknown rate type {rate}!")
             try:
@@ -239,7 +251,11 @@ class ADASRate:
             block['pecfun'] = RectBivariateSpline(
                 log10(dens), log10(te), log10(pec), kx=order, ky=order
             )
+
+            fun = exec(f'lambda *args, **kwargs: self.get_emission({lam}, *args, rtype={rtype}, **kwargs)')
+            block['emission'] = (lambda *args, **kwargs: self.get_emission(lam, *args, rtype=rtype, **kwargs))
             self.read_adf15(file)
             return
 
+#def get_emission(self, lam, ne, te, nz, nh, metastate=None, rtype=['excit', 'recom', 'chexc']):
 

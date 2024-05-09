@@ -168,8 +168,18 @@ class Chord():
         species = rates.species.lower()
         for _, obj in self.dL.items():
             if rerun or (species not in obj['cell'].emission.keys()):
-                obj['cell'].set_emission(rates, lam, chargestate, rtype)
+                species = rates.species.lower()
+                obj['cell'].emission[species] = rates.calc_emission(
+                        obj['cell'].ne, 
+                        obj['cell'].te, 
+                        obj['cell'].__getattribute__(f"n{species}"), 
+                        obj['cell'].nh, 
+                        lam, 
+                        chargestate, 
+                        rtype
+                )
             self.add_emission(obj['cell'].emission[species], obj['dL'])
+        
              
     def plot_emission(self):
         from matplotlib.pyplot import subplots
@@ -387,11 +397,6 @@ class Spectrometer():
             chord.calc_emission(self.rates, lam, chargestate, rerun, rtype)
 
 
-
-
-
-
-
     def plot_spectrometer(self, ax=None, **kwargs):
         ''' Plots a polygrid of Patches '''
         from matplotlib.pyplot import subplots, Figure
@@ -399,12 +404,34 @@ class Spectrometer():
             f, ax = subplots()
         elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
-
         for chord in self.chords:
             chord.plot_chord(ax, **kwargs)
-
-
         return ax.get_figure()
+
+
+    def plot_setup(self):
+        f = self.grid.plot_grid()
+        self.plot_spectrometer(f)
+
+
+    def plot_chord_intensity(self, lam, ax=None, linestyle='-',
+        marker='o', color='k', **kwargs):
+        from matplotlib.pyplot import subplots, Figure
+        if ax is None:
+            f, ax = subplots()
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+        ax.plot(range(1, len(self.chords)+1),
+            [x.emission[lam] for x in self.chords],
+            linestyle=linestyle, marker=marker, color=color)
+        
+
+
+
+
+
+
+
 
     def calculate_LOS_integral(self, grid, **kwargs):
         ''' Calculates the LOS integrals from a Grid object '''
