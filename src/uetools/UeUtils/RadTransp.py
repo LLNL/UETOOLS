@@ -1,23 +1,18 @@
 class RadTransp():
 
 
-    def profile_function(self, x1, x2, x3, y1, y2, y3, y4, y5, plot=False):
-        from numpy import zeros, arange, interp
+    def profile_function(self, *args, plot=False):
+        from numpy import zeros, arange, interp, linspace
         from scipy.interpolate import splrep, BSpline
         
         self.set_psinormc()
-        psi0 = self.psinormc[0]
-        psif = self.psinormc[-1]
-        points = zeros((6,2))
-        points[0] = [psi0, y1]
-        points[1] = [psi0 + x1*(1-psi0), y2]
-        points[2] = [points[1,0] + x2*(1-points[1,0]), y2]
-        points[3] = [1, y3]
-        points[4] = [1 + x3*(psif - 1), y4]
-        points[5] = [psif, y5]
+        res = len(args)
+        x = linspace(self.psinormc[0], self.psinormc[-1], res)
+        y = args
+
         if self.bayopt['interpolator'] == 'spline':
 #            print(' USING SPLINE INTERPOLATOR')
-            tck = splrep(points[:,0], points[:,1])
+            tck = splrep(x, y)
             xnew = arange(psi0, psif, (psif-psi0)/250) 
             
             if plot:
@@ -27,9 +22,11 @@ class RadTransp():
             return BSpline(*tck)(self.psinormc)
         elif self.bayopt['interpolator'] == 'linear':
 #            print(" USING LINEAR INTERPOLATOR")
-            return interp(self.psinormc, points[:,0], points[:,1])
+            return interp(self.psinormc, x, y)
 
     def set_bayesian_profiles(self, x):
+        res = int(len(x)/2)
+        
         dif_use = self.getue('dif_use', cpy=False) 
         kye_use = self.getue('kye_use', cpy=False) 
         kyi_use = self.getue('kyi_use', cpy=False) 
@@ -37,8 +34,8 @@ class RadTransp():
 #        print('x', x)
 #        print('kx', x[:8])
 #        print('dx', x[8:])
-        ky = self.profile_function(*x[:8])
-        dif = self.profile_function(*x[8:])
+        ky = self.profile_function(*x[:res])
+        dif = self.profile_function(*x[res:])
         ky[ky<=0] = 1e-2
         dif[dif<=0] = 1e-2
 #        print('ky', ky)
@@ -48,29 +45,13 @@ class RadTransp():
             for j in range(dif_use.shape[-1]):
                 dif_use[i,:,j] =  dif
                 kye_use[i] = ky
-        kyi_use = kye_use
+        if self.bayopt['setkyi']:
+            kyi_use = kye_use
         return dif_use, kye_use, kyi_use
 #        self.setue('dif_use', dif_use)
 #        self.setue('kye_use', kye_use)
 #        self.setue('kyi_use', kyi_use)
 
-
-    def eval_fit(self, x, vals):
-        from numpy import sum, mean
-        try:
-            fit = self.profile_function(*x)
-        except:
-            return 1e5
-        ss_res = sum((fit - vals)**2)
-        ss_tot = sum((vals - mean(vals))**2)
-        return abs(ss_res/ss_tot)
-
-    def fit_coefs(self, x0, vals):
-        from scipy.optimize import minimize
-
-        return minimize(lambda x : self.eval_fit(x, vals), x0,
-                method='Nelder-Mead', options={'disp': True, 
-                'fatol': 1e-4}).x
 
     def blackbox(self, *args, savedir='test', savename='test{}', initres=1e4):
         from numpy import interp, sum, mean, array, exp, nan_to_num
@@ -93,8 +74,9 @@ class RadTransp():
         var = {
             'dif_use': {'target': dif},
             'kye_use': {'target': kye},
-            'kyi_use': {'target': kyi},
         }
+        if self.bayopt['setkyi']:
+            var['kyi_use'] = {'target': kyi},
         print(" STARTING NEW BLACKBOX ITERATION = {}".format(self.iter))
         # TODO: identify the best match and always restore that
         print(" RESTORING SAVE FILE")
@@ -151,7 +133,7 @@ class RadTransp():
         print('    Least squares, n: {}'.format(abs(rr_n)))
         print('    Least squares, T: {}'.format(abs(rr_t)))
         print('    Punishment for incompleteness: {}'.format( 1000*(1-self.lastsuccess)*(success is not True)))
-        val =  abs(rr_n) + abs(rr_t) - 2 + 1000*(1-self.lastsuccess)*(success is not True) + radval
+        val =  10*(abs(rr_n) + abs(rr_t) - 2) + 1000*(1-self.lastsuccess)*(success is not True) + radval
 
         val = min(val, 1e3)
         print('==========================')
@@ -170,15 +152,16 @@ class RadTransp():
         # TODO: define optimization function
 
 
-    def optimize_transport(self, ne=None, te=None, random_state=None,
-        n_calls=10, n_initial_points=5, initres=1e3, savedir='test', savename='test{}', oldstate = None, interpolator='spline',
-        optimize_radtransp=True):
+    def optimize_transport(self, ne=None, te=None, psine=None, psite=None, random_state=None,
+        n_calls=10, n_initial_points=5, initres=1e3, savedir='test', savename='test{}', 
+        oldstate = None,  resolution = 8, optimize_radtransp=True, interpolator='linear',
+        setkyi=False):
         from skopt.space import Real
         from skopt import gp_minimize, load
         from skopt.callbacks import CheckpointSaver
         from numpy import interp
         from scipy.interpolate import splrep, BSpline
-        from numpy import arange
+        from numpy import arange, ones, linspace
         self.iter = 0
         if te is None:
             x = [0.95, 0.98, 1, 1.01, 1.03, 1.06, 1.2]
@@ -186,23 +169,27 @@ class RadTransp():
             y = [250, 230, 100, 30, 10, 3, 1]
 #            te = BSpline(*splrep(x, y))(xfine)
             te = interp(xfine, x, y)
+            psite = xfine
         if ne is None:
             x = [0.95, 0.98, 1, 1.01, 1.03, 1.06, 1.2]
             xfine = arange(x[0], x[-1], (x[-1]-x[0])/250)
             y = [2.2e19, 1.9e19, 1.5e19, 1e19, .8e19, .5e19, .3e18]
 #            ne = BSpline(*splrep(x, y))(xfine)
-            ne = interp(xfine, x, y)            
+            ne = interp(xfine, x, y)
+            psine = xfine
             
+        self.set_psinormc()
         self.x = []
         self.y = []
         self.target_ne = ne
-        self.target_nex = xfine
+        self.target_nex = psine
         self.target_te = te
-        self.target_tex = xfine
+        self.target_tex = psite
 
         self.bayopt = { 'savedir': savedir,
                         'savename': savename,
                         'initres': initres,
+                        'setkyi': setkyi,
                         'interpolator': interpolator,
                         'optimize_radtransp': optimize_radtransp,
         }
@@ -226,9 +213,14 @@ class RadTransp():
             Real(1e-2, 10, name='dy5'),
         ]
 
-        kfit = self.fit_coefs([0.5, 0.1, 0.8, 2, 0.5, 1, 2, 2], self.get('kye_use')[self.get('ixmp')])
-        dfit = self.fit_coefs([0.5, 0.1, 0.8, 2, 0.5, 1, 2, 2], self.get('dif_use')[self.get('ixmp'),:,0])
-        dfit[3:] *=1.005
+        kfit = interp(  linspace(self.psinormc[0], self.psinormc[-1], resolution), 
+                        self.psinormc, self.get('kye_use')[self.get('ixmp')]
+        )
+        dfit = interp(  linspace(self.psinormc[0], self.psinormc[-1], resolution), 
+                        self.psinormc, self.get('dif_use')[self.get('ixmp'),:,0]
+        )
+
+
         x0 = list(kfit) + list(dfit)
         y0 = None
 
@@ -241,28 +233,16 @@ class RadTransp():
         # Fit parametrized functions to current values
         # Call black box with best fits to get initial guess
         # Seed x0 y0 using best fits
-        
- 
-        bounds = [
-            Real(kfit[0]*0.5, min(0.99, kfit[0]*1.5), name='kx1'),
-            Real(kfit[1]*0.5, min(0.99, kfit[1]*1.5), name='kx2'),
-            Real(kfit[2]*0.5, min(0.99, kfit[2]*1.5), name='kx3'),
-            Real(kfit[3]*0.1, kfit[3]*3, name='kx4'),
-            Real(kfit[4]*0.1, kfit[4]*3, name='kx5'),
-            Real(kfit[5]*0.1, kfit[5]*3, name='kx6'),
-            Real(kfit[6]*0.1, kfit[6]*3, name='kx7'),
-            Real(kfit[7]*0.1, kfit[7]*3, name='kx8'),
-            Real(dfit[0]*0.5, min(0.99, dfit[0]*1.5), name='dx1'),
-            Real(dfit[1]*0.5, min(0.99, dfit[1]*1.5), name='dx2'),
-            Real(dfit[2]*0.5, min(0.99, dfit[2]*1.5), name='dx3'),
-            Real(dfit[3]*0.1, dfit[3]*3, name='dx4'),
-            Real(dfit[4]*0.1, dfit[4]*3, name='dx5'),
-            Real(dfit[5]*0.1, dfit[5]*3, name='dx6'),
-            Real(dfit[6]*0.1, dfit[6]*3, name='dx7'),
-            Real(dfit[7]*0.1, dfit[7]*3, name='dx8'),
-        ]
 
-  
+        # TODO: Add check for manual abort
+        
+        bounds = []
+        for val in kfit:
+#            bounds.append(Real(val*0.1, val*3))
+            bounds.append(Real(1e-2, 10))
+        for val in dfit:
+#            bounds.append(Real(val*0.1, val*3))
+            bounds.append(Real(1e-2, 10))
 
 
         res = gp_minimize(  self.blackbox,
