@@ -19,6 +19,21 @@ class Plot:
             except:
                 return
 
+        self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
+            in ['uppersn', 'snull'])
+        self.dnull = not self.snull
+        self.usn = (self.get('geometry')[0].decode('UTF-8').strip() \
+                    == 'uppersn')
+        if self.snull is False:
+            sep = self.get("iysptrx1")
+            if sep[0] == sep[1]:
+                self.dnull = "balanced"
+            elif sep[0] < sep[1]:
+                self.dnull = "lower"
+            else:
+                self.dnull = "upper"
+
+
         self.createvertices(rm, zm)
         super().__init__(*args, **kwargs)
         return
@@ -144,6 +159,7 @@ class Plot:
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         """Creates a poly collection and records boundaries"""
         from matplotlib.collections import PolyCollection
+        from numpy import append
         try:
             from uedge import com
         except:
@@ -161,33 +177,145 @@ class Plot:
             except:
                 self.ny = rm.shape[1] - 2
             '''
+            self.sep = {}
             self.nx = self.get('nx')
             self.ny = self.get('ny')
-            ixpt1 = self.get("ixpt1")[0]
-            ixpt2 = self.get("ixpt2")[0]
-            iysptrx = self.get("iysptrx")
-            # TODO: where to pass/find xpoint indices?
-            self.isepr = rm[1 : ixpt1 + 2, iysptrx + 1, 1]
-            self.isepz = zm[1 : ixpt1 + 2, iysptrx + 1, 1]
-            self.osepr = rm[ixpt2 : -1, iysptrx + 1, 2]
-            self.osepz = zm[ixpt2 : -1, iysptrx + 1, 2]
-
-            self.sepcorer = self.getomit("rm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
-            self.sepcorez = self.getomit("zm")[ixpt1 : ixpt2 + 1, iysptrx + 1, 2]
-            self.solboundr = self.getomit("rm")[:, -2, 3:]
-            self.solboundz = self.getomit("zm")[:, -2, 3:]
-            self.pfrboundr = concatenate((
-                                self.getomit("rm")[: ixpt1+1, 1, 2], 
-                                self.getomit("rm")[ixpt2+1 :, 1, 1]
-                            ))
-            self.pfrboundz = concatenate((
-                                self.getomit("zm")[: ixpt1+1, 1, 2],
-                                self.getomit("zm")[ixpt2+1 :, 1, 1] 
-                            ))
-            self.itboundr = self.getomit("rm")[1, :, 1]
-            self.itboundz = self.getomit("zm")[1, :, 1]
-            self.otboundr = self.getomit("rm")[-2, :, 2]
-            self.otboundz = self.getomit("zm")[-2, :, 2]
+            if self.snull:
+                ixpt1 = self.get("ixpt1")[0]
+                ixpt2 = self.get("ixpt2")[0]
+                iysptrx = self.get("iysptrx")
+                # Initialize separatrix lines to be drawn
+                for line in ['ileg', 'oleg', 'core', 'iboundi', 'iboundo',
+                    'obound', 'iplate', 'oplate', 'coresep', 'corepatch']:
+                    self.sep[line] = {}
+                # Define lines to be drawn
+                for xy in ['r', 'z']:
+                    self.sep['ileg'][xy] = locals()[f"{xy}m"][1:ixpt1+2, iysptrx+1, 1]
+                    self.sep['oleg'][xy] = locals()[f"{xy}m"][ixpt2:-1, iysptrx+1, 2]
+                    self.sep['core'][xy] = locals()[f"{xy}m"][ixpt1+1:ixpt2+1, 1, 1]
+                    self.sep['corepatch'][xy] = locals()[f"{xy}m"][ixpt2, 1, 1:3]
+                    self.sep['coresep'][xy] = locals()[f"{xy}m"][ixpt1:ixpt2+1, iysptrx+1, 2]
+                    self.sep['obound'][xy] = self.getomit(f"{xy}m")[:, -1, 3]
+                    self.sep['iboundi'][xy] = self.getomit(f"{xy}m")[:ixpt1+1, 1, 2]
+                    self.sep['iboundo'][xy] = self.getomit(f"{xy}m")[ixpt2+1:, 1, 1]
+                    self.sep['iplate'][xy] = self.getomit(f"{xy}m")[1, :, 1]
+                    self.sep['oplate'][xy] = self.getomit(f"{xy}m")[-2, :, 2]
+                    if self.get(f"{xy}bdry") is not None:
+                        self.sep['efitsep'] = self.get(f"{xy}bdry") 
+            elif self.dnull is not False:
+                iysptrx1 = self.get("iysptrx1")
+                iysptrx2 = self.get("iysptrx2")
+                ixpt1 = self.get("ixpt1")
+                ixpt2 = self.get("ixpt2")
+                ixlb = self.get("ixlb")
+                ixrb = self.get("ixrb")
+                for line in [   'ilegu', 'olegu', 'ilegl', 'olegl',
+                                'corei', 'coreo', 'oboundi', 'oboundo',
+                                'iboundli', 'iboundlo', 'iboundui', 'ibounduo',
+                                'iplateu', 'oplateu', 'iplatel', 'oplatel',
+                                    'isepi', 'isepo', 'osepi', 'osepo']:
+                    self.sep[line] = {}
+                for xy in ['r', 'z']:
+                    self.sep['oplatel'][xy] = locals()[f"{xy}m"][
+                        ixlb[1], :, 2
+                    ]
+                    self.sep['oplateu'][xy] = locals()[f"{xy}m"][
+                        ixrb[1]+1, :, 1
+                    ]
+                    self.sep['iplatel'][xy] = locals()[f"{xy}m"][
+                        ixlb[0], :, 2
+                    ]
+                    self.sep['iplateu'][xy] = locals()[f"{xy}m"][
+                        ixrb[0]+1, :, 1
+                    ]
+                    # RADIAL OUTER BOUNDS
+                    self.sep['iboundui'][xy] = locals()[f"{xy}m"][
+                        ixpt2[0]+1:ixrb[0]+1, 1, 1
+                    ]
+                    self.sep['ibounduo'][xy] = locals()[f"{xy}m"][
+                        ixlb[1]:ixpt1[1]+1, 1, 2
+                    ]
+                    self.sep['iboundli'][xy] = locals()[f"{xy}m"][
+                        ixlb[0]:ixpt1[0]+1, 1, 2
+                    ]
+                    self.sep['iboundlo'][xy] = locals()[f"{xy}m"][
+                        ixpt2[1]+1:ixrb[1]+2, 1, 1
+                    ]
+                    self.sep['oboundi'][xy] = locals()[f"{xy}m"][
+                        ixlb[0]:ixrb[0]+2, -1, 1
+                    ]
+                    self.sep['oboundo'][xy] = locals()[f"{xy}m"][
+                        ixlb[1]:ixrb[1]+2, -1, 1
+                    ]
+                    # CORE BOUNDS
+                    corei = locals()[f"{xy}m"][
+                        ixpt1[0]+1:ixpt2[0]+1, 1, 1
+                    ]
+                    self.sep['corei'][xy] = append(corei, locals()[f"{xy}m"][
+                        ixpt2[0], 1, 2]
+                    )
+                    coreo = locals()[f"{xy}m"][\
+                            ixpt1[1]+1:ixpt2[1]+1, 1, 1
+                    ]
+                    self.sep['coreo'][xy] = append(coreo, locals()[f"{xy}m"][\
+                            ixpt2[1], 1, 2]
+                    )
+                    # OUTER SEPARATRIX
+                    self.sep['osepo'][xy]  = locals()[f"{xy}m"][
+                        ixlb[1]:ixpt2[1]+1, iysptrx1[0]+1, 2
+                    ]
+                    self.sep['osepi'][xy]  = locals()[f"{xy}m"][
+                        ixpt1[0]+1:ixrb[0]+2, iysptrx1[0]+1, 1
+                    ]
+                    isepi = locals()[f"{xy}m"][
+                        ixpt1[0]+1:ixpt2[0]+1, iysptrx2[0]+1, 1
+                    ]
+                    self.sep['isepi'][xy] = append(isepi, locals()[f"{xy}m"][
+                        ixpt2[0], iysptrx2[0]+1, 2]
+                    )
+                    isepo = locals()[f"{xy}m"][\
+                            ixpt1[1]+1:ixpt2[1]+1, iysptrx2[0]+1, 1
+                    ]
+                    self.sep['isepo'][xy] = append(isepo, locals()[f"{xy}m"][\
+                            ixpt2[1], iysptrx2[0]+1, 2]
+                    )
+            if self.dnull=="upper":
+                for xy in ['r', 'z']:
+                    self.sep['ilegu'][xy] = locals()[f"{xy}m"][\
+                            ixpt2[0]+1:ixrb[0]+2, iysptrx2[0]+1, 1
+                    ]
+                    self.sep['olegu'][xy] = \
+                        locals()[f"{xy}m"][
+                            ixlb[1]:ixpt1[1]+1, iysptrx2[0]+1, 2
+                    ]
+                    self.sep['olegl'][xy] = locals()[f"{xy}m"][\
+                            ixpt2[1]+1:ixrb[1]+2, iysptrx1[0]+1, 1
+                    ]
+                    self.sep['ilegl'][xy] = \
+                        locals()[f"{xy}m"][
+                            ixlb[0]:ixpt1[0]+1, iysptrx1[0]+1, 2
+                    ]
+                
+            elif self.dnull in ["lower", "balanced"]:
+                for xy in ['r', 'z']:
+                    self.sep['ilegu'][xy] = locals()[f"{xy}m"][\
+                            ixpt2[0]+1:ixrb[0]+2, iysptrx1[0]+1, 1
+                    ]
+                    self.sep['olegu'][xy] = \
+                        locals()[f"{xy}m"][
+                            ixlb[1]:ixpt1[1]+1, iysptrx1[0]+1, 2
+                    ]
+                    self.sep['olegl'][xy] = locals()[f"{xy}m"][\
+                            ixpt2[1]+1:ixrb[1]+2, iysptrx2[0]+1, 1
+                    ]
+                    self.sep['ilegl'][xy] = \
+                        locals()[f"{xy}m"][
+                            ixlb[0]:ixpt1[0]+1, iysptrx2[0]+1, 2
+                    ]
+    
+            if self.dnull=="balanced":
+                del(self.sep['isepo'])
+                del(self.sep['isepi'])
 
         vertices = []
         # Loop through all cells, omitting guard cells
@@ -388,12 +516,22 @@ class Plot:
         except:
             pass
         from numpy import int64
-        plotted = False
+        for key, coords in self.sep.items():
+            ax.plot(
+                coords['r'], 
+                self.checkusn(coords['z'], flip), 
+                color=color,
+                linewidth=linewidth,
+                label="lcfs"
+            )
+        return
+
+
         try:
-            if not type(com.rbdry, int64):
+            if not type(rbdry, int64):
                 ax.plot(
-                    com.rbdry,
-                    self.checkusn(com.zbdry, flip),
+                    rbdry,
+                    self.checkusn(zbdry, flip),
                     color=color,
                     linewidth=linewidth,
                     label='lcfs'
@@ -556,26 +694,15 @@ class Plot:
             pass
 
         try:
-            ax.plot(com.xlim, self.checkusn(com.ylim, flip), "k-", linewidth=3)
-            ax.plot(com.xlim, self.checkusn(com.ylim, flip), "y-", linewidth=1)
-        except:
-            pass
-        try:
             if self.get("xlim") is not None:
-                ax.plot(
-                    self.get("xlim"),
-                    self.checkusn(self.get("ylim"), flip),
-                    "k-",
-                    linewidth=3,
-                    label='vessel',
-                )
-                ax.plot(
-                    self.get("xlim"),
-                    self.checkusn(self.get("ylim"), flip),
-                    "y-",
-                    linewidth=1,
-                    label='vessel',
-                )
+                for params in [['k-', 3], ['y-', 1]]:
+                    ax.plot(
+                        self.get("xlim"),
+                        self.checkusn(self.get("ylim"), flip),
+                        params[0],
+                        linewidth=params[1],
+                        label='vessel',
+                    )
         except:
             pass
 
@@ -587,35 +714,21 @@ class Plot:
         except:
             pass
 
-        try:
-            ax.plot(grd.rplate1, self.checkusn(grd.zplate1, flip), "b-", linewidth=1.5)
-            ax.plot(grd.rplate2, self.checkusn(grd.zplate2, flip), "r-", linewidth=1.5)
-        except:
-            pass
         if color is None:
-            p1c = 'b'
-            p2c = 'r'
-        else:
+            color = ['b', 'r']
+        elif isinstance(color, str):
             p1c = color
             p2c = color
         
         try:
-            if self.get("rplate1") is not None:
+            for i in range(2):
                 ax.plot(
-                    self.get("rplate1"),
-                    self.checkusn(self.get("zplate1"), flip),
+                    self.get("rplate{}".format(i+1)),
+                    self.checkusn(self.get("zplate{}".format(i+1)), flip),
                     "-",
-                    color=p1c,
+                    color=color[i],
                     linewidth=1.5,
-                    label='plate1',
-                )
-                ax.plot(
-                    self.get("rplate2"),
-                    self.checkusn(self.get("zplate2"), flip),
-                    "-",
-                    color=p2c,
-                    linewidth=1.5,
-                    label='plate2',
+                    label='plate{}'.format(i+1),
                 )
         except:
             pass

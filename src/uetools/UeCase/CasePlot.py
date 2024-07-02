@@ -6,9 +6,13 @@ class Caseplot(Plot):
     # TODO: implement profile plots
 
     def it(self, variable, ylabel=None, marksep=True, staggered=False, 
-                xlim=(None, None), ylim=(None, None), **kwargs
+                xlim=(None, None), ylim=(None, None), primary=True, **kwargs
             ):
         """ Plots variable at inner plate as distance along the plate
+
+        In case of double-null, plots values along primary target (bias 
+        direction) unless kwarg primary=False is set. For balance double 
+        null geometries, the lower target is assumed primary.
 
         Arguments
         ---------
@@ -33,22 +37,45 @@ class Caseplot(Plot):
         -------
         Figure 
         """
-        fig = self.plotprofile(
-            self.get('yylb')[1:-1], variable[0 ** staggered, 1:-1], **kwargs
-        )
+        trgt = ""
+        x = self.get('yyrb')[1:-1]
+        idx = 0
+        if self.dnull == "upper":
+            if not primary:
+                idx = self.get("ixlb")[0] + (0 ** staggered)
+                trgt = "lower"
+                x = self.get('yylb')[1:-1,1]
+            else:
+                idx = self.get("ixrb")[0]
+                trgt = "upper"
+                x = self.get('yyrb')[1:-1,0]
+        elif self.dnull in ["lower", "balanced"]:
+            if not primary:
+                idx = self.get("ixrb")[0]
+                trgt = "upper"
+                x = self.get('yyrb')[1:-1,0]
+            else:
+                idx = self.get("ixlb")[0] + (0 ** staggered)
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,0]
+        fig = self.plotprofile(x, variable[idx, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
         fig.get_axes()[0].set_xlim(xlim)
         fig.get_axes()[0].set_ylim(ylim)
         fig.get_axes()[0].set_ylabel(ylabel)
-        fig.get_axes()[0].set_xlabel("Distance from separatrix along IT [m]")
+        fig.get_axes()[0].set_xlabel(f"Distance from separatrix along {trgt} IT [m]")
         return fig
 
     def ot(self, variable, ylabel=None, marksep=True, xlim=(None, None), 
-            ylim=(None, None), **kwargs
+            ylim=(None, None), primary=True, staggered=False, **kwargs
             ):
         """ Plots variable at outer plate as distance along the plate
+
+        In case of double-null, plots values along primary target (bias 
+        direction) unless kwarg primary=False is set. For balance double 
+        null geometries, the lower target is assumed primary.
 
         Arguments
         ---------
@@ -70,14 +97,35 @@ class Caseplot(Plot):
         -------
         Figure 
         """
-        fig = self.plotprofile(self.get('yyrb')[1:-1], variable[-2, 1:-1], **kwargs)
+        trgt = ""
+        x = self.get('yyrb')[1:-1]
+        idx = -2
+        if self.dnull == "upper":
+            if primary:
+                idx = self.get("ixlb")[1] + (0 ** staggered)
+                trgt = "upper"
+                x = self.get('yylb')[1:-1,1]
+            else:
+                idx = self.get("ixrb")[1]
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,0]
+        elif self.dnull in ["lower", "balanced"]:
+            if primary:
+                idx = self.get("ixrb")[1]
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,1]
+            else:
+                idx = self.get("ixlb")[1] + (0 ** staggered)
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,1]
+        fig = self.plotprofile(x, variable[idx, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
         fig.get_axes()[0].set_ylabel(ylabel)
         fig.get_axes()[0].set_xlim(xlim)
         fig.get_axes()[0].set_ylim(ylim)
-        fig.get_axes()[0].set_xlabel("Distance from separatrix along OT [m]")
+        fig.get_axes()[0].set_xlabel(f"Distance from separatrix along {trgt} OT [m]")
         return fig
 
     def omp(self, variable, ylabel=None, marksep=True, xlim=(None, None), 
@@ -143,6 +191,7 @@ class Caseplot(Plot):
         -------
         Figure
         """
+
         fig = self.plotprofile(self.get('yyc')[1:-1], variable[ix, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
@@ -182,6 +231,8 @@ class Caseplot(Plot):
         -------
         Figure
         """
+        # TODO: how to deal with dnulls??
+
         from numpy import concatenate
         # Check if we are in the PFR
         ixpt1 = self.get('ixpt1')[0]
@@ -205,25 +256,6 @@ class Caseplot(Plot):
                 fig.get_axes()[0].axvline(xpt, color="grey", linewidth=1)
 
         return fig
-
-    def sep(self, variable, markxpts=True, **kwargs):
-        """
-
-        Arguments
-        ---------
-
-        Keyword arguments
-        -----------------
-            
-        Modifies
-        --------
-
-        Returns
-        -------
-        """
-        return self.ft(variable, self.get('iysptrx')+1, markxpts=markxpts, **kwargs)
-        
-
 
     def neOT(self, s=None, **kwargs):
         f = self.ot(self.get('ne', s), **kwargs)

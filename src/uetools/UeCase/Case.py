@@ -255,6 +255,9 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.verbose = verbose
         self.restored_from_hdf5 = False
         self.uetoolsversion = uetools.__version__
+        # Initialize parameters for initial load
+        self.snull = False
+        self.dnull = False
 
         try:
             self.allocate = packageobject("bbb").getpyobject("allocate")
@@ -332,11 +335,8 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                     packageobject("bbb"), "max_session_id", 
                     self.getue("max_session_id") + 1
                 )
-
             if assign is True:
                 self.assign()
-
-
             
             self.varinput = self.readyaml("{}/{}".format(
                 uetools.__path__[0], "yamls/requiredvariables.yaml"
@@ -379,8 +379,6 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
             if self.filename is None:
                 print("Must specify data file when inplace=True! Aborting.")
                 return
-        self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
-            in ['uppersn', 'snull'])
 #        if self.snull:
 #            self.ixpt1 = self.get('ixpt1')[0]
 #            self.ixpt2 = self.get('ixpt2')[0]
