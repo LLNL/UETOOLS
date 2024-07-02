@@ -73,14 +73,18 @@ class AboutSetup():
         # Get arrays for gaseous species
         gasarray = []
         for i in range(ngsp):
+            mols =False
+            z = zi[0]
             if i > nhgsp-1:
                 z = znuclin[nhsp+sum(nzsp[:i-nhgsp+1])-1]
-            else:
+            if (ishymol != 0) and (i == 1):
+                mols = True
                 z = zi[0]
+                i = 0
             sign = ''.join((x for x in elements[z][int(mg[i]/mp)] \
                 if not x.isdigit())
             )
-            if (i ==1) and (ishymol > 0):
+            if mols:
                 sign = sign + '_2'
             else:
                 sign = sign +"0"
