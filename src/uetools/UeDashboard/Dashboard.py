@@ -538,17 +538,18 @@ class CaseDashboard(QWidget):
             )
             # TODO: Implement smarter check to deactivat buttons
             buttonvar = self.get(key)
-            vis = True
-            if len(buttonvar.shape) == 3:
-                varsum = 0
-                for species in range(buttonvar.shape[-1]):
-                    varsum += abs(sum(buttonvar[:,:,species]))
-                if varsum == 0:
-                    self.buttons['items'][key].setEnabled(False)
-            else:
-                if sum(self.get(key)) == 0:
-                    self.buttons['items'][key].setEnabled(False)
-            i += 1
+            if buttonvar is not None:
+                vis = True
+                if len(buttonvar.shape) == 3:
+                    varsum = 0
+                    for species in range(buttonvar.shape[-1]):
+                        varsum += abs(sum(buttonvar[:,:,species]))
+                    if varsum == 0:
+                        self.buttons['items'][key].setEnabled(False)
+                else:
+                    if sum(self.get(key)) == 0:
+                        self.buttons['items'][key].setEnabled(False)
+                i += 1
         self.checkedButton = self.buttongroup.button(0)
         self.checkedButton.setChecked(True)
 
