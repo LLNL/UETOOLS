@@ -6,10 +6,10 @@
 
 class Interpolate():
 
-    def interpolate_snull(
+    def interpolate(
         self, oldgrid, newgrid, oldsave=None, ishdf5=None, radtranspfile=None,
         newsavename=None, **kwargs
-):
+        ):
         """ Interpolates new solution based on previous state and new grid """
         from h5py import File
 
@@ -19,6 +19,8 @@ class Interpolate():
 #           Start by using flux-tube averaged values? Will let one use 
 #           RegularGridInterpolator. Then, try to use unstructured grid
 #           interpolators instead.
+#       TODO: Add option to interpolate via (R,Z) space to be used when only 
+#           changing the internal mesh resolution for the same equilibrium
 
         if ishdf5 is None:
             ishdf5 = self.get('isgriduehdf5')
@@ -87,7 +89,11 @@ class Interpolate():
                 'grid dimensions. Grid (nx, ny) = ({}, {}), save (nx, ny) = '
                 '({}, {})'.format(nx_old, ny_old, save_nx-2, save_ny-2))
     
-        self.oldgrid = GridSnull(grid_old, savedata, radtransp, **kwargs)
+        if self.snull:
+            self.oldgrid = GridSnull(grid_old, savedata, radtransp, **kwargs)
+        else:
+            self.oldgrid = GridDnull(grid_old, savedata, radtransp, 
+                dnulltype=self.dnull, **kwargs)
         newgrid = self.oldgrid.interpolate_grid(grid_new, **kwargs)
         newsave = newgrid.savedata
         newradtransp = newgrid.radtransp
@@ -108,6 +114,7 @@ class Interpolate():
 
         
         return newgrid
+
 
     # TODO
     # Try using an unstructured grid for interpolation:
@@ -180,6 +187,228 @@ class Interpolate():
         
 
 
+class GridDnull(DnullInterpolate):
+    """ Object containing lower-biased double null grid data for interpolation """
+    def __init__(self, griddata, savedata, radtransp, 
+            dnulltype=None, interpolation='index'):
+        self.nx = griddata['nxm']
+        self.ny = griddata['nym']
+        self.ixpt1 = griddata['ixpt1']
+        self.ixpt2 = griddata['ixpt2']
+        self.ixlb = griddata['ixlb']
+        self.ixrb = griddata['ixrb']
+        self.iysptrx1 = griddata['iysptrx1']
+        self.iysptrx2 = griddata['iysptrx2']
+        self.savedata = savedata
+        self.radtransp = radtransp
+        # Lower-bias dnull topology:
+        #            INNER HALF-MESH          OUTER HALF-MESH
+        # ny+1    ________________________  ________________________
+        #        |       OUTER SOL:       ||       OUTER SOL:       |
+        # ixpt2  |_______:________:_______||_______:________:_______|
+        #        |    INNER SOL   |       ||       |    INNER SOL   |
+        # ixpt1  |_______:________| _ _ _ || _ _ _ |________:_______|
+        #        |       |        |  PFR  ||  PFR  |        |       |
+        #        |  PFR  |  CORE  |       ||       |  CORE  |  PFR  |
+        # 0      |_______|________|_______||_______|________|_______|
+        #          LOWER            UPPER    UPPER            LOWER
+        #       i        i        i      i  i      i        i       i
+        #       x        x        x      x  x      x        x       x
+        #       l        p        p      r  l      p        p       r
+        #       b        t        t      b  b      t        t       b
+        #      [0]       1        2     [0][1]     1        2      [1] 
+        #               [0]      [0]              [1]      [1] 
+        #
+        #
+        # Upper-bias dnull topology:
+        #            INNER HALF-MESH          OUTER HALF-MESH
+        # ny+1   ________________________  ________________________
+        #        |       OUTER SOL:       ||       OUTER SOL:       |
+        # ixpt1  |_______:________:_______||_______:________:_______|
+        #        |       |    INNER SOL   ||    INNER SOL   |       |
+        # ixpt2  | _ _ _ |________:_______||_______:________| _ _ _ |
+        #        |  PFR  |        |       ||       |        |  PFR  |
+        #        |       |  CORE  |  PFR  ||  PFR  |  CORE  |       |
+        # 0      |_______|________|_______||_______|________|_______|
+        #          LOWER            UPPER    UPPER            LOWER
+        #       i        i        i      i  i      i        i       i
+        #       x        x        x      x  x      x        x       x
+        #       l        p        p      r  l      p        p       r
+        #       b        t        t      b  b      t        t       b
+        #      [0]       1        2     [0][1]     1        2      [1] 
+        #               [0]      [0]              [1]      [1] 
+        #
+        #
+        # Balanced dnull topology:
+        #            INNER HALF-MESH          OUTER HALF-MESH
+        # ny+1   ________________________  ________________________
+        #        |       OUTER SOL:       ||       OUTER SOL:       |
+        # ixpt1  |_______:________:_______||_______:________:_______|
+        #        |       |        |       ||       |        |       |
+        #        |  PFR  |  CORE  |  PFR  ||  PFR  |  CORE  |  PFR  |
+        # 0      |_______|________|_______||_______|________|_______|
+        #          LOWER            UPPER    UPPER            LOWER
+        #       i        i        i      i  i      i        i       i
+        #       x        x        x      x  x      x        x       x
+        #       l        p        p      r  l      p        p       r
+        #       b        t        t      b  b      t        t       b
+        #      [0]       1        2     [0][1]     1        2      [1] 
+        #               [0]      [0]              [1]      [1] 
+        
+        if dnulltype is None:
+            raise Exception('dnulltype must be set!')
+        self.dnulltype = dnulltype
+        
+        if interpolation.lower() == 'index':
+            PatchType = IndexGridPatch
+            self.connlen = None
+        elif interpolation.lower() == 'parallel':
+            PatchType = ParallelGridPatch
+            self.connlen = self.calc_connlen(griddata)
+        
+        data = [savedata, radtransp]
+        self.patches = {
+            'osol': {
+                "il": PatchType(self.ixlb[0], self.ixpt1[0]+1, 
+                        self.iysptrx2[0], self.ny+2, *data),
+                "ic": PatchType(self.ixpt1[0]+1, self.ixpt2[0]+1, 
+                        self.iysptrx2[0], self.ny+2, *data),
+                "iu": PatchType(self.ixpt2[0]+1, self.ixrb[0]+1, 
+                        self.iysptrx2[0], self.ny+2, *data),
+                "ol": PatchType(self.ixlb[1], self.ixpt1[1]+1, 
+                        self.iysptrx2[0], self.ny+2, *data),
+                "oc": PatchType(self.ixpt1[1]+1, self.ixpt2[1]+1, 
+                        self.iysptrx2[0], self.ny+2, *data),
+                "ou": PatchType(self.ixpt2[1]+1, self.ixrb[1]+1, 
+                        self.iysptrx2[0], self.ny+2, *data),
+            }
+            'isol': {
+                "il": PatchType(self.ixlb[0], self.ixpt1[0]+1, 
+                        self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
+                "ic": PatchType(self.ixpt1[0]+1, self.ixpt2[0]+1, 
+                        self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
+                "iu": PatchType(self.ixpt2[0]+1, self.ixrb[0]+1, 
+                        self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
+                "ol": PatchType(self.ixlb[1], self.ixpt1[1]+1, 
+                        self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
+                "oc": PatchType(self.ixpt1[1]+1, self.ixpt2[1]+1, 
+                        self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
+                "ou": PatchType(self.ixpt2[1]+1, self.ixrb[1]+1, 
+                        self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
+            }
+            'core': {
+                "il": PatchType(self.ixlb[0], self.ixpt1[0]+1, 
+                        0, self.iysptrx1[0]+1, *data),
+                "ic": PatchType(self.ixpt1[0]+1, self.ixpt2[0]+1, 
+                        0, self.iysptrx1[0]+1, *data),
+                "iu": PatchType(self.ixpt2[0]+1, self.ixrb[0]+1, 
+                        0, self.iysptrx1[0]+1, *data),
+                "ol": PatchType(self.ixlb[1], self.ixpt1[1]+1, 
+                        0, self.iysptrx1[0]+1, *data),
+                "oc": PatchType(self.ixpt1[1]+1, self.ixpt2[1]+1, 
+                        0, self.iysptrx1[0]+1, *data),
+                "ou": PatchType(self.ixpt2[1]+1, self.ixrb[1]+1, 
+                        0, self.iysptrx1[0]+1, *data),
+            }
+        }
+        if self.dnulltype == 'balanced':
+            del(self.patches['isol'])
+        
+
+    def interpolate_grid(self, griddata, **kwargs):
+        """ Interpolates the current grid to a new GridSnull object """ 
+        from numpy import concatenate
+        _nx = griddata['nxm']
+        _ny = griddata['nym']
+        _ixlb = griddata['ixlb']
+        _ixrb = griddata['ixrb']
+        _ixpt1 = griddata['ixpt1']
+        _ixpt2 = griddata['ixpt2']
+        _iysptrx1 = griddata['iysptrx1']
+        _iysptrx1 = griddata['iysptrx2']
+        if self.dnulltype == 'balanced':
+            rows = ['core', 'osol']
+        else:
+            rows = ['core', 'isol', 'osol']
+
+        nxny = { 
+            'osol': {
+                "il": [_ixlb[0], _ixpt1[0]+1, _iysptrx2[0], _ny+2, ],
+                "ic": [_ixpt1[0]+1, _ixpt2[0]+1, _iysptrx2[0], _ny+2, ],
+                "iu": [_ixpt2[0]+1, _ixrb[0]+1, _iysptrx2[0], _ny+2, ],
+                "ol": [_ixlb[1], _ixpt1[1]+1, _iysptrx2[0], _ny+2, ],
+                "oc": [_ixpt1[1]+1, _ixpt2[1]+1, _iysptrx2[0], _ny+2, ],
+                "ou": [_ixpt2[1]+1, _ixrb[1]+1, _iysptrx2[0], _ny+2, ],
+            }
+            'isol': {
+                "il": [_ixlb[0], _ixpt1[0]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
+                "ic": [_ixpt1[0]+1, _ixpt2[0]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
+                "iu": [_ixpt2[0]+1, _ixrb[0]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
+                "ol": [_ixlb[1], _ixpt1[1]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
+                "oc": [_ixpt1[1]+1, _ixpt2[1]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
+                "ou": [_ixpt2[1]+1, _ixrb[1]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
+            }
+            'core': {
+                "il": [_ixlb[0], _ixpt1[0]+1, 0, _iysptrx1[0]+1],
+                "ic": [_ixpt1[0]+1, _ixpt2[0]+1, 0, _iysptrx1[0]+1],
+                "iu": [_ixpt2[0]+1, _ixrb[0]+1, 0, _iysptrx1[0]+1],
+                "ol": [_ixlb[1], _ixpt1[1]+1, 0, _iysptrx1[0]+1],
+                "oc": [_ixpt1[1]+1, _ixpt2[1]+1, 0, _iysptrx1[0]+1],
+                "ou": [_ixpt2[1]+1, _ixrb[1]+1, 0, self.iysptrx1[0]+1]
+            }
+        }
+        if self.dnulltype == 'balanced':
+            del(nxny['isol'])
+
+
+        patches_new = {}
+        for radialkey, poloidalpatches in self.patches.items():
+            try: 
+                patches_new[radialkey]
+            except:
+                patches_new[radialkey] = {}
+            for poloidalkey, patch in poloidalpatches.items():
+                try:
+                    patches_new[radialkey][poloidalkey]
+                except:
+                    patches_new[radialkey][poloidalkey] = \
+                        patch.interpolate_solution(*nxny[\
+                        radialkey][poloidalkey])
+
+        
+        savedata_new = {}
+        for variable in self.savedata.keys():
+            vararray = []
+            for row in rows:
+                patchrow = []
+                for col in ['il', 'ic', 'iu', 'ol', 'oc', 'ou']:
+                    patchrow.append(patches_new[row][col])
+                vararray.append(concatenate(patchrow))
+            savedata_new[variable] = concatenate(vararray, axis = 1)
+        radtransp_new = {}
+        for vartype, varlist in self.radtransp.items():
+            radtransp_new[vartype] = {}
+            for variable in varlist.keys():
+                try:
+                    vararray = []
+                    for row in rows:
+                        patchrow = []
+                        for col in ['il', 'ic', 'iu', 'ol', 'oc', 'ou']:
+                            patchrow.append(patches_new[row][col])
+                        vararray.append(concatenate(patchrow))
+                    radtransp_new[vartype][variable] = concatenate(
+                            vararray, axis = 1
+                    )
+                except:
+                    radtransp_new[vartype][variable] = \
+                        self.radtransp[vartype][variable]
+        
+        # TODO:
+        # Add interpolation in 1D
+        return GridDnull(griddata, savedata_new, radtransp_new, **kwargs)
+
+
+
 
 class GridSnull:
     """ Object containing single null grid data for interpolation """
@@ -193,9 +422,9 @@ class GridSnull:
         self.radtransp = radtransp
         # Define the snull topology:
         #       ____________________________________________
-        #      |            |                   |           |
-        # SOL  |            |                   |           |
-        #      |____________|___________________|___________|
+        #      |            :                   :           |
+        # SOL  |            :                   :           |
+        #      |____________:___________________:___________|
         #      |            |                   |           |
         # CORE |            |                   |           |
         #      |____________|___________________|___________|
