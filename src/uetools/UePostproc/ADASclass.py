@@ -18,7 +18,7 @@ class ADASSpecies:
         ):
         from matplotlib.pyplot import subplots
         f, ax = subplots()
-        for x, y in self.calc_spectra(ne, te, nz, lam, chargestate, rtype).items():
+        for x, y in self.calc_emission(ne, te, nz, lam, chargestate, rtype).items():
             ax.plot([x,x], [0,y], 'r-')
         f.show()
         return f
@@ -68,7 +68,10 @@ class ADASSpecies:
                             intensity += line[zi][r](ne, te, nz, self.resolved) 
                         except:
                             pass
-            if intensity != 0:
+            if isinstance(intensity, (float, int)):
+                if intensity != 0:
+                    output[lam] = intensity
+            else:
                 output[lam] = intensity
         return output
 
@@ -154,15 +157,24 @@ class ADASRate:
         for rate in rtype:
             if rate == 'chexc':
                 try:
-                    nn = nz[self.chargestate+1]*nh
+                    if len(nz.shape) == 3:
+                        nn = nz[:,:,self.chargestate+1]*nh
+                    else:
+                        nn = nz[self.chargestate+1]*nh
                 except: 
                     print("WARNING")
                     nn = 1
             elif rate == 'excit':
-                nn = nz[self.chargestate]*ne
+                if len(nz.shape) == 3:
+                    nn = nz[:,:,self.chargestate]*ne
+                else:
+                    nn = nz[self.chargestate]*ne
             elif rate == 'recom':
                 try:
-                    nn = nz[self.chargestate+1]*ne
+                    if len(nz.shape) == 3:
+                        nn = nz[:,:,self.chargestate+1]*ne
+                    else:
+                        nn = nz[self.chargestate+1]*ne
                 except:
                     nn = 1
                     print("WARNING")
