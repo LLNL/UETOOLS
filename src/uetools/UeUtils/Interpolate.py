@@ -7,7 +7,7 @@
 class Interpolate():
 
     def interpolate(
-        self, oldgrid, newgrid, oldsave=None, ishdf5=None, radtranspfile=None,
+        self, newgrid, oldgrid=None, oldsave=None, ishdf5=None, radtranspfile=None,
         newsavename=None, **kwargs
         ):
         """ Interpolates new solution based on previous state and new grid """
@@ -30,9 +30,13 @@ class Interpolate():
         # Check if gridue is HDF5 file or not: read accordingly
         proplist = ['nxm', 'nym', 'ixpt1', 'ixpt2', 'iysptrx1', 'b', 'bpol', 'rm', 'zm']
         if ishdf5==True:
-            with File(oldgrid) as f_oldgrid:
-                for prop in proplist:
-                    grid_old[prop] = f_oldgrid['grid/com'][prop][()]
+            if isinstance(oldgrid, str):
+                with File(oldgrid) as f_oldgrid:
+                    for prop in proplist:
+                        grid_old[prop] = f_oldgrid['grid/com'][prop][()]
+            elif oldgrid is None:
+                # Use variables in memory
+                grid_old[prop] = self.get(prop)
             with File(newgrid) as f_newgrid:
                 for prop in proplist:
                     grid_new[prop] = f_newgrid['grid/com'][prop][()]
@@ -89,6 +93,9 @@ class Interpolate():
                 'grid dimensions. Grid (nx, ny) = ({}, {}), save (nx, ny) = '
                 '({}, {})'.format(nx_old, ny_old, save_nx-2, save_ny-2))
     
+        # TODO: This won't do: the case loaded does not necessarily
+        # correspond to the cases to be interpolated, or the cases do
+        # not correspond to one another (e.g. upper-to-lower-bias conversions).
         if self.snull:
             self.oldgrid = GridSnull(grid_old, savedata, radtransp, **kwargs)
         else:
@@ -187,7 +194,7 @@ class Interpolate():
         
 
 
-class GridDnull(DnullInterpolate):
+class GridDnull():
     """ Object containing lower-biased double null grid data for interpolation """
     def __init__(self, griddata, savedata, radtransp, 
             dnulltype=None, interpolation='index'):
@@ -281,7 +288,7 @@ class GridDnull(DnullInterpolate):
                         self.iysptrx2[0], self.ny+2, *data),
                 "ou": PatchType(self.ixpt2[1]+1, self.ixrb[1]+1, 
                         self.iysptrx2[0], self.ny+2, *data),
-            }
+            },
             'isol': {
                 "il": PatchType(self.ixlb[0], self.ixpt1[0]+1, 
                         self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
@@ -295,7 +302,7 @@ class GridDnull(DnullInterpolate):
                         self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
                 "ou": PatchType(self.ixpt2[1]+1, self.ixrb[1]+1, 
                         self.iysptrx1[0]+1, self.iysptrx2[0]+1, *data),
-            }
+            },
             'core': {
                 "il": PatchType(self.ixlb[0], self.ixpt1[0]+1, 
                         0, self.iysptrx1[0]+1, *data),
@@ -339,7 +346,7 @@ class GridDnull(DnullInterpolate):
                 "ol": [_ixlb[1], _ixpt1[1]+1, _iysptrx2[0], _ny+2, ],
                 "oc": [_ixpt1[1]+1, _ixpt2[1]+1, _iysptrx2[0], _ny+2, ],
                 "ou": [_ixpt2[1]+1, _ixrb[1]+1, _iysptrx2[0], _ny+2, ],
-            }
+            },
             'isol': {
                 "il": [_ixlb[0], _ixpt1[0]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
                 "ic": [_ixpt1[0]+1, _ixpt2[0]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
@@ -347,7 +354,7 @@ class GridDnull(DnullInterpolate):
                 "ol": [_ixlb[1], _ixpt1[1]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
                 "oc": [_ixpt1[1]+1, _ixpt2[1]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
                 "ou": [_ixpt2[1]+1, _ixrb[1]+1, _iysptrx1[0]+1, _iysptrx2[0]+1, ],
-            }
+            },
             'core': {
                 "il": [_ixlb[0], _ixpt1[0]+1, 0, _iysptrx1[0]+1],
                 "ic": [_ixpt1[0]+1, _ixpt2[0]+1, 0, _iysptrx1[0]+1],
@@ -407,6 +414,7 @@ class GridDnull(DnullInterpolate):
         # Add interpolation in 1D
         return GridDnull(griddata, savedata_new, radtransp_new, **kwargs)
 
+    # TODO: add option going between different dnulls (lowr-to-upper-bias etc)
 
 
 
