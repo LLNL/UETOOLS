@@ -79,7 +79,11 @@ def plot_async_2D(param_bounds, optimizer, acq_function, next_points, title='', 
     keys = list(res[0]['params'].keys())
     x_ = np.array([r["params"][keys[0]] for r in res])
     y_ = np.array([r["params"][keys[1]] for r in res])
-    a_ = np.array([r["allowed"] for r in res])
+    
+    if optimizer.is_constrained:
+        a_ = np.array([r["allowed"] for r in res])
+    else:
+        a_ = np.array([True for r in res])
 
     for ax in [ax0, ax1]:
 
@@ -92,7 +96,7 @@ def plot_async_2D(param_bounds, optimizer, acq_function, next_points, title='', 
             ax.scatter(next_point[0], next_point[1], marker='D', c='magenta', s=20, edgecolors='black')
     
     if save_folder is not None:
-        plt.savefig('{}{}.pdf'.format(save_folder, title))
+        plt.savefig('{}/{}.pdf'.format(save_folder, title))
         plt.close()
 
 

@@ -25,6 +25,7 @@ import numpy as np
 from uedge import *
 from scipy.stats import qmc
 from IPython.utils import io
+from typing import Callable
 
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import NotUniqueError
@@ -34,16 +35,115 @@ from scipy.optimize import NonlinearConstraint
 from sklearn.gaussian_process.kernels import Matern
 
 from .BayesUtility import *
-from .BayesDemo import objective_demo
+from .BayesDemo import *
 
 
 class Bayesian():
     
+    
+    
+    def __init__(self):
+        """ 
+        Initialize classes to define variables as place holder.
+        Four functions need to be defined externally, which are:
+        
+        set_params(params, **kwargs):
+            Defines how given parameters are used in UEDGE calculation.
+            
+        find_equilibrium(uetools_case, save_dir, **kwargs):
+            Defines the method to calculate an equilibrium.
+
+        loss_function():
+            Defines how the loss function is defined, which will be minimized during 
+            Bayesian optimization process. 
+            
+        find_constraint(): optional
+            Define constraint of the system if needed. This will force the algorithm 
+            to do a constrained optimization.
+            
+        TODO: need to specify what input is needed for the last two functions.
+        """
+        
+        self.set_params = None
+        self.find_equilibrium = None
+        self.loss_function = None
+        self.find_constraint = None
+        
+        self.valid_jobs = 0 # number of calculations done during BO that converge.
+        self.bo_data = {} # dinctionary saving basic information for all finished jobs during BO.
+        
+    
+    
+    
+    def set_bo_criteria(
+        self, 
+        set_params: Callable = set_params_demo, 
+        find_equilibrium: Callable = find_equilibrium_demo,
+        loss_function: Callable = loss_function_demo,
+        find_constraint: Callable = find_constraint_demo
+        ):
+        """
+        Define functions necessary for Bayesian optimization processes.
+        """
+        self.set_params = set_params
+        self.find_equilibrium = find_equilibrium
+        self.loss_function = loss_function
+        self.find_constraint = find_constraint
+        
+    
+    
+    
+    def bo_objective(
+        self,
+        params=np.array([1.,1.]), 
+        save_dir='./bayes_opt',
+        **kwargs
+        ):
+        """ 
+        The function to be called in parallel during Bayesian optimization. 
+        
+        Arguments:
+        params:
+            The parameters that Bayesian optimization works with.
+        save_dir:
+            The directory to save all calculation result from Bayesian optimzation.
+        """
+        
+        # create new sub-folder in save_dir
+        dir_list = []
+        for item in os.listdir(save_dir):
+            if os.path.isdir('{}/{}'.format(save_dir, item)): dir_list.append(item)
+        sub_dir = '{}/{}'.format(save_dir, len(dir_list))
+        os.makedirs(sub_dir)
+        
+        # set parameter
+        self.set_params(params, **kwargs)
+        
+        # calculate UEDGE equilibrium
+        self.find_equilibrium(uetools_case=self, save_dir=sub_dir, **kwargs)
+        
+        # calculate loss function by comparing UEDGE and observed profiles
+        if self.get('iterm') == 1:
+            target = - self.loss_function(psi = psi_syn, te = te_syn, **kwargs)
+        else:
+            target = np.nan
+        
+        # optional: calculate the constraint if needed
+        if self.optimizer.is_constrained:
+            constraint = self.find_constraint(**kwargs)
+        else:
+            constraint = None
+            
+        # return params, target, constraint, and the location of the save file
+        return params, target, constraint, sub_dir
+
+
+
+    
     def bayes_opt(
         self,
-        objective_function=objective_demo, # callable
-        constraint=None, # NonlinearConstraint
-        param_bounds=np.array([[0.,2.],[0.,2.]]), # np.array
+        param_bounds=np.array([[0.,2.],[0.,2.]]),
+        constraint=None,
         gp_kernel=None,
         initial_sample=5,
         N_processes=16,
@@ -58,10 +158,12 @@ class Bayesian():
         """ 
         An function to do batch BO automatically with default settings. 
 
-        Inputs:
-        -------
-        objective_function:
-            Function defined externally to calculate the UEDGE equilibrium and evaluate a loss function.
+        Arguments:
+        ----------
+        param_bounds: array (N,2)
+            Lower and upper bounds for N value of chi_e_pf.
+        constraint: scipy.optimize.NonlinearConstraint
+            The constrains needed in the system. If no constraint is needed, constraint = None.
         gp_kernel:
             Kernels used in Gaussian regression model.
         initial_sample:
@@ -83,6 +185,11 @@ class Bayesian():
         self.param_bounds = param_bounds
         self.save_dir = save_dir
         
+        # check whether external functions are defined
+        if None in (self.set_params, self.find_equilibrium, self.loss_function, self.find_constraint):
+            print('Error: Need to define functions set_params(), find_equilibrium(), and loss_function() externally.')
+            return None  
+        
         # create folder if not exist
         if not os.path.exists(save_dir): os.makedirs(save_dir)
         
@@ -94,11 +201,23 @@ class Bayesian():
                                               random_state=0)
         
         # Set kernels
-        self.set_kernel(gp_kernel)
+        self.set_gp_kernel(gp_kernel)
         
         # Calculate initial sampling through quasi-Monte Carlo method
+        # TODO: Add feature that if some result is already calculated, read them instead of re-calculate.
         if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
-        self.calculate_initial_sampling(objective_function, m=initial_sample, N_process=N_processes, **kwargs)
+        self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
+        
+        # Define a list of acqusition functions based on initial results
+        self.define_acq(acq_functions)
+        
+        # begin parallel Bayesian optimization
+        if self.verbose: print('\n===== Begin Bayesian optimization =====')
+        self.batch_BO_searching(N=async_bo_steps, 
+                                step=constant_lier_steps, 
+                                N_process=N_processes, 
+                                plot_status=bo_plot_status, 
+                                **kwargs)
         
     
     
@@ -116,19 +235,18 @@ class Bayesian():
     
     
     
-    def set_kernel(self, kernel=None):
+    def set_gp_kernel(self, kernel=None):
         """
         Define kernel for Gaussian processes.
         
-        Input:
-        ------
+        Arguments:
+        ----------
         kernel: sklearn.gaussian_process.kernels
             The kernel to be used for GP.
         """
 
         # default kernel
-        if kernel == None:
-            kernel = Matern(length_scale=1., nu=2.5, length_scale_bounds=(0.2,10))
+        if kernel == None: kernel = Matern(length_scale=1., nu=2.5, length_scale_bounds=(0.2,10))
 
         # set kernel for GP
         self.optimizer.set_gp_params(kernel=kernel)
@@ -137,24 +255,17 @@ class Bayesian():
         if self.optimizer.is_constrained:
             for i in range(len(self.optimizer.constraint._model)):
                 self.optimizer.constraint._model[i].set_params(kernel=kernel)
-        
-        
-        
-        
-        
-        
-        
 
 
 
-    def calculate_initial_sampling(self, objective_function=objective_demo, m=5, N_process=16, **kwargs):
+
+    def calculate_initial_sampling(self, m=5, N_process=16, **kwargs):
         """
         Search initial sampling asynchronously using quasi-Monte Carlo method (LPtau).
+        After calculation finished, convergent result will be stored into optimizer.
         
-        Input:
-        ------
-        objective_function:
-            A user-defined function to calculate equilibrium, target, and constraint (if applicable).
+        Arguments:
+        ----------
         m: 
             Number of initial sampling in LPtau method, N = 2^m.
         N_process:
@@ -175,10 +286,9 @@ class Bayesian():
         # start sampling
         job_status = {}
         for job_id in np.arange(len(param_grid)):
-            time.sleep(0.1)
-            job_status[job_id] = pool.apply_async(func=objective_function, 
-                                                  kwds={'uetools_case': self, 
-                                                        'params': param_grid[job_id], 
+            time.sleep(0.2)
+            job_status[job_id] = pool.apply_async(func=self.bo_objective, 
+                                                  kwds={'params': param_grid[job_id], 
                                                         'save_dir': self.save_dir, 
                                                         **kwargs}, 
                                                   error_callback=print)
@@ -186,25 +296,325 @@ class Bayesian():
         # wait for all jobs and register data
         for job_id in np.arange(len(param_grid)):
             
-            params, target, constraint = job_status[job_id].get()
+            params, target, constraint, sub_dir = job_status[job_id].get()
             
-            # TO DO: use a separate variable to restore result so that np.nan result is ignored.
-            
-            # try to register if not duplicated
-            try: self.optimizer.register(params=params, target=target, constraint_value=constraint)                
-            except NotUniqueError:
-                if self.verbose: print('Unable to register duplicated data. job id = {}'.format(job_id))
+            # try to register if result is converge and not duplicated. 
+            if not np.isnan(target):
+                try: 
+                    # save data to optimizer
+                    self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                    
+                    # save valid job locally
+                    self.bo_data[self.valid_jobs] = {'params':params, 'target':target, 
+                                                     'constraint':constraint, 'sub_dir':sub_dir}
+                    self.valid_jobs += 1
+                    
+                except NotUniqueError: pass
                 
         # print current best
-        if self.verbose:
-            print('Current best:')
-            current_best = self.optimizer._space.max()
-            for key in current_best.keys(): print('{}: {}'.format(key, current_best[key]))
+        if self.verbose: self.print_current_best()
 
         # close the pool after calculation
         pool.close()
+
+
+
+
+    def define_acq(self, acq_functions: dict = {}):
+        """
+        Initialize the acquisition functions used in async searching process.
+        The default version can only be defined after initial sampling.
+
+        Arguments:
+        ----------
+        acq_functions: dict
+            Dictionary whose elements are bayes_opt.UtilityFunction object.
+        """
+
+        # Define acqusition functions if no input
+        if len(acq_functions.keys()) == 0:
+
+            E_max = np.abs(self.optimizer._space.target).max()
+
+            # Expected improvement (EI)
+            acq_functions[0] = UtilityFunction(kind="ei", xi=0.)
+            acq_functions[1] = UtilityFunction(kind="ei", xi=-0.2*E_max)
+            acq_functions[2] = UtilityFunction(kind="ei", xi=0.1*E_max)
+            acq_functions[3] = UtilityFunction(kind="ei", xi=0.2*E_max)
+
+            # Upper Confidence Bound (UCB)
+            acq_functions[4] = UtilityFunction(kind="ucb", kappa=1.)
+            acq_functions[5] = UtilityFunction(kind="ucb", kappa=2.)
+            acq_functions[6] = UtilityFunction(kind="ucb", kappa=4.)
+            acq_functions[7] = UtilityFunction(kind="ucb", kappa=16.)
+        
+        self.acq_functions = acq_functions
+        self.next_point = self.optimizer.suggest(self.acq_functions[0])    
     
     
+    
+    
+    def multi_suggest(self, acq_function, step=4, return_optimizer=False):
+        """
+        For a given obervation data and acquisition function, predict #step points to be evaluate 
+        based on the "constant liar" approximation (https://doi.org/10.1007/978-3-642-10701-6_6).
+
+        Traditionaly, Bayesian optimization fit N observed point with GP. With given acquisition function,
+        it predict the next point to evaluate. The constant liar simply assume the N+1 point will return 
+        the value exactly the same as GP predict, then use the acquisition function to predict the N+2 point 
+        to evaluate. Same procedure can be repeated multiple times.
+
+        Since the "constant liar" approximation is a sequential job, it can not be parallized.
+
+        Arguments:
+        ----------
+        acq_function: bayes_opt.UtilityFunction
+            Acquisition functions used in this calculation. 
+        step:
+            The number of points predicted from the "constant liar" approximation.
+        return_optimizer:
+            Whether return the optimizer (bayes_opt.BayesianOptimization) after finish.
+        """
+
+        suggest_points = {}
+        tmp_optimizer = copy.deepcopy(self.optimizer)
+
+        # calculate #asyc_step steps for each acquisition functions
+        for i in range(step):
+
+            # get prediction for next step
+            suggest_points[i] = tmp_optimizer.suggest(acq_function)
+            x = param_to_array(suggest_points[i]).reshape(1,-1)
+
+            # assume the result is exactly what GP could predict
+            approx_target = tmp_optimizer._gp.predict(x)[0]
+
+            # if we have constrain, also predict the value of constrains
+            if tmp_optimizer.is_constrained:
+                approx_constraint = tmp_optimizer.constraint.approx(x)[0]
+            else:
+                approx_constraint = None
+
+            # register approximated values
+            try:
+                tmp_optimizer.register(params = suggest_points[i], 
+                            target = approx_target, 
+                            constraint_value = approx_constraint)
+            
+            # if multiple points are same, they will not be able to be registered. 
+            except NotUniqueError:
+                if self.verbose: print('Unable to register due to duplicated points during multi_suggest.')
+
+        if return_optimizer:
+            return suggest_points, tmp_optimizer
+        else:
+            return suggest_points
+
+
+
+
+    def async_suggest(self, step=4):
+        """
+        Calculate the suggested points for multiple acquisition functions asynchronously.
+
+        Arguments:
+        ----------
+        step:
+            The number of points predicted from the "constant liar" approximation. 
+        """
+
+        # start a multiprocessing pool
+        with io.capture_output() as captured:
+            pool = QuietPool(processes = len(self.acq_functions))
+
+        # async suggesting
+        acq_suggest_jobs = {}
+        acq_suggest = {}
+
+        for i in range(len(self.acq_functions)):
+            acq_suggest_jobs[i] = pool.apply_async(self.multi_suggest, 
+                                                   args=(self.acq_functions[i], step), 
+                                                   error_callback=print)
+            
+        # collect results
+        for i in range(len(self.acq_functions)):
+            tmp_suggests = acq_suggest_jobs[i].get()
+
+            for j in range(step):
+                acq_suggest[i*step + j] = tmp_suggests[j]
+
+        # close the pool
+        pool.close()
+
+        return acq_suggest
+
+
+
+
+    def find_non_repeat(self, data, N=16, d_min=0.05):
+        """
+        Give a collection of data, find #N non-repeated data points where the distance of each points 
+        are larger than d_min.
+
+        Suggestions from different acquisition functions may be very similar. Therefore, only the 
+        non-repeated data points need to be evaluated. If the number of non-repeated points is less 
+        than N, add some random points to evaluate.
+
+        Arguments:
+        ----------
+        data: dict
+            Data points given by async_suggest().
+        N:
+            Number of non-repeated point to be collected.
+        d_min:
+            Minimum (Euclidean) distance between non-repeated points.
+        random_replenish:
+            When the number of non-repeated points is less than N, whether to use random sample points
+            to fill in the slots.
+        """
+
+        non_repeat_data = {}
+        non_repeat_data[0] = data[0]
+
+        for i in range(len(data.keys())-1):
+
+            # collect non-repeat data until enough data is collected
+            if len(non_repeat_data.keys()) < N:
+                repeated = False
+
+                for j in range(len(non_repeat_data)):
+                    distance = 0.
+                    
+                    # calculate the distance between points
+                    for param in non_repeat_data[j]:
+                        distance += (non_repeat_data[j][param] - data[i][param])**2.
+                    if distance < d_min**2.: repeated = True
+
+                if not repeated:
+                    non_repeat_data[len(non_repeat_data.keys())] = data[i]
+
+        if len(non_repeat_data.keys()) < N:
+
+            if self.verbose:
+                print('Warning: not enough non-repeated data, missing {} points. Add random points instead.'.format(N-len(non_repeat_data.keys())))
+
+            # add random data 
+            dim = len(self.param_bounds)
+
+            while len(non_repeat_data.keys()) < N:
+                random_data = [np.random.uniform(self.param_bounds[i,0], self.param_bounds[i,1]) for i in range(dim)]
+                non_repeat_data[len(non_repeat_data.keys())] = array_to_param(random_data)
+
+        return non_repeat_data
+
+
+
+
+    def batch_BO_searching(self, N=20, step=4, N_process=16, plot_status=True, **kwargs):
+        """
+        Proceed to Bayesian Optimization for #N steps. In every step, run #step number of points for each 
+        acquisition function and collected #N_process of non-repeated points. All #N_process points are
+        run in parallel using multiprocessing. The data are saved in self.save_dir.
+
+        Strictly speaking, the current version only uses pool.apply_async, but it is not exactly asynchronous
+        searching because it waited all job to finish before calculating the next step. Future version need to 
+        modify it and make it truly asynchronous.
+
+        Arguments:
+        ----------
+        N:
+            Total number of steps in Bayesian optimization.
+        step:
+            Number of points generated from each acquisition function using the the "constant liar" 
+            approximation.
+        N_process:
+            Number of processes in multiprocessing pool. Same number of non-repeated points should be
+            generated at each step.
+        plot_status:
+            Whether to plot the currect status of BO. Only work for 2-D searching.
+        **kwargs:
+            Additional arguments for PO.find_equilibrium().
+        """
+
+        # start a multiprocessing pool
+        with io.capture_output() as captured:
+            pool = QuietPool(processes = N_process)
+
+        # async searching
+        for i in range(N):
+
+            if self.verbose: print('\nAsync BO step {} ===== \n'.format(i+1))
+
+            # record the time in each step
+            t1 = time.time()
+
+            # dict to save the job data and record the job id
+            job_list = {}
+            total_suggeested = self.async_suggest(step=step)
+            next_points = self.find_non_repeat(total_suggeested, N=N_process, d_min=0.03)
+
+            # plot status only for 2-D inference
+            if plot_status and (self.optimizer.space.bounds.shape[0]==2):
+                plot_async_2D(param_bounds=self.param_bounds, 
+                              optimizer=self.optimizer, 
+                              acq_function = self.acq_functions[0],
+                              next_points=next_points, 
+                              title='Step = {}'.format(i+1),
+                              save_folder=self.save_dir)
+
+            # submit all jobs
+            for asyc_job_id in range(len(next_points)):
+                time.sleep(0.2)
+                job_list[asyc_job_id] = pool.apply_async(self.bo_objective, 
+                                                         kwds={'params': param_to_array(next_points[asyc_job_id]), 
+                                                               'save_dir': self.save_dir, 
+                                                               **kwargs},
+                                                         error_callback=print)
+
+            # wait for all jobs and register data
+            for asyc_job_id in range(len(next_points)):
+                
+                params, target, constraint, sub_dir = job_list[asyc_job_id].get()
+                
+                # try to register if result is converge and not duplicated. 
+                if not np.isnan(target):
+                    try: 
+                        # save data to optimizer
+                        self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                        
+                        # save valid job locally
+                        self.bo_data[self.valid_jobs] = {'params':params, 'target':target, 
+                                                        'constraint':constraint, 'sub_dir':sub_dir}
+                        self.valid_jobs += 1
+                        
+                    except NotUniqueError: pass
+                    
+            # print current best
+            if self.verbose: self.print_current_best()
+
+            # just to let optimizer fit data
+            tmp = self.optimizer.suggest(self.acq_functions[0])
+
+            # print the time used
+            if self.verbose:
+                print('\nTime used: {:.2f} mins'.format((time.time()-t1)/60.))
+
+        # close the pool after calculation
+        pool.close()
+
+
+
+
+    def print_current_best(self):
+        """ 
+        Print current best fit that has the smallest loss
+        """
+        
+        print('\nCurrent best:')
+        current_best = self.optimizer._space.max()
+        for key in current_best.keys(): 
+            print('{}: {}'.format(key, current_best[key]))
+
 
 
 
