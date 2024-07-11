@@ -12,6 +12,7 @@ from uetools.UeUtils.AboutSetup import AboutSetup
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UePostproc.ADAS import ADAS
 from uetools.UeConfig.Config import Config
+from uetools.UeBayesian.Bayesian import Bayesian
 import uetools
 
 try:
@@ -33,7 +34,7 @@ except:
 
 class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS, 
     RadTransp, Interpolate, Convert, Tracker, Config, Caseplot, Solver,
-    AboutSetup
+    AboutSetup, Bayesian
 ):
     """ UEDGE Case container object.
 
