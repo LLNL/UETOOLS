@@ -72,9 +72,95 @@ class Bayesian():
         self.valid_jobs = 0 # number of calculations done during BO that converge.
         self.bo_data = {} # dinctionary saving basic information for all finished jobs during BO.
         
-    
-    
-    
+
+
+
+    def bayes_opt(
+        self,
+        param_bounds=np.array([[0.,2.],[0.,2.]]),
+        constraint=None,
+        gp_kernel=None,
+        initial_sample=5,
+        N_processes=16,
+        acq_functions={},
+        async_bo_steps=10,
+        constant_lier_steps=5,
+        bo_plot_status=True,
+        save_dir = './bayes_opt',
+        **kwargs
+        ):
+        
+        """ 
+        An function to do batch BO automatically with default settings. 
+
+        Arguments:
+        ----------
+        param_bounds: array (N,2)
+            Lower and upper bounds for N value of chi_e_pf.
+        constraint: scipy.optimize.NonlinearConstraint
+            The constrains needed in the system. If no constraint is needed, constraint = None.
+        gp_kernel:
+            Kernels used in Gaussian regression model.
+        initial_sample:
+            Number of initial samples used in quasi-Monte Carlo method. The actual sample points is 2^(initial_sample).
+        N_processes:
+            Number of processes in multiprocess pool.
+        acq_functions:
+            Acquisition functions used in Bayesian optimization.
+        async_bo_steps:
+            The number of steps to be calculate in BO process.
+        constant_lier_steps:
+            The number of data points predicted in each acquisition function using the 'constant lier' approximation.
+        bo_plot_status:
+            Whether plot currect status in each step of BO. Only work for 2-D case. 
+        **kwargs:
+            Additional keywords.
+        """
+        
+        self.param_bounds = param_bounds
+        self.save_dir = save_dir
+        
+        # check whether external functions are defined
+        if None in (self.set_params, self.find_equilibrium, self.loss_function):
+            print('Error: Need to define functions set_params(), find_equilibrium(), and loss_function() externally.')
+            return None  
+        
+        # create folder if not exist
+        if not os.path.exists(save_dir): os.makedirs(save_dir)
+        
+        # define Bayesian Optimization object
+        self.optimizer = BayesianOptimization(f=None, 
+                                              constraint=constraint,
+                                              pbounds=array_to_param(param_bounds),
+                                              verbose=0, 
+                                              random_state=0)
+        
+        # Set kernels
+        self.set_gp_kernel(gp_kernel)
+        
+        # Calculate initial sampling through quasi-Monte Carlo method
+        # TODO: Add feature that if some result is already calculated, read them instead of re-calculate.
+        if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
+        self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
+        
+        # Define a list of acqusition functions based on initial results
+        self.define_acq(acq_functions)
+        
+        # begin parallel Bayesian optimization
+        if self.verbose: print('\n===== Begin Bayesian optimization =====')
+        self.batch_BO_searching(N=async_bo_steps, 
+                                step=constant_lier_steps, 
+                                N_process=N_processes, 
+                                plot_status=bo_plot_status, 
+                                **kwargs)
+        
+        # print the final result of Bayesian optimization
+        if self.verbose: print('\n===== Bayesian optimization conclusion =====')
+        return self.BO_conclusion()
+
+
+
+        
     def set_bo_criteria(
         self, 
         set_params: Callable = set_params_demo, 
@@ -124,7 +210,7 @@ class Bayesian():
         
         # calculate loss function by comparing UEDGE and observed profiles
         if self.get('iterm') == 1:
-            target = - self.loss_function(psi = psi_syn, te = te_syn, **kwargs)
+            target = - self.loss_function(**kwargs)
         else:
             target = np.nan
         
@@ -136,102 +222,7 @@ class Bayesian():
             
         # return params, target, constraint, and the location of the save file
         return params, target, constraint, sub_dir
-
-
-
-    
-    def bayes_opt(
-        self,
-        param_bounds=np.array([[0.,2.],[0.,2.]]),
-        constraint=None,
-        gp_kernel=None,
-        initial_sample=5,
-        N_processes=16,
-        acq_functions={},
-        async_bo_steps=10,
-        constant_lier_steps=5,
-        bo_plot_status=True,
-        save_dir = './bayes_opt',
-        **kwargs
-        ):
         
-        """ 
-        An function to do batch BO automatically with default settings. 
-
-        Arguments:
-        ----------
-        param_bounds: array (N,2)
-            Lower and upper bounds for N value of chi_e_pf.
-        constraint: scipy.optimize.NonlinearConstraint
-            The constrains needed in the system. If no constraint is needed, constraint = None.
-        gp_kernel:
-            Kernels used in Gaussian regression model.
-        initial_sample:
-            Number of initial samples used in quasi-Monte Carlo method. The actual sample points is 2^(initial_sample).
-        N_processes:
-            Number of processes in multiprocess pool.
-        acq_functions:
-            Acquisition functions used in Bayesian optimization.
-        async_bo_steps:
-            The number of steps to be calculate in BO process.
-        constant_lier_steps:
-            The number of data points predicted in each acquisition function using the 'constant lier' approximation.
-        bo_plot_status:
-            Whether plot currect status in each step of BO. Only work for 2-D case. 
-        **kwargs:
-            Additional keywords.
-        """
-        
-        self.param_bounds = param_bounds
-        self.save_dir = save_dir
-        
-        # check whether external functions are defined
-        if None in (self.set_params, self.find_equilibrium, self.loss_function, self.find_constraint):
-            print('Error: Need to define functions set_params(), find_equilibrium(), and loss_function() externally.')
-            return None  
-        
-        # create folder if not exist
-        if not os.path.exists(save_dir): os.makedirs(save_dir)
-        
-        # define Bayesian Optimization object
-        self.optimizer = BayesianOptimization(f=None, 
-                                              constraint=constraint,
-                                              pbounds=array_to_param(param_bounds),
-                                              verbose=0, 
-                                              random_state=0)
-        
-        # Set kernels
-        self.set_gp_kernel(gp_kernel)
-        
-        # Calculate initial sampling through quasi-Monte Carlo method
-        # TODO: Add feature that if some result is already calculated, read them instead of re-calculate.
-        if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
-        self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
-        
-        # Define a list of acqusition functions based on initial results
-        self.define_acq(acq_functions)
-        
-        # begin parallel Bayesian optimization
-        if self.verbose: print('\n===== Begin Bayesian optimization =====')
-        self.batch_BO_searching(N=async_bo_steps, 
-                                step=constant_lier_steps, 
-                                N_process=N_processes, 
-                                plot_status=bo_plot_status, 
-                                **kwargs)
-        
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     
@@ -614,6 +605,36 @@ class Bayesian():
         current_best = self.optimizer._space.max()
         for key in current_best.keys(): 
             print('{}: {}'.format(key, current_best[key]))
+
+
+
+
+    def BO_conclusion(self):
+        """
+        Return the conclusion of the Bayesian optimization, which includes:
+        1. The minimum loss founded and the paramters associated;
+        2. The directory of the HDF5 file asscociated with the best parameter.
+        """
+
+        # container for the conclusion
+        conclusion = {}
+
+        # 1. Find max target
+        target_max = self.optimizer._space.max()['target']
+        ind = 0
+        
+        while self.bo_data[ind]['target'] != target_max:
+            ind += 1
+        
+        for key in self.bo_data[ind].keys(): 
+            print('{}: {}'.format(key, self.bo_data[ind][key]))
+
+        return self.bo_data[ind]
+
+
+
+
+
 
 
 
