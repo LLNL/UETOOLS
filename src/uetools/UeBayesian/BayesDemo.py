@@ -54,6 +54,10 @@ def find_equilibrium_demo(uetools_case: Case, save_dir='.', **kwargs):
     
     # converge the UEDGE case and save the result
     uetools_case.converge(savefname='{}/initial'.format(save_dir), ii1max=200)
+    
+    # return the convergence
+    if uetools_case.get('iterm') == 1: return True
+    else: return False
 
 
 
@@ -81,13 +85,15 @@ def loss_function_demo(**kwargs):
     te_interpolated = np.interp(psi_syn, psi_uedge, te_uedge, left=te_uedge[0], right=te_uedge[-1])
     
     # calculate mean-square-error
-    return np.sqrt(np.sum( (te_interpolated-te_syn)**2. / 2. ) / len(te_syn))
+    return np.sum( (te_interpolated-te_syn)**2. / 2. ) / len(te_syn)
 
 
 
 
 def find_constraint_demo(**kwargs):
     """
+    Optional function
+    
     A function calculates the constrain of the system. In some situations, one may want to keep some quantities 
     within some range, but do not want to put them into the loss function. Those quantites can be the constraint of 
     the system.
@@ -100,3 +106,22 @@ def find_constraint_demo(**kwargs):
     
     return None
     
+
+
+
+def probability_function_demo(loss, **kwargs):
+    """
+    Optional function
+    
+    A function calculates probability for given loss function. When the loss is the mean-square error, the
+    probability is calculated as P = exp(-loss).
+    
+    Argumetns:
+    ----------
+    loss: float or np.array
+        The value of the loss function
+    **kwargs: -- Optional 
+        Other user defined parameters.
+    """
+    
+    return np.exp( -loss )

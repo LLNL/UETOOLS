@@ -50,24 +50,59 @@ class Bayesian():
         set_params(params, **kwargs):
             Defines how given parameters are used in UEDGE calculation.
             
+            Arguments:
+            ----------
+            params: np.array(N,) -- Required
+                Each parameter BO provide is an np.array with N elements. Generally, they represents some
+                transport coefficients that needs to be defined on UEDGE grids. 
+            **kwargs: -- Optional
+                Other user defined parameters.
+            
         find_equilibrium(uetools_case, save_dir, **kwargs):
             Defines the method to calculate an equilibrium.
+            
+            Arguments:
+            ----------
+            uetools_case: uetools.Case -- Required
+                A uetools Case container to be converged.
+            save_dir: String -- Required
+                The location where HDF5 files are saved. The default is the current location.
+            **kwargs: -- Optional
+                Other user defined parameters.
 
-        loss_function():
+        loss_function(**kwargs):
             Defines how the loss function is defined, which will be minimized during 
             Bayesian optimization process. 
             
-        find_constraint(): optional
+            Argumetns:
+            ----------
+            **kwargs: -- Optional 
+                Other user defined parameters.
+            
+        find_constraint(**kwargs): optional
             Define constraint of the system if needed. This will force the algorithm 
             to do a constrained optimization.
             
-        TODO: need to specify what input is needed for the last two functions.
+            Argumetns:
+            ----------
+            **kwargs: -- Optional 
+                Other user defined parameters.
+                
+        probability_function(**kwargs): optional
+            Calculate the probability based for given loss. This is used to estimate the
+            uncertainties from Bayesian optimization.
+            
+            Argumetns:
+            ----------
+            **kwargs: -- Optional 
+                Other user defined parameters.
         """
         
         self.set_params = None
         self.find_equilibrium = None
         self.loss_function = None
         self.find_constraint = None
+        self.probability_function = None
         
         self.valid_jobs = 0 # number of calculations done during BO that converge.
         self.bo_data = {} # dinctionary saving basic information for all finished jobs during BO.
@@ -86,6 +121,7 @@ class Bayesian():
         async_bo_steps=10,
         constant_lier_steps=5,
         bo_plot_status=True,
+        return_uncertainty=False,
         save_dir = './bayes_opt',
         **kwargs
         ):
@@ -103,6 +139,7 @@ class Bayesian():
             Kernels used in Gaussian regression model.
         initial_sample:
             Number of initial samples used in quasi-Monte Carlo method. The actual sample points is 2^(initial_sample).
+            If initial_sample == 0, the algorithm will try to read from existing calculations.
         N_processes:
             Number of processes in multiprocess pool.
         acq_functions:
@@ -113,6 +150,8 @@ class Bayesian():
             The number of data points predicted in each acquisition function using the 'constant lier' approximation.
         bo_plot_status:
             Whether plot currect status in each step of BO. Only work for 2-D case. 
+        return_uncertainty: 
+            Whether return uncertainty in the Bayesian optimization
         **kwargs:
             Additional keywords.
         """
@@ -122,7 +161,17 @@ class Bayesian():
         
         # check whether external functions are defined
         if None in (self.set_params, self.find_equilibrium, self.loss_function):
-            print('Error: Need to define functions set_params(), find_equilibrium(), and loss_function() externally.')
+            print(
+'''\
+Need to define the following three functions using Case.set_bo_criteria():
+1. set_params(params: np.array(N,), **kwargs): 
+    Defines how given parameters are used in UEDGE calculation.
+2. find_equilibrium(uetools_case: uetools.Case, save_dir: String, **kwargs): 
+    Defines the method to calculate an equilibrium.
+3. loss_function(**kwargs): 
+    Defines how the loss function is defined, which will be minimized during Bayesian optimization process. 
+
+See uetools.UeBayesian.BayesDemo for examples.''')
             return None  
         
         # create folder if not exist
@@ -139,9 +188,12 @@ class Bayesian():
         self.set_gp_kernel(gp_kernel)
         
         # Calculate initial sampling through quasi-Monte Carlo method
-        # TODO: Add feature that if some result is already calculated, read them instead of re-calculate.
-        if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
-        self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
+        if initial_sample > 0:
+            if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
+            self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
+        else:
+            if self.verbose: print('\n====== Begin reading calculated samples =====')
+            self.read_existing_samples()
         
         # Define a list of acqusition functions based on initial results
         self.define_acq(acq_functions)
@@ -155,8 +207,8 @@ class Bayesian():
                                 **kwargs)
         
         # print the final result of Bayesian optimization
-        if self.verbose: print('\n===== Bayesian optimization conclusion =====')
-        return self.BO_conclusion()
+        if self.verbose: print('\n===== Bayesian optimization conclusion =====\n')
+        return self.BO_conclusion(return_uncertainty=return_uncertainty)
 
 
 
@@ -166,7 +218,8 @@ class Bayesian():
         set_params: Callable = set_params_demo, 
         find_equilibrium: Callable = find_equilibrium_demo,
         loss_function: Callable = loss_function_demo,
-        find_constraint: Callable = find_constraint_demo
+        find_constraint: Callable = find_constraint_demo,
+        probability_function: Callable = probability_function_demo
         ):
         """
         Define functions necessary for Bayesian optimization processes.
@@ -175,6 +228,7 @@ class Bayesian():
         self.find_equilibrium = find_equilibrium
         self.loss_function = loss_function
         self.find_constraint = find_constraint
+        self.probability_function = probability_function
         
     
     
@@ -182,7 +236,8 @@ class Bayesian():
     def bo_objective(
         self,
         params=np.array([1.,1.]), 
-        save_dir='./bayes_opt',
+        save_case=True,
+        save_bo_data=True,
         **kwargs
         ):
         """ 
@@ -191,25 +246,27 @@ class Bayesian():
         Arguments:
         params:
             The parameters that Bayesian optimization works with.
-        save_dir:
-            The directory to save all calculation result from Bayesian optimzation.
+        save_case:
+            Whether the save the final HDF5 file.
+        save_bo_data:
+            Whether to save the bo data in pickle.
         """
         
         # create new sub-folder in save_dir
         dir_list = []
-        for item in os.listdir(save_dir):
-            if os.path.isdir('{}/{}'.format(save_dir, item)): dir_list.append(item)
-        sub_dir = '{}/{}'.format(save_dir, len(dir_list))
+        for item in os.listdir(self.save_dir):
+            if os.path.isdir('{}/{}'.format(self.save_dir, item)): dir_list.append(item)
+        sub_dir = '{}/{}'.format(self.save_dir, len(dir_list))
         os.makedirs(sub_dir)
         
         # set parameter
         self.set_params(params, **kwargs)
         
-        # calculate UEDGE equilibrium
-        self.find_equilibrium(uetools_case=self, save_dir=sub_dir, **kwargs)
+        # calculate UEDGE equilibrium and return the convergence
+        convergence = self.find_equilibrium(uetools_case=self, save_dir=sub_dir, **kwargs)
         
         # calculate loss function by comparing UEDGE and observed profiles
-        if self.get('iterm') == 1:
+        if convergence:
             target = - self.loss_function(**kwargs)
         else:
             target = np.nan
@@ -219,6 +276,15 @@ class Bayesian():
             constraint = self.find_constraint(**kwargs)
         else:
             constraint = None
+            
+        # save the current case
+        if save_case: self.save('{}/final.hdf5'.format(sub_dir))
+        
+        # save the data for Bayesian optimzation 
+        if save_bo_data:
+            bo_data = {'params':params, 'target':target, 'constraint':constraint, 'sub_dir':sub_dir}
+            with open('{}/bo_data.pickle'.format(sub_dir), 'wb') as handle:
+                pickle.dump(bo_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
             
         # return params, target, constraint, and the location of the save file
         return params, target, constraint, sub_dir
@@ -280,7 +346,6 @@ class Bayesian():
             time.sleep(0.2)
             job_status[job_id] = pool.apply_async(func=self.bo_objective, 
                                                   kwds={'params': param_grid[job_id], 
-                                                        'save_dir': self.save_dir, 
                                                         **kwargs}, 
                                                   error_callback=print)
 
@@ -308,6 +373,50 @@ class Bayesian():
         # close the pool after calculation
         pool.close()
 
+
+
+
+    def read_existing_samples(self):
+        """ 
+        Read existing samples that has been calculated save stored.
+        """
+        
+        # look for all folders in save_dir
+        dir_list = []
+        for item in os.listdir(self.save_dir):
+            if os.path.isdir('{}/{}'.format(self.save_dir, item)): dir_list.append(item)
+            
+        if len(dir_list) == 0:
+            print('Warning: no samples exist! Need to set initial_sample > 0!')
+            return None
+            
+        # read data from calculated cases
+        for i in range(len(dir_list)):
+            
+            sub_dir = '{}/{}'.format(self.save_dir, dir_list[i])
+            with open('{}/bo_data.pickle'.format(sub_dir), 'rb') as handle:
+                bo_data = pickle.load(handle)
+                
+            params = bo_data['params']
+            target = bo_data['target']
+            constraint = bo_data['constraint']
+            sub_dir = bo_data['sub_dir']
+            
+            # try to register if result is converge and not duplicated. 
+            if not np.isnan(target):
+                try: 
+                    # save data to optimizer
+                    self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                    
+                    # save valid job locally
+                    self.bo_data[self.valid_jobs] = bo_data
+                    self.valid_jobs += 1
+                    
+                except NotUniqueError: pass
+                
+        # print current best
+        if self.verbose: self.print_current_best()
+        
 
 
 
@@ -534,7 +643,7 @@ class Bayesian():
         # async searching
         for i in range(N):
 
-            if self.verbose: print('\nAsync BO step {} ===== \n'.format(i+1))
+            if self.verbose: print('\nAsync BO step {} ====='.format(i+1))
 
             # record the time in each step
             t1 = time.time()
@@ -558,7 +667,6 @@ class Bayesian():
                 time.sleep(0.2)
                 job_list[asyc_job_id] = pool.apply_async(self.bo_objective, 
                                                          kwds={'params': param_to_array(next_points[asyc_job_id]), 
-                                                               'save_dir': self.save_dir, 
                                                                **kwargs},
                                                          error_callback=print)
 
@@ -609,15 +717,12 @@ class Bayesian():
 
 
 
-    def BO_conclusion(self):
+    def BO_conclusion(self, return_uncertainty=False):
         """
         Return the conclusion of the Bayesian optimization, which includes:
         1. The minimum loss founded and the paramters associated;
         2. The directory of the HDF5 file asscociated with the best parameter.
         """
-
-        # container for the conclusion
-        conclusion = {}
 
         # 1. Find max target
         target_max = self.optimizer._space.max()['target']
@@ -625,11 +730,49 @@ class Bayesian():
         
         while self.bo_data[ind]['target'] != target_max:
             ind += 1
+            
+        # the container of conclusion
+        conclusion = self.bo_data[ind]
         
-        for key in self.bo_data[ind].keys(): 
-            print('{}: {}'.format(key, self.bo_data[ind][key]))
+        if return_uncertainty:
+            conclusion['uncertainty'] = self.get_uncertainty()
+        
+        for key in conclusion.keys(): 
+            print('{}: {}'.format(key, conclusion[key]))
 
-        return self.bo_data[ind]
+        return conclusion
+    
+    
+    
+    
+    def get_uncertainty(self):
+        """ 
+        Return the uncertainty during the BO processes when self.probability_function is defined.
+        """
+        
+        if self.probability_function is not None:
+            
+            if self.optimizer.is_constrained:
+                
+                # get data that within constraint
+                ind = np.where(np.array([r['allowed'] for r in self.optimizer.res])==True)[0]
+                valid_params = self.optimizer._space.params[ind,:]
+                valid_loss = - self.optimizer._space.target[ind]
+                
+            else:
+                
+                # when no constraint, use all data
+                valid_params = self.optimizer._space.params
+                valid_loss = - self.optimizer._space.target
+                
+            # calculate probability
+            P = self.probability_function(valid_loss).reshape(-1,1)
+            
+            # calculate uncertainties
+            params_max = param_to_array(self.optimizer._space.max()['params']).reshape(1,-1)
+            params_uncertainty = np.sqrt( np.sum( (valid_params-params_max)**2. * P, axis=0) / np.sum(P) )
+            
+            return params_uncertainty
 
 
 
