@@ -44,8 +44,8 @@ class Bayesian():
     
     def __init__(self):
         """ 
-        Initialize classes to define variables as place holder.
-        Four functions need to be defined externally, which are:
+        Initialize classes to define variables as place holder. Five functions need to 
+        be defined externally and the first three are required.
         
         set_params(params, **kwargs):
             Defines how given parameters are used in UEDGE calculation.
@@ -69,6 +69,11 @@ class Bayesian():
                 The location where HDF5 files are saved. The default is the current location.
             **kwargs: -- Optional
                 Other user defined parameters.
+                
+            Return:
+            -------
+            convergence: boolean -- Required
+                An indicator on whether such a case converges. 
 
         loss_function(**kwargs):
             Defines how the loss function is defined, which will be minimized during 
@@ -118,11 +123,11 @@ class Bayesian():
         initial_sample=5,
         N_processes=16,
         acq_functions={},
-        async_bo_steps=10,
+        bo_steps=10,
         constant_lier_steps=5,
         bo_plot_status=True,
-        return_uncertainty=False,
-        save_dir = './bayes_opt',
+        save_dir='./bayes_opt',
+        random_state=0,
         **kwargs
         ):
         
@@ -132,7 +137,7 @@ class Bayesian():
         Arguments:
         ----------
         param_bounds: array (N,2)
-            Lower and upper bounds for N value of chi_e_pf.
+            Lower and upper bounds for N value of parameters.
         constraint: scipy.optimize.NonlinearConstraint
             The constrains needed in the system. If no constraint is needed, constraint = None.
         gp_kernel:
@@ -144,14 +149,14 @@ class Bayesian():
             Number of processes in multiprocess pool.
         acq_functions:
             Acquisition functions used in Bayesian optimization.
-        async_bo_steps:
+        bo_steps:
             The number of steps to be calculate in BO process.
         constant_lier_steps:
             The number of data points predicted in each acquisition function using the 'constant lier' approximation.
         bo_plot_status:
             Whether plot currect status in each step of BO. Only work for 2-D case. 
-        return_uncertainty: 
-            Whether return uncertainty in the Bayesian optimization
+        random_state:
+            Seed of random number
         **kwargs:
             Additional keywords.
         """
@@ -182,7 +187,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                                               constraint=constraint,
                                               pbounds=array_to_param(param_bounds),
                                               verbose=0, 
-                                              random_state=0)
+                                              random_state=random_state)
         
         # Set kernels
         self.set_gp_kernel(gp_kernel)
@@ -200,7 +205,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         
         # begin parallel Bayesian optimization
         if self.verbose: print('\n===== Begin Bayesian optimization =====')
-        self.batch_BO_searching(N=async_bo_steps, 
+        self.batch_BO_searching(N=bo_steps, 
                                 step=constant_lier_steps, 
                                 N_process=N_processes, 
                                 plot_status=bo_plot_status, 
@@ -208,7 +213,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         
         # print the final result of Bayesian optimization
         if self.verbose: print('\n===== Bayesian optimization conclusion =====\n')
-        return self.BO_conclusion(return_uncertainty=return_uncertainty)
+        return self.BO_conclusion()
 
 
 
@@ -651,7 +656,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
             # dict to save the job data and record the job id
             job_list = {}
             total_suggeested = self.async_suggest(step=step)
-            next_points = self.find_non_repeat(total_suggeested, N=N_process, d_min=0.03)
+            next_points = self.find_non_repeat(total_suggeested, N=N_process, d_min=0.05)
 
             # plot status only for 2-D inference
             if plot_status and (self.optimizer.space.bounds.shape[0]==2):
@@ -660,7 +665,8 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                               acq_function = self.acq_functions[0],
                               next_points=next_points, 
                               title='Step = {}'.format(i+1),
-                              save_folder=self.save_dir)
+                              save_folder=self.save_dir,
+                              **kwargs)
 
             # submit all jobs
             for asyc_job_id in range(len(next_points)):
@@ -717,7 +723,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
 
 
 
-    def BO_conclusion(self, return_uncertainty=False):
+    def BO_conclusion(self):
         """
         Return the conclusion of the Bayesian optimization, which includes:
         1. The minimum loss founded and the paramters associated;
@@ -734,7 +740,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         # the container of conclusion
         conclusion = self.bo_data[ind]
         
-        if return_uncertainty:
+        if self.probability_function is not None:
             conclusion['uncertainty'] = self.get_uncertainty()
         
         for key in conclusion.keys(): 
@@ -773,13 +779,3 @@ See uetools.UeBayesian.BayesDemo for examples.''')
             params_uncertainty = np.sqrt( np.sum( (valid_params-params_max)**2. * P, axis=0) / np.sum(P) )
             
             return params_uncertainty
-
-
-
-
-
-
-
-
-
-

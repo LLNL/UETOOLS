@@ -50,6 +50,11 @@ def find_equilibrium_demo(uetools_case: Case, save_dir='.', **kwargs):
         The location where HDF5 files are saved. The default is the current location.
     **kwargs: -- Optional
         Other user defined parameters.
+        
+    Return:
+    -------
+    convergence: boolean -- Required
+        An indicator on whether such a case converges. 
     """
     
     # converge the UEDGE case and save the result

@@ -41,7 +41,7 @@ def array_to_param(x):
 
 
 
-def plot_async_2D(param_bounds, optimizer, acq_function, next_points, title='', save_folder=None):
+def plot_async_2D(param_bounds, optimizer, acq_function, next_points=None, title='', save_folder=None, show_fig=True):
     """
     Plot the GP mean estimation and one of the acquisition functions.
     White dots: observed data
@@ -54,18 +54,20 @@ def plot_async_2D(param_bounds, optimizer, acq_function, next_points, title='', 
     xy = np.array([[x_i, y_j] for y_j in y for x_i in x])
     X, Y = np.meshgrid(x, y)
 
-    fig = plt.figure(figsize=(12,5))
+    fig = plt.figure(figsize=(13,5))
     grid = fig.add_gridspec(ncols=2, nrows=1)
 
-    fig.subplots_adjust(wspace=0.2, hspace=0.3)
+    fig.subplots_adjust(wspace=0.25, hspace=0.3)
     fig.suptitle(title, fontsize=20)
 
     # Estimation of target
     ax0 = plt.subplot(grid[0,0])
     Z_est = optimizer._gp.predict(xy).reshape(X.shape)
     plt.contourf(X, Y, Z_est, levels=20)
-    plt.title('Target')
-    plt.colorbar()
+    plt.title('Target');
+    plt.colorbar();
+    plt.xlabel('x0', fontsize=12)
+    plt.ylabel('x1', fontsize=12)
 
     # Estimate acq
     ax1 = plt.subplot(grid[0,1])
@@ -73,6 +75,8 @@ def plot_async_2D(param_bounds, optimizer, acq_function, next_points, title='', 
     plt.contourf(X, Y, acq_est, levels=20)
     plt.title('Acquisition #0')
     plt.colorbar()
+    plt.xlabel('x0', fontsize=12)
+    plt.ylabel('x1', fontsize=12)
 
     # show all data points
     res = optimizer.res
@@ -89,15 +93,26 @@ def plot_async_2D(param_bounds, optimizer, acq_function, next_points, title='', 
 
         ax.scatter(x_[a_], y_[a_], c='white', s=20, edgecolors='black')
         ax.scatter(x_[~a_], y_[~a_], c='red', s=20, edgecolors='black')
+        
+        xx, yy = param_to_array(optimizer._space.max()['params'])
+        ax.scatter([xx], [yy], marker='*', c='orange', s=200, edgecolors='black', zorder=10)
 
-        for i in next_points.keys():
-
-            next_point = param_to_array(next_points[i])
-            ax.scatter(next_point[0], next_point[1], marker='D', c='magenta', s=20, edgecolors='black')
+        if next_points is not None:
+            for i in next_points.keys():
+                next_point = param_to_array(next_points[i])
+                ax.scatter(next_point[0], next_point[1], marker='D', c='magenta', s=20, edgecolors='black')
+            
+    plt.scatter([],[], c='white', s=20, edgecolors='black', label='Data calculated')
+    plt.scatter([], [], marker='*', c='orange', s=100, edgecolors='black', label='Current best')
+    if next_points is not None:
+        plt.scatter([],[], marker='D', c='magenta', s=20, edgecolors='black', label='Next evaluations')
+    if optimizer.is_constrained:
+        plt.scatter([],[], c='red', s=20, edgecolors='black')
+    ax1.legend(bbox_to_anchor=(1.85, 0.6))
     
-    if save_folder is not None:
-        plt.savefig('{}/{}.pdf'.format(save_folder, title))
-        plt.close()
+    if save_folder is not None: plt.savefig('{}/{}.pdf'.format(save_folder, title), bbox_inches='tight')
+        
+    if not show_fig: plt.close()
 
 
 
