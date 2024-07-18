@@ -94,3 +94,6 @@ dmypy.json
 .pytype/
 *.swo
 /dashboard_test
+
+# data from Bayesian optimization
+bayes_opt/
