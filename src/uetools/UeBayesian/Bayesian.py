@@ -155,6 +155,8 @@ class Bayesian():
             The number of data points predicted in each acquisition function using the 'constant lier' approximation.
         bo_plot_status:
             Whether plot currect status in each step of BO. Only work for 2-D case. 
+        save_dir:
+            The directory to save HDF5 for all calculations
         random_state:
             Seed of random number
         **kwargs:
@@ -198,7 +200,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
             self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
         else:
             if self.verbose: print('\n====== Begin reading calculated samples =====')
-            self.read_existing_samples()
+            self.read_existing_samples(save_dir=self.save_dir)
         
         # Define a list of acqusition functions based on initial results
         self.define_acq(acq_functions)
@@ -374,50 +376,59 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                 
         # print current best
         if self.verbose: self.print_current_best()
-
+        
         # close the pool after calculation
         pool.close()
 
 
 
 
-    def read_existing_samples(self):
+    def read_existing_samples(self, n_sample_read = None, save_dir = '.'):
         """ 
         Read existing samples that has been calculated save stored.
+        
+        Arguments:
+        n_sample_read: Int
+            The number of initial sample to read.
+        save_dir:
+            The directory to save HDF5 for all calculations
         """
         
         # look for all folders in save_dir
         dir_list = []
-        for item in os.listdir(self.save_dir):
-            if os.path.isdir('{}/{}'.format(self.save_dir, item)): dir_list.append(item)
+        for item in os.listdir(save_dir):
+            if os.path.isdir('{}/{}'.format(save_dir, item)): dir_list.append(item)
             
         if len(dir_list) == 0:
             print('Warning: no samples exist! Need to set initial_sample > 0!')
             return None
             
         # read data from calculated cases
-        for i in range(len(dir_list)):
-            
-            sub_dir = '{}/{}'.format(self.save_dir, dir_list[i])
-            with open('{}/bo_data.pickle'.format(sub_dir), 'rb') as handle:
-                bo_data = pickle.load(handle)
+        if n_sample_read is None: n_sample_read = len(dir_list)
+        
+        for i in range(n_sample_read):
+            # if folder i is calculated and in the directory
+            if '{}'.format(i) in dir_list:
+                sub_dir = '{}/{}'.format(save_dir, i)
+                with open('{}/bo_data.pickle'.format(sub_dir), 'rb') as handle:
+                    bo_data = pickle.load(handle)
+                    
+                params = bo_data['params']
+                target = bo_data['target']
+                constraint = bo_data['constraint']
+                sub_dir = bo_data['sub_dir']
                 
-            params = bo_data['params']
-            target = bo_data['target']
-            constraint = bo_data['constraint']
-            sub_dir = bo_data['sub_dir']
-            
-            # try to register if result is converge and not duplicated. 
-            if not np.isnan(target):
-                try: 
-                    # save data to optimizer
-                    self.optimizer.register(params=params, target=target, constraint_value=constraint)                
-                    
-                    # save valid job locally
-                    self.bo_data[self.valid_jobs] = bo_data
-                    self.valid_jobs += 1
-                    
-                except NotUniqueError: pass
+                # try to register if result is converge and not duplicated. 
+                if not np.isnan(target):
+                    try: 
+                        # save data to optimizer
+                        self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                        
+                        # save valid job locally
+                        self.bo_data[self.valid_jobs] = bo_data
+                        self.valid_jobs += 1
+                        
+                    except NotUniqueError: pass
                 
         # print current best
         if self.verbose: self.print_current_best()
@@ -723,7 +734,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
 
 
 
-    def BO_conclusion(self):
+    def BO_conclusion(self, verbose = True):
         """
         Return the conclusion of the Bayesian optimization, which includes:
         1. The minimum loss founded and the paramters associated;
@@ -743,8 +754,9 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         if self.probability_function is not None:
             conclusion['uncertainty'] = self.get_uncertainty()
         
-        for key in conclusion.keys(): 
-            print('{}: {}'.format(key, conclusion[key]))
+        if verbose:
+            for key in conclusion.keys(): 
+                print('{}: {}'.format(key, conclusion[key]))
 
         return conclusion
     
