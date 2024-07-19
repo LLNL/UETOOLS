@@ -13,25 +13,45 @@ class ADASSpecies:
         else:
             raise Exception("Rate type '{ratetype}' not recognized!")
        
-    def plot_emission(self, ne, te, nz, lam=None, chargestate=None, 
+    def plot_emission(self, ne, te, n0, n1, nh, chargestate, lam=None, 
         rtype=['excit', 'recom', 'chexc']
         ):
+        """
+        ne - electron density m**-3
+        te - electron temperature J
+        n0 - chargestate ion density m**-3
+        n1 - chargstate + 1 ion density m**-3
+        
+        lam - line calculate [None: returns dict of all]
+        rtype - types of radiation to include ['excit', 'recom', 'chexc']
+        
+        """
         from matplotlib.pyplot import subplots
         f, ax = subplots()
-        for x, y in self.calc_emission(ne, te, nz, lam, chargestate, rtype).items():
+        for x, y in self.calc_emission(ne, te, n0, n1, nh, lam, chargestate, rtype).items():
             ax.plot([x,x], [0,y], 'r-')
         f.show()
         return f
 
-    def calc_emission(self, ne, te, nz, nh, lam=None, chargestate=None,
+    def calc_emission(self, ne, te, n0, n1, nh, chargestate, lam=None,
         rtype = ['excit', 'recom', 'chexc']
         ):
+        """ Calculates the emission from ADAS PEC data
+        ne - electron density m**-3
+        te - electron temperature J
+        n0 - chargestate ion density m**-3
+        n1 - chargstate + 1 ion density m**-3
+        
+        lam - line calculate [None: returns dict of all]
+        rtype - types of radiation to include ['excit', 'recom', 'chexc']
+        
+        """
         if lam is None:
             lines = self.linelist
         elif isinstance(lam, float):
             try:
                 self.lines[lam]
-                lines = lam
+                lines = [lam]
             except:
                 raise Exception(f"Line at {lam} A not found.")
         elif isinstance(lam, (list, tuple)):
@@ -53,21 +73,25 @@ class ADASSpecies:
         for typ in rtype:
             if typ not in ['excit', 'recom', 'chexc']:
                 raise Exception(f"rtype option '{typ}' not implemented!")
-        if isinstance(chargestate, int):
-            chargestate = [chargestate]
         output = {}
         for lam in lines:
             intensity = 0
             line = self.lines[lam]
-            for zi, rate in line.items():
-                if (chargestate is not None) and (zi not in chargestate):
-                    continue
-                else:
-                    for r in rtype:
-                        try:
-                            intensity += line[zi][r](ne, te, nz, self.resolved) 
-                        except:
-                            pass
+            for _, rate in line.items():
+                for r in rtype:
+                    if chargestate not in line:
+                        raise KeyError(f"Line at {lam} nm not produced by charge state {chargestate}")
+                    if r in line[chargestate]:
+                        intensity += line[chargestate][r](ne, te, n0, n1, nh, self.resolved)
+                    
+#                    try:
+#                        intensity += line[chargestate][r](ne, te, n0, n1, nh, self.resolved)
+#                    except:
+#                        pass
+#                        try:
+#                            intensity += line[zi][r](ne, te, nz, self.resolved) 
+#                        except:
+#                            pass
             if isinstance(intensity, (float, int)):
                 if intensity != 0:
                     output[lam] = intensity
@@ -143,6 +167,15 @@ class ADASRate:
             raise Exception(f"File format of {fname} not recognized!")
       
     def get_pec(self, lam, ne, te, rate, metastate = None):
+        """ Retrieves the PEC associated with lam at (ne, Te) of rate type
+        
+        Arguments:
+        lam - wavelength in nm
+        ne - electron density in m**-3
+        te - electron temperature in J
+        rate - rate type from options ['excit', 'recom', 'chexc']
+        metastate [None] - use metastable resolved rates if True
+        """
         from numpy import log10
         if self.metaresolved:
             reaction = self.adf15[lam][rate][metastate]['pecfun']
@@ -150,40 +183,60 @@ class ADASRate:
             reaction = self.adf15[lam][rate]['pecfun']
         return reaction.ev(log10(ne/1e6), log10(te/1.602e-19))
 
-    def get_emission(self, lam, ne, te, nz, nh, metastate=None, rtype=['excit', 'recom', 'chexc']):
+    def get_emission(self, lam, ne, te, n0, n1, nh, metastate=None, rtype=['excit', 'recom', 'chexc']):
+        """ Returns the 
+
+        """
         if isinstance(rtype, str):
             rtype = [rtype]
         ret = 0
         for rate in rtype:
-            if rate == 'chexc':
-                try:
-                    if len(nz.shape) == 3:
-                        nn = nz[:,:,self.chargestate+1]*nh
-                    else:
-                        nn = nz[self.chargestate+1]*nh
-                except: 
-                    print("WARNING")
-                    nn = 1
-            elif rate == 'excit':
-                if len(nz.shape) == 3:
-                    nn = nz[:,:,self.chargestate]*ne
-                else:
-                    nn = nz[self.chargestate]*ne
-            elif rate == 'recom':
-                try:
-                    if len(nz.shape) == 3:
-                        nn = nz[:,:,self.chargestate+1]*ne
-                    else:
-                        nn = nz[self.chargestate+1]*ne
-                except:
-                    nn = 1
-                    print("WARNING")
-            else:   
+            if rate not in ['excit', 'recom', 'chexc']:   
                 raise Exception(f"Unknown rate type {rate}!")
-            try:
-                ret += 10**self.get_pec(lam, ne, te, rate, metastate)*nn*1e-12
-            except:
-                pass
+            nn = (  (n0 * (rate == 'excit') + n1 * (rate != 'excit')) *
+                    (nh * (rate == 'chexc') + ne * (rate != 'chexc'))
+            )
+            ret += 10**self.get_pec(lam, ne, te, rate, metastate)*nn*1e-12
+
+
+#            if rate == 'chexc':
+#                nn = n1*ng
+#                if len(ni.shape) == 3:
+#                    nn = ni[:,:,self.chargestate+1]*ng
+#                else:
+#                    nn = ni[self.chargestate+1]*ng
+#                try:
+#                    if len(nz.shape) == 3:
+#                        nn = nz[:,:,self.chargestate+1]*nh
+#                    else:
+#                        nn = nz[self.chargestate+1]*nh
+#                except: 
+#                    print("CHEXC WARNING")
+#                    nn = 1
+#            elif rate == 'excit':
+#                nn = n0*ne
+#                if len(ni.shape) == 3:
+#                    nn = ni[:,:,self.chargestate]*ne
+#                else:
+#                    nn = ni[self.chargestate]*ne
+#            elif rate == 'recom':
+#                nn = n1*ne
+#                if len(ni.shape) == 3:
+#                    nn = ni[:,:,self.chargestate+1]*ne
+#                else:
+#                    nn = ni[self.chargestate+1]*ne
+#                try:
+#                    if len(nz.shape) == 3:
+#                        nn = nz[:,:,self.chargestate+1]*ne
+#                    else:
+#                        nn = nz[self.chargestate+1]*ne
+#                except:
+#                    nn = 1
+#                    print("RECOM WARNING")
+#            try:
+#                ret += 10**self.get_pec(lam, ne, te, rate, metastate)*nn*1e-12
+#            except:
+#                pass
         return ret
 
 

@@ -125,21 +125,33 @@ class Cell():
         for var, value in variables.items():
             self.__setattr__(var, variables[var][*indices])
         self.emission = {}
-
-        self.nh = self.ng[0]
-        for species in self.gasarray:
-            species = species.split("0")[0].lower()
-            if '2' in species:
-                continue
-            self.__setattr__(f"n{species}", [])
-            for i in range(len(self.gasarray)):
-                if (species in self.gasarray[i].lower()) and \
-                    ('2' not in self.gasarray[i]) and \
-                    (species not in ['h','d','t']):
-                    self.__getattribute__(f"n{species}").append(self.ng[i])
-            for i in range(len(self.ionarray)):
-                if species in self.ionarray[i].lower():
-                    self.__getattribute__(f"n{species}").append(self.ni[i])
+        self.densities = {'e': {0: self.ne}}
+        for i in range(len(ionarray)):
+            ion = ionarray[i]
+            species = (ion.split("+")[0]).lower()
+            if species in ["d", "t"]:
+                species = "h"
+            try: 
+                charge = int(ion.split("+")[1])
+            except:
+                if '+' not in ion:
+                    # No charge: inertial neutral species
+                    continue
+                else:
+                    charge = 1
+            if species not in self.densities:
+                self.densities[species] = {}
+            self.densities[species][charge] = self.ni[i]
+        for g in range(len(gasarray)):
+            gas = gasarray[g]
+            species = (gas.replace("0", "").replace("_2","")).lower()
+            if species in ["d", "t"]:
+                species = "h"
+            mols = "_2" in gas
+            if not mols:
+                self.densities[species][0] = self.ng[g]
+            else:
+                self.densities[species]['mol'] = self.ng[g]
                     
     def plot_cell(self, ax=None, linewidth = 0.05):
         if ax is None:

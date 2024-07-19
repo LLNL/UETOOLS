@@ -1316,15 +1316,16 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         self.load_state(savefile, **kwargs)
         self.populate(**kwargs)
 
-    def add_spectrometer(self):
+    def add_spectrometer(self, specname=None, **kwargs):
         from uetools.UeDiagnostics import Spectrometer
         try:
             self.spectrometer
-            if not isinstance(self.spectrometer, list):
-                self.spectrometer = [self.spectrometer]
-            self.append(Spectrometer(self))
         except:
-            self.spectrometer = Spectrometer(self)
+            self.spectrometer = {}
+        if specname is None:
+            specname = 'spec{}'.format(len(self.spectrometer)+1)
+        self.spectrometer[specname] = Spectrometer(self, **kwargs)
+        return self.spectrometer[specname]
 
 
     def dashboard(self):

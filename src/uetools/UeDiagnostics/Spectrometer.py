@@ -157,26 +157,45 @@ class Chord():
              ax.fill(xs, ys, fc='g', ec='none')
 
     def add_emission(self, emission, dL):
+        """ Populates self.emission with emissivities from volumetric emission
+        
+            Arguments:
+            emission - dictionary with lines and corresponding volum. emission 
+            in 1/(s cm**-3)
+            dL - path length through cell in m
+            
+            Populates self.emission with emissivities in units
+            1/(s * sr * cm**-2)
+
+
+        """
+        from numpy import pi
         for lam, e in emission.items():
             try:
                 self.emission[lam] += e*dL
             except:
                 self.emission[lam] = e*dL
+        for lam, emission in self.emission.items():
+            emission *= 1/(4*pi*1e-2)
 
-    def calc_emission(self, rates, lam=None, chargestate=None, rerun=False,
+    def calc_emission(self, rates, chargestate, lam=None, rerun=False,
         rtype = ['excit', 'recom', 'chexc']):
         species = rates.species.lower()
+        # Reset emission dictionary to avoid double-counting
+        self.emission = {}
         for _, obj in self.dL.items():
             if rerun or (species not in obj['cell'].emission.keys()):
                 species = rates.species.lower()
+                o = obj['cell']
                 obj['cell'].emission[species] = rates.calc_emission(
                         obj['cell'].ne, 
                         obj['cell'].te, 
-                        obj['cell'].__getattribute__(f"n{species}"), 
-                        obj['cell'].nh, 
-                        lam, 
+                        obj['cell'].densities[species][chargestate], 
+                        obj['cell'].densities[species][chargestate+1], 
+                        obj['cell'].densities['h'][0],
                         chargestate, 
-                        rtype
+                        lam=lam, 
+                        rtype=rtype
                 )
             self.add_emission(obj['cell'].emission[species], obj['dL'])
         
@@ -334,7 +353,7 @@ class Chord():
 
 class Spectrometer():
 
-    def __init__(self, case, fname=None, width=None, omega=1e-6, flip=True):
+    def __init__(self, case, chordfile=None, width=None, omega=1e-6, flip=True):
 #, displ=0, width = 0.017226946, norm_zmag=True, crm=None):
         ''' Creates polygons for the chords from a data file '''
         from .GridData import Grid
@@ -353,20 +372,19 @@ class Spectrometer():
         self.chords = []
         self.width = width
         self.omega = omega
-        if fname is not None:
-            self.read_chordfile(fname)
+        if chordfile is not None:
+            self.read_chordfile(chordfile)
 
 
     def read_chordfile(self, file):
         with open(file, 'r') as f:
             for line in f:
-                try:
-                    parsed = line.strip().split('#')[0].split()
-                    [xs, ys, xe, ye] = [float(z) for z in parsed]
-                    self.add_chord(((xs, ys), (xe, ye)), self.width)
-                except:
-                    print(f"Could not read line: '{line}'")
-
+                if line.strip()[0] == "#":
+                    continue
+                parsed = line.strip().split('#')[0].split()
+                [xs, ys, xe, ye] = [float(z) for z in parsed]
+                self.add_chord(((xs, ys), (xe, ye)), self.width)
+       
     def add_chord(self, points, width=None, omega=None):
         from shapely.geometry import Point
         if (width is None) and (omega is None):
@@ -391,10 +409,12 @@ class Spectrometer():
         self.rates = ADASSpecies(path, species, ratetype, **kwargs)
 
     
-    def calc_chord_emission(self, lam=None, chargestate=None, rerun=False,
-        rtype = ['excit', 'recom', 'chexc']):
+    def calc_chord_emission(self, lam, chargestate, rerun=True,
+        rtype = ['excit', 'recom', 'chexc'], rates=None, **kwargs):
+        if rates is None:
+            rates = self.rates
         for chord in self.chords:
-            chord.calc_emission(self.rates, lam, chargestate, rerun, rtype)
+            chord.calc_emission(rates, chargestate, lam, rerun, rtype)
 
 
     def plot_spectrometer(self, ax=None, **kwargs):
@@ -414,17 +434,24 @@ class Spectrometer():
         self.plot_spectrometer(f)
 
 
-    def plot_chord_intensity(self, lam, ax=None, linestyle='-',
-        marker='o', color='k', **kwargs):
+    def plot_chord_intensity(self, lam, chargestate, ax=None, linestyle='-',
+        marker='o', color='k', rates=None, **kwargs):
         from matplotlib.pyplot import subplots, Figure
         if ax is None:
             f, ax = subplots()
         elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
+        self.calc_chord_emission(lam, chargestate, rates=rates, **kwargs)
+
         ax.plot(range(1, len(self.chords)+1),
             [x.emission[lam] for x in self.chords],
             linestyle=linestyle, marker=marker, color=color)
         
+        return ax.get_figure()
+
+
+
+
 
 
 
