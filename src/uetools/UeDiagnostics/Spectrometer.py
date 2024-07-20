@@ -180,9 +180,19 @@ class Chord():
 
     def calc_emission(self, rates, chargestate, lam=None, rerun=True,
         rtype = ['excit', 'recom', 'chexc']):
+        from numpy import array
         species = rates.species.lower()
         # Reset emission dictionary to avoid double-counting
         self.emission = {}
+        if isinstance(lam, (int, float)):
+            try:
+                rates.lines[chargestate][lam]
+            except:
+                print(f"Line at {lam} nm not found.")
+                lam = rates.linelist[chargestate][
+                    (abs(array(rates.linelist[chargestate])-lam).argmin())
+                ]
+                print(f"Using nearest line found, {lam} nm")
         for _, obj in self.dL.items():
             species = rates.species.lower()
             o = obj['cell']

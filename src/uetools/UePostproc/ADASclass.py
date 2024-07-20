@@ -46,14 +46,19 @@ class ADASSpecies:
         rtype - types of radiation to include ['excit', 'recom', 'chexc']
         
         """
+        from numpy import array
         if lam is None:
             lines = self.linelist[chargestate]
-        elif isinstance(lam, float):
+        elif isinstance(lam, (float, int)):
             try:
                 self.lines[chargestate][lam]
-                lines = [lam]
             except:
-                raise Exception(f"Line at {lam} A not found.")
+                print(f"Line at {lam} nm not found.")
+                lam = self.linelist[chargestate][
+                    (abs(array(self.linelist[chargestate])-lam).argmin())
+                ]
+                print(f"Using nearest line found, {lam} nm")
+            lines = [lam]
         elif isinstance(lam, (list, tuple)):
             # TODO: Will cause unexpected behavior if asking for 2 distict lines
             if len(lam) == 2:
