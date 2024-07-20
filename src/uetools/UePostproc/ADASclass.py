@@ -47,10 +47,10 @@ class ADASSpecies:
         
         """
         if lam is None:
-            lines = self.linelist
+            lines = self.linelist[chargestate]
         elif isinstance(lam, float):
             try:
-                self.lines[lam]
+                self.lines[chargestate][lam]
                 lines = [lam]
             except:
                 raise Exception(f"Line at {lam} A not found.")
@@ -74,15 +74,14 @@ class ADASSpecies:
             if typ not in ['excit', 'recom', 'chexc']:
                 raise Exception(f"rtype option '{typ}' not implemented!")
         output = {}
+        chglines = self.lines[chargestate]
         for lam in lines:
             intensity = 0
-            line = self.lines[lam]
+            line = chglines[lam]
             for _, rate in line.items():
                 for r in rtype:
-                    if chargestate not in line:
-                        raise KeyError(f"Line at {lam} nm not produced by charge state {chargestate}")
-                    if r in line[chargestate]:
-                        intensity += line[chargestate][r](ne, te, n0, n1, nh, self.resolved)
+                    if r in line:
+                        intensity += line[r](ne, te, n0, n1, nh, self.resolved)
                     
 #                    try:
 #                        intensity += line[chargestate][r](ne, te, n0, n1, nh, self.resolved)
@@ -137,19 +136,21 @@ class ADASSpecies:
                         self.rates[chargestate] = []
                         self.rates[chargestate].append(rateobj)
                     for lam, obj in rateobj.adf15.items():
-                        if not lam in self.lines.keys():
-                            self.lines[lam] = {}
-                        if not chargestate in self.lines[lam].keys():
-                            self.lines[lam][chargestate] = []
+                        if not chargestate in self.lines.keys():
+                            self.lines[chargestate] = {}
+                        if not lam in self.lines[chargestate].keys():
+                            self.lines[chargestate][lam] = []
                         rate = {}
                         for rtype in ['excit', 'recom', 'chexc']:
                             try:
                                 rate[rtype] = rateobj.adf15[lam][rtype]['emission']
                             except:
                                 pass
-                        self.lines[lam][chargestate] = rate
-        self.linelist = list(self.lines.keys())
-        self.linelist.sort()
+                        self.lines[chargestate][lam] = rate
+        self.linelist = {}
+        for chargestate, lines in self.lines.items():
+            self.linelist[chargestate] = list(lines.keys())
+            self.linelist[chargestate].sort()
 
 
 class ADASRate:
