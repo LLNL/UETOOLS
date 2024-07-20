@@ -178,34 +178,57 @@ class Chord():
         for lam, emission in self.emission.items():
             emission *= 1/(4*pi*1e-2)
 
-    def calc_emission(self, rates, chargestate, lam=None, rerun=False,
+    def calc_emission(self, rates, chargestate, lam=None, rerun=True,
         rtype = ['excit', 'recom', 'chexc']):
         species = rates.species.lower()
         # Reset emission dictionary to avoid double-counting
         self.emission = {}
         for _, obj in self.dL.items():
-            if rerun or (species not in obj['cell'].emission.keys()):
-                species = rates.species.lower()
-                o = obj['cell']
-                obj['cell'].emission[species] = rates.calc_emission(
-                        obj['cell'].ne, 
-                        obj['cell'].te, 
-                        obj['cell'].densities[species][chargestate], 
-                        obj['cell'].densities[species][chargestate+1], 
-                        obj['cell'].densities['h'][0],
-                        chargestate, 
-                        lam=lam, 
-                        rtype=rtype
-                )
+            species = rates.species.lower()
+            o = obj['cell']
+            obj['cell'].emission[species] = rates.calc_emission(
+                    obj['cell'].ne, 
+                    obj['cell'].te, 
+                    obj['cell'].densities[species][chargestate], 
+                    obj['cell'].densities[species][chargestate+1], 
+                    obj['cell'].densities['h'][0],
+                    chargestate, 
+                    lam=lam, 
+                    rtype=rtype
+            )
             self.add_emission(obj['cell'].emission[species], obj['dL'])
         
              
-    def plot_emission(self):
+    def plot_emission(self, rates, chargestate,
+        rtype = ['excit', 'recom', 'chexc']):
         from matplotlib.pyplot import subplots
+        species = rates.species.lower()
+        # Reset emission dictionary to avoid double-counting
+        self.emission = {}
+        for _, obj in self.dL.items():
+            species = rates.species.lower()
+            o = obj['cell']
+            obj['cell'].emission[species] = rates.calc_emission(
+                    obj['cell'].ne, 
+                    obj['cell'].te, 
+                    obj['cell'].densities[species][chargestate], 
+                    obj['cell'].densities[species][chargestate+1], 
+                    obj['cell'].densities['h'][0],
+                    chargestate, 
+                    lam=None, 
+                    rtype=rtype
+            )
+            self.add_emission(obj['cell'].emission[species], obj['dL'])
+
+
         f, ax = subplots()
         for x, y in self.emission.items():
-            ax.plot([x,x], [0,y], 'r-')
+            ax.semilogy([x,x], [0,y], 'r-')
         return f
+
+
+
+
 
     def calc_LOS_spectra(self,lower, upper):
         from numpy import nonzero
@@ -356,6 +379,8 @@ class Spectrometer():
     def __init__(self, case, chordfile=None, width=None, omega=1e-6, flip=True):
 #, displ=0, width = 0.017226946, norm_zmag=True, crm=None):
         ''' Creates polygons for the chords from a data file '''
+
+        # TODO: Add capability of specifiyng coords according to arrays
         from .GridData import Grid
         uevars = [
             "ne",
@@ -415,6 +440,7 @@ class Spectrometer():
             rates = self.rates
         for chord in self.chords:
             chord.calc_emission(rates, chargestate, lam, rerun, rtype)
+        return [x.emission[lam] for x in self.chords]
 
 
     def plot_spectrometer(self, ax=None, **kwargs):
@@ -441,10 +467,11 @@ class Spectrometer():
             f, ax = subplots()
         elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
-        self.calc_chord_emission(lam, chargestate, rates=rates, **kwargs)
+        emission = self.calc_chord_emission(lam, chargestate, rates=rates, **kwargs)
 
+        # TODO: Figure out what to use as X-axis
         ax.plot(range(1, len(self.chords)+1),
-            [x.emission[lam] for x in self.chords],
+            emission,
             linestyle=linestyle, marker=marker, color=color)
         
         return ax.get_figure()
