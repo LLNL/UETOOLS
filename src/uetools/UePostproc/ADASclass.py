@@ -33,6 +33,13 @@ class ADASSpecies:
         f.show()
         return f
 
+    def get_closest_line(self, lam, linelist):
+        from numpy import array
+        print(f"Line at {lam} nm not found.")
+        lam = linelist[(abs(array(linelist)-lam).argmin())]
+        print(f"Using nearest line found, {lam} nm")
+        return lam
+
     def calc_emission(self, ne, te, n0, n1, nh, chargestate, lam=None,
         rtype = ['excit', 'recom', 'chexc']
         ):
@@ -50,27 +57,17 @@ class ADASSpecies:
         if lam is None:
             lines = self.linelist[chargestate]
         elif isinstance(lam, (float, int)):
-            try:
-                self.lines[chargestate][lam]
-            except:
-                print(f"Line at {lam} nm not found.")
-                lam = self.linelist[chargestate][
-                    (abs(array(self.linelist[chargestate])-lam).argmin())
-                ]
-                print(f"Using nearest line found, {lam} nm")
+            if lam not in self.lines[chargestate]:
+                lam = self.get_closest_line(lam, self.linelist[chargestate])
             lines = [lam]
         elif isinstance(lam, (list, tuple)):
-            # TODO: Will cause unexpected behavior if asking for 2 distict lines
-            if len(lam) == 2:
-                lines = [x for x in self.lines if ((x > lam[0]) and (x < lam[1]))]
-            else:
-                lines = []
-                for l in lam:
-                    try:
-                        self.lines[l]
-                        lines.append(l)
-                    except:
-                        raise Exception(f"Line at {lam} A not found.")
+            lines = []
+            for l in lam:
+                if l not in self.lines[chargestate]:
+                    l = self.get_closest_line(l, self.linelist[chargestate])
+                lines.append(l)
+        elif isinstance(lam, slice):
+            lines = [x for x in self.linelist[chargestate] if ((x > lam.start) and (x<lam.stop))]
         else:
             raise Exception(f"Line specifier option {lam} not recognized!")
         if isinstance(rtype, str):
@@ -87,20 +84,7 @@ class ADASSpecies:
                 for r in rtype:
                     if r in line:
                         intensity += line[r](ne, te, n0, n1, nh, self.resolved)
-                    
-#                    try:
-#                        intensity += line[chargestate][r](ne, te, n0, n1, nh, self.resolved)
-#                    except:
-#                        pass
-#                        try:
-#                            intensity += line[zi][r](ne, te, nz, self.resolved) 
-#                        except:
-#                            pass
-            if isinstance(intensity, (float, int)):
-                if intensity != 0:
-                    output[lam] = intensity
-            else:
-                output[lam] = intensity
+            output[lam] = intensity
         return output
 
     def create_adf15(self):
@@ -199,50 +183,13 @@ class ADASRate:
         for rate in rtype:
             if rate not in ['excit', 'recom', 'chexc']:   
                 raise Exception(f"Unknown rate type {rate}!")
+            # Grab the densities of the species involved in the process
             nn = (  (n0 * (rate == 'excit') + n1 * (rate != 'excit')) *
                     (nh * (rate == 'chexc') + ne * (rate != 'chexc'))
             )
+            # Get the rates from ADAS, multiply by densities to get
+            # volumetric rates, convert to ph/s/cm**3
             ret += 10**self.get_pec(lam, ne, te, rate, metastate)*nn*1e-12
-
-
-#            if rate == 'chexc':
-#                nn = n1*ng
-#                if len(ni.shape) == 3:
-#                    nn = ni[:,:,self.chargestate+1]*ng
-#                else:
-#                    nn = ni[self.chargestate+1]*ng
-#                try:
-#                    if len(nz.shape) == 3:
-#                        nn = nz[:,:,self.chargestate+1]*nh
-#                    else:
-#                        nn = nz[self.chargestate+1]*nh
-#                except: 
-#                    print("CHEXC WARNING")
-#                    nn = 1
-#            elif rate == 'excit':
-#                nn = n0*ne
-#                if len(ni.shape) == 3:
-#                    nn = ni[:,:,self.chargestate]*ne
-#                else:
-#                    nn = ni[self.chargestate]*ne
-#            elif rate == 'recom':
-#                nn = n1*ne
-#                if len(ni.shape) == 3:
-#                    nn = ni[:,:,self.chargestate+1]*ne
-#                else:
-#                    nn = ni[self.chargestate+1]*ne
-#                try:
-#                    if len(nz.shape) == 3:
-#                        nn = nz[:,:,self.chargestate+1]*ne
-#                    else:
-#                        nn = nz[self.chargestate+1]*ne
-#                except:
-#                    nn = 1
-#                    print("RECOM WARNING")
-#            try:
-#                ret += 10**self.get_pec(lam, ne, te, rate, metastate)*nn*1e-12
-#            except:
-#                pass
         return ret
 
 

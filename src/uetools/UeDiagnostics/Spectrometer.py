@@ -185,14 +185,15 @@ class Chord():
         # Reset emission dictionary to avoid double-counting
         self.emission = {}
         if isinstance(lam, (int, float)):
-            try:
-                rates.lines[chargestate][lam]
-            except:
-                print(f"Line at {lam} nm not found.")
-                lam = rates.linelist[chargestate][
-                    (abs(array(rates.linelist[chargestate])-lam).argmin())
-                ]
-                print(f"Using nearest line found, {lam} nm")
+            if lam not in rates.lines[chargestate]:
+                lam = rates.get_closest_line(lam, rates.linelist[chargestate])
+        elif isinstance(lam, (list, tuple)):
+            _lam = []
+            for l in lam:
+                if l not in rates.lines[chargestate]:
+                    l = rates.get_closest_line(l, rates.linelist[chargestate])
+                _lam.append(l)
+            lam = _lam
         for _, obj in self.dL.items():
             species = rates.species.lower()
             o = obj['cell']
