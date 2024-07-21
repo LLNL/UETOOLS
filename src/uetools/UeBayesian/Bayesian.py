@@ -264,7 +264,9 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         for item in os.listdir(self.save_dir):
             if os.path.isdir('{}/{}'.format(self.save_dir, item)): dir_list.append(item)
         sub_dir = '{}/{}'.format(self.save_dir, len(dir_list))
-        os.makedirs(sub_dir)
+        
+        try: os.makedirs(sub_dir)
+        except: pass
         
         # set parameter
         self.set_params(params, **kwargs)
@@ -350,7 +352,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         # start sampling
         job_status = {}
         for job_id in np.arange(len(param_grid)):
-            time.sleep(0.2)
+            time.sleep(0.5)
             job_status[job_id] = pool.apply_async(func=self.bo_objective, 
                                                   kwds={'params': param_grid[job_id], 
                                                         **kwargs}, 
@@ -383,13 +385,13 @@ See uetools.UeBayesian.BayesDemo for examples.''')
 
 
 
-    def read_existing_samples(self, n_sample_read = None, save_dir = '.'):
+    def read_existing_samples(self, sample_list = None, save_dir = '.'):
         """ 
         Read existing samples that has been calculated save stored.
         
         Arguments:
-        n_sample_read: Int
-            The number of initial sample to read.
+        sample_list: list
+            The list of initial sample to read.
         save_dir:
             The directory to save HDF5 for all calculations
         """
@@ -404,9 +406,9 @@ See uetools.UeBayesian.BayesDemo for examples.''')
             return None
             
         # read data from calculated cases
-        if n_sample_read is None: n_sample_read = len(dir_list)
+        if sample_list is None: sample_list = list(range(len(dir_list)))
         
-        for i in range(n_sample_read):
+        for i in sample_list:
             # if folder i is calculated and in the directory
             if '{}'.format(i) in dir_list:
                 sub_dir = '{}/{}'.format(save_dir, i)
@@ -681,7 +683,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
 
             # submit all jobs
             for asyc_job_id in range(len(next_points)):
-                time.sleep(0.2)
+                time.sleep(0.5)
                 job_list[asyc_job_id] = pool.apply_async(self.bo_objective, 
                                                          kwds={'params': param_to_array(next_points[asyc_job_id]), 
                                                                **kwargs},
