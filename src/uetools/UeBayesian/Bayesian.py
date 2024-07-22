@@ -31,6 +31,8 @@ from bayes_opt import BayesianOptimization
 from bayes_opt.util import NotUniqueError
 from bayes_opt import UtilityFunction
 from scipy.optimize import NonlinearConstraint
+from multiprocessing import Pool, TimeoutError
+
 
 from sklearn.gaussian_process.kernels import Matern
 
@@ -325,7 +327,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
 
 
 
-    def calculate_initial_sampling(self, m=5, N_process=16, **kwargs):
+    def calculate_initial_sampling(self, m=5, N_process=16, timeout=1000, **kwargs):
         """
         Search initial sampling asynchronously using quasi-Monte Carlo method (LPtau).
         After calculation finished, convergent result will be stored into optimizer.
@@ -336,6 +338,8 @@ See uetools.UeBayesian.BayesDemo for examples.''')
             Number of initial sampling in LPtau method, N = 2^m.
         N_process:
             Number of multiprocess pool.
+        timeout:
+            Max wait time (s) for pool.
         **kwargs:
             Additional variables
         """
@@ -361,7 +365,11 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         # wait for all jobs and register data
         for job_id in np.arange(len(param_grid)):
             
-            params, target, constraint, sub_dir = job_status[job_id].get()
+            try:
+                params, target, constraint, sub_dir = job_status[job_id].get(timeout=1000)
+            except TimeoutError:
+                print('Time out for job_id = {}'.format(job_id))
+                target = np.nan
             
             # try to register if result is converge and not duplicated. 
             if not np.isnan(target):
@@ -692,7 +700,11 @@ See uetools.UeBayesian.BayesDemo for examples.''')
             # wait for all jobs and register data
             for asyc_job_id in range(len(next_points)):
                 
-                params, target, constraint, sub_dir = job_list[asyc_job_id].get()
+                try:
+                    params, target, constraint, sub_dir = job_list[asyc_job_id].get(timeout=1000)
+                except TimeoutError:
+                    print('Time out for job_id = {}'.format(asyc_job_id))
+                    target = np.nan
                 
                 # try to register if result is converge and not duplicated. 
                 if not np.isnan(target):
