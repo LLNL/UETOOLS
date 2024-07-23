@@ -1,13 +1,93 @@
+class ChordLine():
+    """ Creates a single 0D chord object """
+    def __init__(self, p0, p1, grid, *args, res = 500, **kwargs):
+        from shapely.geometry import Point, LineString
+        from numpy import array, pi, linspace
+        from scipy.interpolate import interp1d
 
-class Chord():
+        self.p0 = p0 # Chord starting point
+        self.p1 = p1 # Chord end point
+        # Get the total vector length 
+        self.length = p0.distance(p1)
+        
+        # f(L) = x
+        self.fx = interp1d([0, self.length], [self.p0.x, self.p1.x])
+        # f(L) = y
+        self.fy = interp1d([0, self.length], [self.p0.y, self.p1.y])
+        # f(L) = z
+        self.fz = interp1d([0, self.length], [self.p0.z, self.p1.z])
+        # f(z) = L
+        self.fL = interp1d([self.p0.z, self.p1.z], [0, self.length])
+        # TODO: handle exception when chord is horizontal!
+        def generator(L):
+            return ( 
+                ( self.fx(L)**2 + self.fy(L)**2)**0.5,
+                self.fz(L)
+            )
+    
+        self.chunkL = self.length/res
+        points = [generator(0)]
+        segments = {
+            'outside': [],
+            'inside': [],
+        }
+        for chunk in linspace(0, self.length, res):
+            points.append(generator(chunk))
+    
+        self.chord = LineString(points)
+
+        # Find the cells intersected by the chord and store 
+        # their path-lengths and indices
+        self.intersects = []
+        self.cells = {}
+        for ix, row in grid.map.items():
+            for iy, cell in row.items():
+                buff = []
+                if grid.map[ix][iy].polygon.intersects(self.chord):
+                    for intersect in grid.map[ix][iy].polygon.exterior.intersection(self.chord).geoms:
+                        buff.append(self.fL(intersect.y))
+                    if ix not in self.cells:
+                        self.cells[ix] = {}
+                    if iy not in self.cells[ix]:
+                        self.cells[ix][iy] = {
+                            'dL': 0
+                        }
+                    buff.sort()
+                    self.cells[ix][iy]['dL'] += buff[1] - buff[0]
+                    self.intersects.append(buff)
+
+
+    def plot_chord(self, ax=None, color='r', alpha=0.2):
+        from matplotlib.pyplot import Figure, subplots
+        if ax is None:
+            f, ax = subplots()
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+        ax.plot(*self.chord.xy, '-', color=color)
+        return ax.get_figure()
+
+
+        
+    def integrate_field(self, field):
+        integral = 0
+        for ix, row in self.cells.items():
+            for iy, L in row.items():
+                integral += field[ix,iy]*L['dL']
+        return integral
+
+
+
+        
+
+class ChordPoly():
     ''' Creates a single chord object '''
     def __init__(self, p0, p1, grid, width=None, omega=None):
         from shapely.geometry import Point
-        from numpy import pi
+        from numpy import array, pi
         self.p0 = p0 # Chord starting point
         self.p1 = p1 # Chord end point
 
-        self.length = ( (p0.x - p1.x)**2 + (p0.y - p1.y)**2)**0.5
+        self.length = self.p0.distance(self.p1)
 
         if (width is None) and (omega is None):
             self.width = 1e-9 # Pencil beam
@@ -134,7 +214,7 @@ class Chord():
 
 
     def plot_chord(self, ax=None, poly=True, line=True, color='r', alpha=0.2):
-        from matplotlib.pyplot import Figure
+        from matplotlib.pyplot import Figure, subplots
         if ax is None:
             f, ax = subplots()
         elif isinstance(ax, Figure):
@@ -387,12 +467,13 @@ class Chord():
 
 class Spectrometer():
 
-    def __init__(self, case, chordfile=None, width=None, omega=1e-6, flip=True):
+    def __init__(self, case, chords=None, width=None, omega=1e-6, flip=True):
 #, displ=0, width = 0.017226946, norm_zmag=True, crm=None):
         ''' Creates polygons for the chords from a data file '''
 
         # TODO: Add capability of specifiyng coords according to arrays
         from .GridData import Grid
+        from numpy import ndarray
         uevars = [
             "ne",
             "te",
@@ -403,14 +484,26 @@ class Spectrometer():
             "pradhyd",
         ]
 
+        if ((width is None) or (width is False)) and \
+            ((omega is None) or (omega is False)):
+            self.line = True
+        else:
+            self.line = False
+
+
         self.case = case
         self.grid = Grid(case, flip=flip, variables=uevars)
         self.chords = []
         self.width = width
         self.omega = omega
-        if chordfile is not None:
-            self.read_chordfile(chordfile)
-
+        if isinstance(chords, str):
+            self.read_chordfile(chords)
+        elif isinstance(chords, (ndarray, list)):
+            self.read_chordarray(chords)
+            
+    def read_chordarray(self, chords):
+        for chord in chords:
+            self.add_chord(chord, self.width)
 
     def read_chordfile(self, file):
         with open(file, 'r') as f:
@@ -427,13 +520,22 @@ class Spectrometer():
             width = self.width
             omega = self.omega
 
-        p0 = Point((points[0][0], points[0][1]))
-        p1 = Point((points[1][0], points[1][1]))
+        if (len(points[0]) == 3) and (self.line is False):
+            print("3D object considered as lines!")
+            self.line = True
+
+        pointcoords = []
+        for point in points:
+            pointcoords.append(Point(tuple(point)))
+
+        if self.line:
+            Chord = ChordLine
+        else:
+            Chord = ChordPoly
 
         self.chords.append(
             Chord(
-                p0,
-                p1,
+                *pointcoords,
                 self.grid,
                 width = width,
                 omega = omega
@@ -443,7 +545,6 @@ class Spectrometer():
     def add_rates(self, path, species, ratetype, **kwargs):
         from uetools.UePostproc.ADASclass import ADASSpecies
         self.rates = ADASSpecies(path, species, ratetype, **kwargs)
-
     
     def calc_chord_emission(self, lam, chargestate, rerun=True,
         rtype = ['excit', 'recom', 'chexc'], rates=None, **kwargs):
@@ -452,7 +553,6 @@ class Spectrometer():
         for chord in self.chords:
             chord.calc_emission(rates, chargestate, lam, rerun, rtype)
         return [x.emission[lam] for x in self.chords]
-
 
     def plot_spectrometer(self, ax=None, **kwargs):
         ''' Plots a polygrid of Patches '''
@@ -465,119 +565,22 @@ class Spectrometer():
             chord.plot_chord(ax, **kwargs)
         return ax.get_figure()
 
-
     def plot_setup(self):
         f = self.grid.plot_grid()
         self.plot_spectrometer(f)
 
-
     def plot_chord_intensity(self, lam, chargestate, ax=None, linestyle='-',
-        marker='o', color='k', rates=None, **kwargs):
+        marker='o', color='k', rates=None, x=None, **kwargs):
         from matplotlib.pyplot import subplots, Figure
         if ax is None:
             f, ax = subplots()
         elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
         emission = self.calc_chord_emission(lam, chargestate, rates=rates, **kwargs)
-
+        if x is None:
+            x = range(1, len(self.chords)+1)
         # TODO: Figure out what to use as X-axis
-        ax.plot(range(1, len(self.chords)+1),
-            emission,
-            linestyle=linestyle, marker=marker, color=color)
+        ax.plot(x, emission, linestyle=linestyle, marker=marker, color=color)
         
         return ax.get_figure()
-
-
-
-
-
-
-
-
-
-
-
-
-    def calculate_LOS_integral(self, grid, **kwargs):
-        ''' Calculates the LOS integrals from a Grid object '''
-        for chord in self.chords:
-            if chord.integrated is False:
-                chord.LOS_integral(grid, **kwargs)
-    
-    def calculate_LOS_integral_data(self, data, grid, **kwargs):
-        ret = []
-        for chord in self.chords:
-            chord.LOS_integral_value(data, grid, **kwargs)
-            ret.append(chord.LOS_value_integral)
-
-        return ret
-
-    def plot_chord_angle(self, grid, interval = (5980,6330), mol=True, ax=None, style='ko-',yscale=1,dtheta=0, **kwargs):
-        from matplotlib.pyplot import subplots
-        from numpy import array, mean, array#, arccos, dot, degrees
-        from math import degrees, atan2
-        from numpy.linalg import norm
-        from shapely.geometry import Point
-        if ax is None:
-            f, ax = subplots()
-        self.calculate_LOS_integral(grid)
-        chord_ends = []
-        detector = []
-        angles = []
-        intensities = []
-        for chord in self.chords:
-            detector.append(array(chord.points[0].xy))
-            chord_ends.append(array(chord.points[1].xy))
-            # Integrate chord intensity in interval
-            intensities.append(chord.calc_LOS_spectra(interval[0], interval[1]))
-
-        # Mean upper point
-        detector = mean(array(detector), axis=0)
-        for point in chord_ends:
-#        for i in range(len(chord_ends)):
-#            angles.append(degrees(atan2(chord_ends[i][1]-detector[i][1], chord_ends[i][0]-detector[i][0]) - 
-#                    atan2(detector[i][1]-detector[i][1], detector[i][0]+1-detector[0][0])))
-            angles.append(degrees(atan2(point[1]-detector[1], point[0]-detector[0]) - 
-                    atan2(self.osep[1]-detector[1], self.osep[0]-detector[0])))
-#            chord = point - detector
-#            sep = self.osep - detector
-#            angles.append(degrees(arccos(dot(chord[:,0], sep[:,0]) / (norm(chord) * norm(sep)))))
-        # Calculate angle between line and sep
-        ax.plot(array(angles)+dtheta, yscale*array(intensities)[:,0**mol],style,**kwargs)
-        return ax.get_figure()
-                
- 
-
-    def plot_chord_angle_data(self,data,  grid, ax=None, style='ko-',yscale=1, dtheta=0, **kwargs):
-        from matplotlib.pyplot import subplots
-        from numpy import array, mean, array#, arccos, dot, degrees
-        from math import degrees, atan2
-        from numpy.linalg import norm
-        from shapely.geometry import Point
-        if ax is None:
-            f, ax = subplots()
-        chord_ends = []
-        detector = []
-        angles = []
-        for chord in self.chords:
-            detector.append(array(chord.points[0].xy))
-            chord_ends.append(array(chord.points[1].xy))
-
-        # Mean upper point
-        detector = mean(array(detector), axis=0)
-#        for i in range(len(chord_ends)):
-        for point in chord_ends:
-#            angles.append(degrees(atan2(chord_ends[i][1]-detector[i][1], chord_ends[i][0]-1-detector[i][0]) - 
-#                    atan2(detector[i][1]-detector[i][1], detector[i][0]+1-detector[0][0])))
-            angles.append(degrees(atan2(point[1]-detector[1], point[0]-detector[0]) - 
-                    atan2(self.osep[1]-detector[1], self.osep[0]-detector[0])))
-#            chord = point - detector
-#            sep = self.osep - detector
-#            angles.append(degrees(arccos(dot(chord[:,0], sep[:,0]) / (norm(chord) * norm(sep)))))
-        # Calculate angle between line and sep
-        ax.plot(array(angles)+dtheta, yscale*array(data),style,**kwargs)
-        return ax.get_figure()
-                
- 
-
 

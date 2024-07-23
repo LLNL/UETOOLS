@@ -1,6 +1,7 @@
 
 class Grid():
     def __init__(self, case, flip=True, variables = ['te', 'ne', 'ni', 'ng']):
+        from shapely import coverage_union_all, Polygon
         self.case = case
         self.geometry = self.case.get("geometry")[0].strip().lower().decode("UTF-8")
         self.cells = []
@@ -13,9 +14,14 @@ class Grid():
 
         if (self.geometry == "uppersn") and (flip is True):
             zm = self.case.disp - zm
+
+        mapdict = {}
+        geometries = []
         # Create polygons for all cells
         (nx, ny, _) = rm.shape
         for ix in range(1,nx-1):
+            if ix not in mapdict:
+                mapdict[ix] ={}
             for iy in range(1,ny-1):
                 verts = []
                 for iv in [1, 2, 4, 3]:
@@ -23,6 +29,22 @@ class Grid():
                 self.cells.append(Cell(verts, (ix,iy), self.vars,
                     case.ionarray, case.gasarray
                 ))
+                # Create list of plygons for union
+                geometries.append(self.cells[-1].polygon)
+                # Map the coordinates to the appropriate Cell object
+                mapdict[ix][iy] = self.cells[-1]
+        # Create union cells, consisting of the plasma grid
+        self.area = coverage_union_all(geometries)
+        # Create and store Polygon for core
+        corepts = []
+        for nxpt in range(case.get('nxpt')):
+            for ix in range(case.get('ixpt1')[nxpt]+1, case.get('ixpt2')[nxpt]+1):
+                corepts.append([
+                            case.get('rm')[ix, 0, 3], 
+                            case.get('zm')[ix, 0, 3],
+                ])
+        self.core = Polygon(corepts)
+        self.map = mapdict
 
 
     def plot_intensity(self, interval, ax=None,crm=None,zrange=(None,None), 
