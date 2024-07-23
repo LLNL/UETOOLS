@@ -7,6 +7,10 @@ class ChordLine():
 
         self.p0 = p0 # Chord starting point
         self.p1 = p1 # Chord end point
+        if abs(self.p0.z - self.p1.z) < 1e-5:
+            raise Exception("Tangential lines in the horizontal plane not yet implemented")
+
+
         # Get the total vector length 
         self.length = p0.distance(p1)
         
@@ -36,12 +40,18 @@ class ChordLine():
     
         self.chord = LineString(points)
 
+        p0rz = Point(points[0])
+        p1rz = Point(points[-1])
         # Find the cells intersected by the chord and store 
         # their path-lengths and indices
         self.intersects = []
         self.cells = {}
         for ix, row in grid.map.items():
             for iy, cell in row.items():
+                if cell.polygon.contains(p0rz):
+                    raise ValueError("Chord start point inside grid")
+                elif cell.polygon.contains(p1rz):
+                    raise ValueError("Chord end point inside grid")
                 buff = []
                 if grid.map[ix][iy].polygon.intersects(self.chord):
                     for intersect in grid.map[ix][iy].polygon.exterior.intersection(self.chord).geoms:
@@ -102,22 +112,27 @@ class ChordPoly():
             raise ValueError("Set either width or omega, not both")
 
         self.create_poly()
-        self.contained = {}
-        self.intersected = {}
-        self.dL = {}
+        self.cells = {}
         self.cell_polys = []
-        self.emission = {}
-        # TODO: Implement check on end-point in grid cell!
-        for cell in grid.cells:
-            if cell.polygon.contains(self.p0):
-                raise ValueError("Chord start point inside grid")
-            elif cell.polygon.contains(self.p1):
-                raise ValueError("Chord end point inside grid")
-            elif self.poly.contains(cell.polygon):
-                self.add_contained_cell(cell)
-            elif self.poly.intersects(cell.polygon):
-                self.add_intersected_cell(cell)
 
+        for ix, row in grid.map.items():
+            for iy, cell in row.items():
+                if cell.polygon.contains(self.p0):
+                    raise ValueError("Chord start point inside grid")
+                elif cell.polygon.contains(self.p1):
+                    raise ValueError("Chord end point inside grid")
+                elif self.poly.intersects(cell.polygon):
+                    if ix not in self.cells:
+                        self.cells[ix] = {}
+                    if iy not in self.cells[ix]:
+                        self.cells[ix][iy] = {
+                            'dL': 0
+                        }
+                    self.cells[ix][iy]['dL'] += self.intersected_dL(cell.polygon)
+                    if self.poly.contains(cell.polygon):
+                        self.cells[ix][iy]['dL'] = self.contained_dL(cell.polygon)
+                    
+                    
 
     def calc_width(self, omega):
         ''' Calculates the 2D 2*r at the end-point for a given solid angle '''
@@ -130,11 +145,8 @@ class ChordPoly():
         from numpy import pi
         return 2*pi*(1-1/(1+w**2/4/self.length**2)**0.5)
 
-    def calc_L(self, point1, point2):
-        return ( (point1.x - point2.x)**2 + (point1.y - point2.y)**2 )**0.5
 
-    def add_contained_cell(self, cell):
-        from numpy import sqrt, pi
+    def contained_dL(self, cell):
         # Add the entire cell polygon to the list of grid cells
         # inside the LOS polygon:
 
@@ -143,41 +155,27 @@ class ChordPoly():
         # area of the original cell and width determined by the
         # distance of the cell from the origin of the LOS and
         # the width of the LOS at its end:
-        L_cell = self.calc_L(cell.polygon.centroid, self.p0)
+        L_cell = cell.centroid.distance(self.p0)
         w_orthog = L_cell/self.length*self.width
-        dL = cell.polygon.area/w_orthog
-        
-        self.dL[str(cell.indices)] = {
-            'cell': cell,
-            'dL': dL,
-            'L': L_cell,
-            'A': cell.polygon.area,
-        }
-        self.cell_polys.append(cell.polygon)
+        self.cell_polys.append(cell)
+        return cell.area/w_orthog
 
-    def add_intersected_cell(self, cell):
-        from numpy import sqrt, pi
+    def intersected_dL(self, cell):
         # Determine the part of the grid cell polygon that
         # intersects with the line-of-sight polygon:
-        clipped = self.poly.intersection(cell.polygon)
+        clipped = self.poly.intersection(cell)
 
         # Calculate dL for the integration by postulating a
         # rectangular cell orthogonal to the line-of-sight with
         # area of the original cell and width determined by the
         # distance of the cell from the origin of the LOS and
         # the width of the LOS at its end: 
-        L_cell = self.calc_L(clipped.centroid, self.p0)
+        L_cell = clipped.centroid.distance(self.p0)
         w_orthog = L_cell/self.length*self.width
-        dL = clipped.area/w_orthog
-            
-        self.dL[str(cell.indices)] = {
-            'cell': cell,
-            'dL': dL,
-            'L': L_cell,
-            'A': cell.polygon.area,
-        }
         self.cell_polys.append(clipped)
-
+        return clipped.area/w_orthog
+        
+    
     def create_poly(self):
         from numpy import sqrt, cos, sin, arctan
         from shapely.geometry import Polygon
@@ -198,19 +196,13 @@ class ChordPoly():
             ]
         )
 
-    def integrate(self, variable=None):
-        ret = 0
-        if variable is None:
-            for key, obj in self.dL.items():
-                ret += obj['dL']
-        else:
-            for key, obj in self.dL.items():
-                ret += obj['dL']*obj['dL'].__getattribute__(variable)
-        return ret
-
-
-
-
+ 
+    def integrate_field(self, field):
+        integral = 0
+        for ix, row in self.cells.items():
+            for iy, L in row.items():
+                integral += field[ix,iy]*L['dL']
+        return integral
 
 
     def plot_chord(self, ax=None, poly=True, line=True, color='r', alpha=0.2):
@@ -235,6 +227,13 @@ class ChordPoly():
         for poly in self.cell_polys:
              xs, ys = poly.exterior.xy    
              ax.fill(xs, ys, fc='g', ec='none')
+
+
+
+
+
+    # TODO: Implement using integrate_field
+
 
     def add_emission(self, emission, dL):
         """ Populates self.emission with emissivities from volumetric emission
@@ -319,6 +318,61 @@ class ChordPoly():
 
 
 
+
+
+
+
+
+
+
+
+    def calc_L(self, point1, point2):
+        return ( (point1.x - point2.x)**2 + (point1.y - point2.y)**2 )**0.5
+
+    def add_contained_cell(self, cell):
+        from numpy import sqrt, pi
+        # Add the entire cell polygon to the list of grid cells
+        # inside the LOS polygon:
+
+        # Calculate dL for the integration by postulating a
+        # rectangular cell orthogonal to the line-of-sight with
+        # area of the original cell and width determined by the
+        # distance of the cell from the origin of the LOS and
+        # the width of the LOS at its end:
+        L_cell = self.calc_L(cell.polygon.centroid, self.p0)
+        w_orthog = L_cell/self.length*self.width
+        dL = cell.polygon.area/w_orthog
+        
+        self.dL[str(cell.indices)] = {
+            'cell': cell,
+            'dL': dL,
+            'L': L_cell,
+            'A': cell.polygon.area,
+        }
+        self.cell_polys.append(cell.polygon)
+
+    def add_intersected_cell(self, cell):
+        from numpy import sqrt, pi
+        # Determine the part of the grid cell polygon that
+        # intersects with the line-of-sight polygon:
+        clipped = self.poly.intersection(cell.polygon)
+
+        # Calculate dL for the integration by postulating a
+        # rectangular cell orthogonal to the line-of-sight with
+        # area of the original cell and width determined by the
+        # distance of the cell from the origin of the LOS and
+        # the width of the LOS at its end: 
+        L_cell = self.calc_L(clipped.centroid, self.p0)
+        w_orthog = L_cell/self.length*self.width
+        dL = clipped.area/w_orthog
+            
+        self.dL[str(cell.indices)] = {
+            'cell': cell,
+            'dL': dL,
+            'L': L_cell,
+            'A': cell.polygon.area,
+        }
+        self.cell_polys.append(clipped)
 
 
     def calc_LOS_spectra(self,lower, upper):
@@ -521,7 +575,7 @@ class Spectrometer():
             omega = self.omega
 
         if (len(points[0]) == 3) and (self.line is False):
-            print("3D object considered as lines!")
+            print("Tangential chords treated as bencil-beams!")
             self.line = True
 
         pointcoords = []
@@ -545,14 +599,6 @@ class Spectrometer():
     def add_rates(self, path, species, ratetype, **kwargs):
         from uetools.UePostproc.ADASclass import ADASSpecies
         self.rates = ADASSpecies(path, species, ratetype, **kwargs)
-    
-    def calc_chord_emission(self, lam, chargestate, rerun=True,
-        rtype = ['excit', 'recom', 'chexc'], rates=None, **kwargs):
-        if rates is None:
-            rates = self.rates
-        for chord in self.chords:
-            chord.calc_emission(rates, chargestate, lam, rerun, rtype)
-        return [x.emission[lam] for x in self.chords]
 
     def plot_spectrometer(self, ax=None, **kwargs):
         ''' Plots a polygrid of Patches '''
@@ -569,18 +615,80 @@ class Spectrometer():
         f = self.grid.plot_grid()
         self.plot_spectrometer(f)
 
-    def plot_chord_intensity(self, lam, chargestate, ax=None, linestyle='-',
+
+    def get_nph(self, lam, chargestate, rates=None, 
+        rtype = ['excit', 'recom', 'chexc']):
+        if rates is None:   
+            rates = self.rates
+        species = rates.species.lower()
+        return  rates.calc_emission(
+                    self.grid.densities['e'][0], 
+                    self.grid.vars['te'], 
+                    self.grid.densities[species][chargestate], 
+                    self.grid.densities[species][chargestate+1], 
+                    self.grid.densities['h'][0],
+                    chargestate, 
+                    lam=lam, 
+                    rtype=rtype
+                )[lam]
+ 
+    def calc_chord_emission(self, chargestate, rates=None, lam=None,
+        rtype = ['excit', 'recom', 'chexc']):
+        from numpy import array, zeros
+        # Reset emission dictionary to avoid double-counting
+        self.nph = {}
+        self.emission = {}
+        if rates is None:   
+            rates = self.rates
+        species = rates.species.lower()
+        if lam is None:
+            lam = list(rates.lines[chargestate].keys())
+        elif isinstance(lam, (int, float)):
+            if lam not in rates.lines[chargestate]:
+                lam = rates.get_closest_line(lam, rates.linelist[chargestate])
+            lam = [lam]
+        elif isinstance(lam, (list, tuple)):
+            _lam = []
+            for l in lam:
+                if l not in rates.lines[chargestate]:
+                    l = rates.get_closest_line(l, rates.linelist[chargestate])
+                _lam.append(l)
+            lam = _lam
+        for l in lam:
+            self.nph[l] = self.get_nph(l, chargestate, rates=rates, rtype=rtype)
+            emission_chord = []
+            for chord in self.chords:
+                emission_chord.append(chord.integrate_field(self.nph[l]))
+            self.emission[l] = emission_chord
+                
+
+    def plot_chord_spectra(self, chord, chargestate, ax=None, linestyle='-',
+        color='k', rates=None, **kwargs):
+        from matplotlib.pyplot import subplots, Figure
+        if ax is None:
+            f, ax = subplots()
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+        self.calc_chord_emission(chargestate)
+        for line, chords in self.emission.items():
+            ax.semilogy([line, line], [0, chords[chord]], linestyle=linestyle, color=color)
+        return ax.get_figure()
+        
+
+    def plot_chord_emission(self, lam, chargestate, ax=None, linestyle='-',
         marker='o', color='k', rates=None, x=None, **kwargs):
         from matplotlib.pyplot import subplots, Figure
         if ax is None:
             f, ax = subplots()
         elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
-        emission = self.calc_chord_emission(lam, chargestate, rates=rates, **kwargs)
+        if not isinstance(lam, (float, int)):
+            raise Exception("Please select a single spectroscopic line to plot")
+        self.calc_chord_emission(chargestate, lam=lam, rates=rates, **kwargs)
         if x is None:
             x = range(1, len(self.chords)+1)
         # TODO: Figure out what to use as X-axis
-        ax.plot(x, emission, linestyle=linestyle, marker=marker, color=color)
+        ax.plot(x, self.emission[lam], linestyle=linestyle, marker=marker, color=color)
         
         return ax.get_figure()
 

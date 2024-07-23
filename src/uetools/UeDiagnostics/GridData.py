@@ -15,6 +15,39 @@ class Grid():
         if (self.geometry == "uppersn") and (flip is True):
             zm = self.case.disp - zm
 
+
+
+        self.densities = {'e': {0: self.vars['ne']}}
+        for i in range(len(case.ionarray)):
+            ion = case.ionarray[i]
+            species = (ion.split("+")[0]).lower()
+            if species in ["d", "t"]:
+                species = "h"
+            try: 
+                charge = int(ion.split("+")[1])
+            except:
+                if '+' not in ion:
+                    # No charge: inertial neutral species
+                    continue
+                else:
+                    charge = 1
+            if species not in self.densities:
+                self.densities[species] = {}
+            self.densities[species][charge] = self.vars["ni"][:,:,i]
+        for g in range(len(case.gasarray)):
+            gas = case.gasarray[g]
+            species = (gas.replace("0", "").replace("_2","")).lower()
+            if species in ["d", "t"]:
+                species = "h"
+            mols = "_2" in gas
+            if not mols:
+                self.densities[species][0] = self.vars["ng"][:,:,g]
+            else:
+                self.densities[species]['mol'] = self.vars["ng"][:,:,g]
+
+
+
+
         mapdict = {}
         geometries = []
         # Create polygons for all cells
@@ -26,9 +59,9 @@ class Grid():
                 verts = []
                 for iv in [1, 2, 4, 3]:
                     verts.append([rm[ix, iy, iv], zm[ix, iy, iv]])
-                self.cells.append(Cell(verts, (ix,iy), self.vars,
-                    case.ionarray, case.gasarray
-                ))
+                self.cells.append(Cell(verts, (ix,iy)))#, self.vars)),
+#                    case.ionarray, case.gasarray
+#                ))
                 # Create list of plygons for union
                 geometries.append(self.cells[-1].polygon)
                 # Map the coordinates to the appropriate Cell object
@@ -135,58 +168,19 @@ class Cell():
     ''' Containter object for grid cell info '''
     
     # TODO: create function calculating and storing the spectra
-    def __init__(self, vertices, indices, variables, ionarray=None,
-        gasarray=None
-    ):
+    def __init__(self, vertices, indices):
+#, variables, ionarray=None,
+#        gasarray=None
+#    ):
         from shapely.geometry import Polygon
         self.vertices = vertices
         self.indices = indices
-        self.ionarray = ionarray
-        self.gasarray = gasarray
         self.polygon = Polygon(vertices)
-        for var, value in variables.items():
-            self.__setattr__(var, variables[var][*indices])
-        self.emission = {}
-        self.densities = {'e': {0: self.ne}}
-        for i in range(len(ionarray)):
-            ion = ionarray[i]
-            species = (ion.split("+")[0]).lower()
-            if species in ["d", "t"]:
-                species = "h"
-            try: 
-                charge = int(ion.split("+")[1])
-            except:
-                if '+' not in ion:
-                    # No charge: inertial neutral species
-                    continue
-                else:
-                    charge = 1
-            if species not in self.densities:
-                self.densities[species] = {}
-            self.densities[species][charge] = self.ni[i]
-        for g in range(len(gasarray)):
-            gas = gasarray[g]
-            species = (gas.replace("0", "").replace("_2","")).lower()
-            if species in ["d", "t"]:
-                species = "h"
-            mols = "_2" in gas
-            if not mols:
-                self.densities[species][0] = self.ng[g]
-            else:
-                self.densities[species]['mol'] = self.ng[g]
+
                     
     def plot_cell(self, ax=None, linewidth = 0.05):
         if ax is None:
             f, ax = subplots()
         ax.plot(*self.polygon.exterior.xy, 'k-', linewidth=linewidth) 
-
-    def set_emission(self, adasspecies, lam=None, chargestate=None,
-        rtype = ['excit', 'recom', 'chexc']):
-        species = adasspecies.species.lower()
-        self.emission[species] = adasspecies.calc_emission(
-            self.ne, self.te, self.__getattribute__(f"n{species}"), self.nh, 
-            lam, chargestate, rtype)
-        
-        
 
 
