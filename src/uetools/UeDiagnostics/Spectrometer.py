@@ -661,6 +661,24 @@ class Spectrometer():
                 emission_chord.append(chord.integrate_field(self.nph[l]))
             self.emission[l] = emission_chord
                 
+    def plot_chord_integral(self, field, ax=None, linestyle='-', marker='o',
+        color='k', x = None):
+        from matplotlib.pyplot import subplots, Figure
+        if ax is None:
+            f, ax = subplots()
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+        if x is None:
+            x = range(1, len(self.chords)+1)
+        # TODO: Figure out what to use as X-axis
+        integrals = []
+        for chord in self.chords:
+            integrals.append(chord.integrate_field(field))
+
+        ax.plot(x, integrals, linestyle=linestyle, marker=marker, color=color)
+        
+        return ax.get_figure()
+
 
     def plot_chord_spectra(self, chord, chargestate, ax=None, linestyle='-',
         color='k', rates=None, **kwargs):
