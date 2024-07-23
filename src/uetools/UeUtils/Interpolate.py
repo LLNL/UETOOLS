@@ -36,7 +36,8 @@ class Interpolate():
                         grid_old[prop] = f_oldgrid['grid/com'][prop][()]
             elif oldgrid is None:
                 # Use variables in memory
-                grid_old[prop] = self.get(prop)
+                for prop in proplist:
+                    grid_old[prop] = self.get(prop)
             with File(newgrid) as f_newgrid:
                 for prop in proplist:
                     grid_new[prop] = f_newgrid['grid/com'][prop][()]
@@ -596,15 +597,21 @@ class IndexGridPatch:
     # TODO: Radial interpolation according to midplane/PFR PSIN?
     def __init__(self, nxl, nxu, nyl, nyu, savedata, radtransp, *args, **kwargs):
         """ Set up the required interpolators """
-        from numpy import linspace
+        from numpy import linspace, ndarray
         from scipy.interpolate import RegularGridInterpolator
         from copy import deepcopy
+
         self.nxl = nxl
         self.nxu = nxu
         self.nx = nxu - nxl # Number of nodes in X-direction of patch
         self.nyl = nyl
         self.nyu = nyu
         self.ny = nyu - nyl # Number of nodes in Y-direction of patch
+        # Convert any arrays to ints
+        for var in ['nxl', 'nxu', 'nx', 'nyl', 'nyu', 'ny']:
+            if isinstance(self.__getattribute__(var), (list, ndarray)):
+                self.__setattr__(var, self.__getattribute__(var)[0])
+
         self.savedata = deepcopy(savedata)
         self.radtransp = deepcopy(radtransp)
         # Create linearly distributed points
@@ -613,7 +620,7 @@ class IndexGridPatch:
         # Break data into patch and create interpolation functions
         self.interp = {}
         for variable, data in self.savedata.items():
-            self.savedata[variable] = data[nxl:nxu, nyl:nyu]
+            self.savedata[variable] = data[self.nxl:self.nxu, self.nyl:self.nyu]
             if len(data.shape) == 3:
                 nz = data.shape[2]
                 # Do interpolation with multiple species
@@ -626,7 +633,7 @@ class IndexGridPatch:
                     (self.x, self.y), self.savedata[variable])
 
         for variable, data in self.radtransp['2D'].items():
-            self.radtransp[variable] = data[nxl:nxu, nyl:nyu]
+            self.radtransp[variable] = data[self.nxl:self.nxu, self.nyl:self.nyu]
             if len(data.shape) == 3:
                 nz = data.shape[2]
                 # Do interpolation with multiple species
