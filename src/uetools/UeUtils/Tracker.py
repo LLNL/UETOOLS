@@ -21,12 +21,15 @@ class Tracker():
                 # Parse the variable attributes into list
                 attrs = pkgobj.listvar(var).split('Attributes:')[1].split(\
                     '\n')[0].replace('  ','').split()
+                try:
+                    self.uevars['undef'][attrs[0]][var] = [pkg, hash(str(var))]
+                except:
+                    self.uevars['undef'][attrs[0]] = {}
+                    self.uevars['undef'][attrs[0]][var] = [pkg, hash(str(var))]
                 # All variables are assigned their group: if there is only
                 # one attribute, variable is not assigned any other attributes
-                if len(attrs) == 1:
-                    self.uevars['undef'][var] = [pkg, hash(str(var))]
                 # Otherwise, there are custom attributes for the variable
-                else:
+                if len(attrs) > 1:
                     # Loop through all assigned attributes for variable
                     for att in attrs[1:]:
                         # Assert a dict entry for every attribute
@@ -38,6 +41,12 @@ class Tracker():
                         # package name and current hash
                         self.uevars[att][var] = [pkg, hash(str(\
                             packageobject(pkg).getpyobject(var)))]
+            # Move full packages over: backstop for older versions
+            for pkg in ['Ynorm', 'Volsrc']:
+                if pkg in self.uevars['undef']:
+                    for var, struct in self.uevars['undef'][pkg].items():
+                        self.uevars['input'][var] = struct
+#                    del( self.uevars['undef'][pkg] )
 
     def gather_changes(self, vardict, changes=None, key=None):
         try:
