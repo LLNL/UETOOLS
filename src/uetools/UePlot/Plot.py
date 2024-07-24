@@ -201,7 +201,9 @@ class Plot:
                     self.sep['iplate'][xy] = self.getomit(f"{xy}m")[1, :, 1]
                     self.sep['oplate'][xy] = self.getomit(f"{xy}m")[-2, :, 2]
                     if self.get(f"{xy}bdry") is not None:
-                        self.sep['efitsep'] = self.get(f"{xy}bdry") 
+                        if 'efitsep' not in self.sep:
+                            self.sep['efitsep'] = {}
+                        self.sep['efitsep'][f'{xy}'] = self.get(f"{xy}bdry") 
             elif self.dnull is not False:
                 iysptrx1 = self.get("iysptrx1")
                 iysptrx2 = self.get("iysptrx2")
