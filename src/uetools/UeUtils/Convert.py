@@ -231,116 +231,226 @@ class Convert:
         # TODO: add capability to also write autodetected changes
 
 
-    def py2yaml(self, fnamepy, fnameyaml, blockseparator='===='):
-        try:
-            from Forthon import package
-        except:
-            pass
-        from yaml import dump
-        yamlinput = {}
-        packages = package()
-        block = ''
-        others = []
-        index = None
-        with open(fnamepy, 'r') as f:
-            for line in f:
-                # Omit empty lines
-                if len(line.split()) == 0:
-                    continue
-                elif 'bbb.allocate' in line:
-                    continue
-                elif 'casename' in line:
-                    yamlinput['casename'] = line.split('=')[-1].split('#')[0].strip()
-                # Line is a variable
-                elif line.split('.')[0] in packages:
-                    if 'USER-SPECIFIED'.lower() in block:
-                        others.append(line)
-                    else:
-                        var, value = line.split('=')
-                        value=value.strip()
-                        var = var.split('.')[1]
-                        # Variable setting indices
-                        if '[' in var:
-                            indices = var.split('[')[-1].split(']')[0]
-                            var = var.split('[')[0]
-                            # Setting range
-                            if ':' in indices:
-                                # Set from start of array
-                                if indices[0] == ':':
-                                    index = None
-                                # Set to start from specific index
-                                else:
-                                    index = int(indices.split(':')[0])
-                            # Only one entry is set
-                            else:
-                                index = int(indices)
-                            if '[[' in value:
-                                value=value.replace('[[','[').\
-                                    replace(']]',']').replace(' ','').\
-                                    replace('],[',', ')
-                            if index is None:
-                                yamlinput[block][var] = value
-                            else:
-                                yamlinput[block][var] = {index: value}
-                        else:
-                            # Set undefined parameters
-                            if len(block) == 0:
-                                yamlinput[var] = value
-                            # Write non-indexed paramters to dict
-                            else:
-                                yamlinput[block][var] = value
-                # Line contains a block
-                elif blockseparator in line:    
-                    # Set block header: check from beginning and end
-                    block = line.split(blockseparator)[-2].strip().lower()
-                    if block == '#':
-                        block = line.split(blockseparator)[1].strip().lower()
-                    # Set block title
-                    if ('user-specified' not in block) and ('restore solution' not in block):
-                        yamlinput[block] = {}
-                # Omit comment lines
-                elif line.strip()[0] == '#':
-                    continue
-                elif 'restore solution' in block:
-                    if 'File'  in line:
-                        yamlinput['savefile'] = line.split('"')[1]
-                else:
-                    # Gather any fallen-through lines here --> commands?
-                    others.append(line)
 
-        yamlinput['commands'] = []
-        for line in others:
-            yamlinput['commands'].append(line.replace('\n',''))
-        with open(fnameyaml, 'w') as f:
-            dump(yamlinput, f, sort_keys=False,default_style=None, default_flow_style=False)
-        lines = []
-        commands = False
-        with open(fnameyaml, 'r') as f:
-            for line in f:
-                lines.append(line)
-        with open(fnameyaml, 'w') as f:
-            for line in lines:
-                if 'e' in line:
-                    try:
-                        linevar, lineval = line.split(':')
-                    except:
-                        linevar, lineval = ' ', ' '
-                        pass
-                    if lineval.split('e')[0][-1] in [str(x) for x in range(10)]:
-                        if '.' not in lineval:
-                            lineval = lineval.replace('e','.e')
-                            line = '{}:{}'.format(linevar, lineval)
-                if 'commands' in line:
-                    commands=True
-                if commands is False:
-                    f.write(line.replace("'",""))
-                else: 
-                    if 'commands' in line:
-                        f.write(line)
-                    else:
-                        f.write("{}'".format(line.strip().replace("'","").replace("- ", "- '")))
-                        f.write('\n')
+    def write_py2yaml(self, fnamepy, fnameyaml, savename, casename=None, 
+        additional_vars = ['isupimpap', 'nusp_imp', 'nurlx', 'numvarbwpad']):
+        """ Writes a YAML input file based on arbitrary Python script
+
+        Use: 
+            - open a new Python session (!!! CRITICAL !!!)
+            - import and create an uninitialized Case object storing default values
+                - from uetools import Case;c = Case(store_defaults=True)
+            - execute the external script to restore the solution
+            - call write_py2yaml
+
+        Workings:
+            - Tracks changes to all input values
+            - Cross-references any changes to the Python input files, 
+              keeping variables referenced
+            - 
+
+        - Remember to include any and all files used to set up the case (even
+          those called internally) to get the complete input deck
+        - If variables are missing, please reach out to the developers to
+          add them to future releases 
+
+        """
+        from re import sub
+        from yaml import dump
+
+        if isinstance(fnamepy, str):
+            files = [fnamepy]
+        elif isinstance(fnamepy, list):
+            files = fnamepy
+        else:
+            raise Exception("Unknown Python file specifier {}".format(str(type(fnamepy))))
+        if casename is None:
+            casename = savename.split('.')[0]
+
+        vetted_changes = {}
+        # Ensure all variables are populated
+        self.populate()
+        # Get a list of all variables changed during reading input and restoring
+        self.record_changes()
+        for file in files:
+            with open(file) as f:
+                # Dump all non-comment data to string
+                filedump = sub(r'(?m)^ *#.*\n?', '', f.read())
+            for var, value in self.varinput['setup']['detected'].items():
+                if ".".join([self.getpackage(var), var]) in filedump:
+                    vetted_changes[var] = value
         
+        inputdeck = {
+            'casename': casename,
+            'savefile': savename,
+            'restart': 1,
+            'species': {},
+            'grid': {'gengrid': 0, 'isgriduehdf5': 1, 'GridFileName': savename},
+            'diffusivities': {},
+            'variables': {},
+            'equations': {},
+        }
+        
+        self.setue('gengrid', 0)
+        self.setue('isgriduehdf5', 1)
+        self.setue('restart', 1)
+        self.setue('GridFileName', savename)
+
+        # Set up the species array
+        for var in ['nhsp', 'ngsp', 'isimpon', 'nzsp']:
+            if var in vetted_changes:
+                self.write_changes(var, vetted_changes[var], inputdeck['species'])
+                # Remove to avoid duplication
+                del( vetted_changes[var] )
+        # Set up the grid deck
+        for var in ['mhdgeo', 'geometry', 'isnonog']: 
+            if var in vetted_changes:
+                self.write_changes(var, vetted_changes[var], inputdeck['grid'])
+                del( vetted_changes[var] )
+            else:
+                self.write_changes(var, self.getue(var), inputdeck['grid'])
+        # Set up the diffusivity deck
+        for var in ['isbohmcalc',  'kye',  'kyi',  'difni',  'fcdif',  'travis']:
+            if var in vetted_changes:
+                self.write_changes(var, vetted_changes[var], inputdeck['diffusivities'])
+                del( vetted_changes[var])
+        # Remove arrays restored from save-file
+        for var in [ 'kye_use',  'kyi_use',  'dif_use',  'tray_use',  'kyev',  'kyiv',  'difniv',  'travisv']:
+            if var in vetted_changes:
+                del( vetted_changes[var] )
+        # Set up the equations deck
+        for var in ['isteon', 'istion', 'isnion', 'isupon', 'isphion', 
+                    'isphiofft', 'isngon', 'isupgon', 'istgon']:
+            if var in vetted_changes:
+                self.write_changes(var, vetted_changes[var], inputdeck['equations'])
+                del( vetted_changes[var])
+        # Set up any remaining variables
+        for var, value in vetted_changes.items():
+            self.write_changes(var, value, inputdeck['variables'])
+        # Patch for missing input flags for parameters: always include to be safe
+        for var in additional_vars:
+            self.write_changes(var, self.getue(var), inputdeck['variables'])
+
+        self.strip_numpy(inputdeck)
+        # TODO: write out YAML file
+        filedump = dump(inputdeck, sort_keys=False, default_style=None, default_flow_style=False)
+        # Fix styling of lists
+        filedump = filedump.replace("'[","[").replace("]'", "]")
+        with open(fnameyaml, 'w') as f:
+            f.write(filedump)
+        self.varinput['setup'] = inputdeck
+        self.reload()
+        self.save(savename)
+
+
+    def strip_numpy(self, struct, parent=[]):
+        from numpy import int64, bytes_, float64
+        from copy import deepcopy
+        for key, substruct in struct.items():
+            keys = deepcopy(parent)
+            keys.append(key)
+            if isinstance(substruct, dict):
+                self.strip_numpy(substruct, keys)
+            elif isinstance(substruct, list):
+                lst = []
+                for element in substruct:
+                    if isinstance(element, (int, int64)):
+                        lst.append(int(element))
+                    elif isinstance(element, (float)):
+                        lst.append(float(element))
+                struct[key] = str(lst)
+            elif isinstance(substruct, (int, int64)):
+                struct[key] = int(substruct)
+            elif isinstance(substruct, str):
+                continue
+            elif isinstance(substruct, float):
+                struct[key] = float(substruct)
+            elif isinstance(substruct, bytes_):
+                struct[key] = substruct.decode('UTF-8')
+            else:
+                print("Through: ", keys, key, type(substruct), isinstance(substruct, dict), substruct)
+
+        
+    def set1Dbuff(self, orig, value): 
+        from numpy import equal, all, int64
+       # Initialize dict
+        buff = {}
+        # Get boolean array of changes
+        elements = equal(orig, value)
+        # Create dict of indices and new values
+        for i in range(len(value)):
+            if not elements[i]:
+                buff[i] = value[i]
+        # All values have changed
+        if len(buff) == len(value):
+            # All set to same value
+            if all(value == value[0]):
+                buff = value[0]
+            # All set to different values
+            else:
+                vallist = []
+                for _, val in buff.items():
+                    vallist.append(val)
+                buff = vallist
+        # Multiple entries changed, try to compress
+        if not isinstance(buff, (int, float, int64, list)):
+            if len(buff)>1:
+                keys = list(buff.keys())
+                if keys == list(range(keys[0], keys[-1]+1)):
+                    vallist = []
+                    for _, val in buff.items():
+                        vallist.append(val)
+                    buff = {keys[0]: vallist}
+        return buff
+
+    def set2Dbuff(self, value, orig):
+        from copy import deepcopy
+        from numpy import all, equal
+        # Grab an entry
+        comp = deepcopy(value)
+        for i in range(len(value.shape)):
+            comp = comp[0]
+        # If all entries are the same, just set the wole array
+        if all(value == comp):
+            return comp
+        # Shape assumes target setup
+        elif (len(value.shape) == 2) and (value.shape[-1] == 2):
+            # Symmetrical settings
+            if sum(abs(value[:,1]-value[:,0]))/sum(sum(abs(value))) < 1e-6:
+                return self.set1Dbuff(orig[:,0], value[:,0])
+            else:
+                return False
+        # TODO: implement 2D/dynamic handling
+        else:
+            return False
+
+    def write_changes(self, var, value, location):
+        from numpy import ndarray, bytes_
+        from copy import deepcopy
+        # Set simple int/float by value: easy
+        if isinstance(value, (int, float)):
+            location[var] = value
+            return
+        # Array wit changes: complicated
+        elif isinstance(value, ndarray):
+            # Check whether the array has been dynamically changed/allocated 
+            if (len(value) == 1) and isinstance(value[0], bytes_):
+                buff = value[0].decode('UTF-8').strip()
+            elif len(self.defaults[var]) != len(value):
+                buff = self.set2Dbuff(value, self.defaults[var])
+            # Check whether the input is multi-dimensional (2D assumed max)
+            elif len(value.shape) > 1:
+                buff = self.set2Dbuff(value, self.defaults[var])
+            # 1D array of settings detected
+            else:
+                buff = self.set1Dbuff(self.defaults[var], value)
+            if buff is not False:
+                location[var] = buff
+            else:
+                print("Could not write automatic input for ", var)
+            return
+        else:
+            print("Unknown type '{}': could not write automatic input for '{}'".format(type(value), var))
 
 
 
