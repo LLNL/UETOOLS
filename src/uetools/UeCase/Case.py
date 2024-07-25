@@ -176,6 +176,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         aphdir=None,
         apidir=None,
         restoresave=True,
+        store_defaults=False,
         **kwargs,
     ):
         """Initializes the UeCase object.
@@ -216,6 +217,7 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
         """
         import uetools
         import os
+        from copy import deepcopy
         from os.path import exists, abspath
         from os import getlogin, getcwd
         from socket import gethostname
@@ -361,6 +363,12 @@ class Case(Misc, Save, PostProcessors, ConvergeStep, ADAS,
                 # TODO:
                 if uedge_is_installed and not self.inplace:
                     self.get_uevars()
+                    if store_defaults:
+                        self.defaults = {}
+                        # Track potential inputs too, just to be safe
+                        for pkg in ['input', 'maybeinput']:
+                            for key, _ in self.uevars[pkg].items():
+                                self.defaults[key] = deepcopy(self.getue(key))
         # Read all data directly from HDF5 file
         else:
             self.get = self.get_inplace
