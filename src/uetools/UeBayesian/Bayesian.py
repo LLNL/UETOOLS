@@ -44,72 +44,88 @@ class Bayesian():
     
     
     
-    def __init__(self):
+    def __init__(self, case: Case, physics=PhysicsOperationDemo):
         """ 
-        Initialize classes to define variables as place holder. Five functions need to 
-        be defined externally and the first three are required.
+        Initialize classes to define variables as place holder. 
         
-        set_params(params, **kwargs):
-            Defines how given parameters are used in UEDGE calculation.
-            
-            Arguments:
-            ----------
-            params: np.array(N,) -- Required
-                Each parameter BO provide is an np.array with N elements. Generally, they represents some
-                transport coefficients that needs to be defined on UEDGE grids. 
-            **kwargs: -- Optional
-                Other user defined parameters.
-            
-        find_equilibrium(uetools_case, save_dir, **kwargs):
-            Defines the method to calculate an equilibrium.
-            
-            Arguments:
-            ----------
-            uetools_case: uetools.Case -- Required
-                A uetools Case container to be converged.
-            save_dir: String -- Required
-                The location where HDF5 files are saved. The default is the current location.
-            **kwargs: -- Optional
-                Other user defined parameters.
+        Arguments:
+        ----------
+        case: uetools.Case
+            The interface between Bayesian object and Case object. It allows Bayesian to handle all UEDGE calculation.
+        physics:
+            A user-defined class setting the creteria of Bayesian optimization, which should includes the following
+            required methods:
+        
+            set_params(params, **kwargs):
+                Defines how given parameters are used in UEDGE calculation.
                 
-            Return:
-            -------
-            convergence: boolean -- Required
-                An indicator on whether such a case converges. 
+                Arguments:
+                ----------
+                params: np.array(N,) -- Required
+                    Each parameter BO provide is an np.array with N elements. Generally, they represents some
+                    transport coefficients that needs to be defined on UEDGE grids. 
+                **kwargs:
+                    Other user defined parameters.
+                
+                
+            find_equilibrium(uetools_case, save_dir, **kwargs):
+                Defines the method to calculate an equilibrium.
+                
+                Arguments:
+                ----------
+                uetools_case: uetools.Case -- Required
+                    A uetools Case container to be converged.
+                save_dir: String -- Required
+                    The location where HDF5 files are saved. The default is the current location.
+                **kwargs:
+                    Other user defined parameters.
+                    
+                Return:
+                -------
+                convergence: boolean -- Required
+                    An indicator on whether such a case converges. 
 
-        loss_function(**kwargs):
-            Defines how the loss function is defined, which will be minimized during 
-            Bayesian optimization process. 
-            
-            Argumetns:
-            ----------
-            **kwargs: -- Optional 
-                Other user defined parameters.
-            
-        find_constraint(**kwargs): optional
-            Define constraint of the system if needed. This will force the algorithm 
-            to do a constrained optimization.
-            
-            Argumetns:
-            ----------
-            **kwargs: -- Optional 
-                Other user defined parameters.
+
+            loss_function(**kwargs):
+                Defines how the loss function is defined, which will be minimized during 
+                Bayesian optimization process. 
                 
-        probability_function(**kwargs): optional
-            Calculate the probability based for given loss. This is used to estimate the
-            uncertainties from Bayesian optimization.
-            
-            Argumetns:
-            ----------
-            **kwargs: -- Optional 
-                Other user defined parameters.
+                Argumetns:
+                ----------
+                **kwargs: 
+                    Other user defined parameters.
+                    
+                Return:
+                -------
+                loss: float -- Required
+                
+                
+            find_constraint(**kwargs): -- Optional
+                Define constraint of the system if needed. This will force the algorithm 
+                to do a constrained optimization.
+                
+                Argumetns:
+                ----------
+                **kwargs: 
+                    Other user defined parameters.
+                    
+                    
+            probability_function(**kwargs): -- Optional
+                Calculate the probability based for given loss. This is used to estimate the
+                uncertainties from Bayesian optimization.
+                
+                Argumetns:
+                ----------
+                **kwargs: 
+                    Other user defined parameters.
+                    
+                Return:
+                -------
+                probability: float -- Required
         """
         
-        self.set_params = None
-        self.find_equilibrium = None
-        self.loss_function = None
-        self.find_constraint = None
-        self.probability_function = None
+        self.c = case
+        self.physics = physics
         
         self.valid_jobs = 0 # number of calculations done during BO that converge.
         self.bo_data = {} # dinctionary saving basic information for all finished jobs during BO.
@@ -168,21 +184,6 @@ class Bayesian():
         self.param_bounds = param_bounds
         self.save_dir = save_dir
         
-        # check whether external functions are defined
-        if None in (self.set_params, self.find_equilibrium, self.loss_function):
-            print(
-'''\
-Need to define the following three functions using Case.set_bo_criteria():
-1. set_params(params: np.array(N,), **kwargs): 
-    Defines how given parameters are used in UEDGE calculation.
-2. find_equilibrium(uetools_case: uetools.Case, save_dir: String, **kwargs): 
-    Defines the method to calculate an equilibrium.
-3. loss_function(**kwargs): 
-    Defines how the loss function is defined, which will be minimized during Bayesian optimization process. 
-
-See uetools.UeBayesian.BayesDemo for examples.''')
-            return None  
-        
         # create folder if not exist
         if not os.path.exists(save_dir): os.makedirs(save_dir)
         
@@ -198,17 +199,17 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         
         # Calculate initial sampling through quasi-Monte Carlo method
         if initial_sample > 0:
-            if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
+            if self.c.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
             self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
         else:
-            if self.verbose: print('\n====== Begin reading calculated samples =====')
+            if self.c.verbose: print('\n====== Begin reading calculated samples =====')
             self.read_existing_samples(save_dir=self.save_dir)
         
         # Define a list of acqusition functions based on initial results
         self.define_acq(acq_functions)
         
         # begin parallel Bayesian optimization
-        if self.verbose: print('\n===== Begin Bayesian optimization =====')
+        if self.c.verbose: print('\n===== Begin Bayesian optimization =====')
         self.batch_BO_searching(N=bo_steps, 
                                 step=constant_lier_steps, 
                                 N_process=N_processes, 
@@ -216,28 +217,8 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                                 **kwargs)
         
         # print the final result of Bayesian optimization
-        if self.verbose: print('\n===== Bayesian optimization conclusion =====\n')
+        if self.c.verbose: print('\n===== Bayesian optimization conclusion =====\n')
         return self.BO_conclusion()
-
-
-
-        
-    def set_bo_criteria(
-        self, 
-        set_params: Callable = set_params_demo, 
-        find_equilibrium: Callable = find_equilibrium_demo,
-        loss_function: Callable = loss_function_demo,
-        find_constraint: Callable = find_constraint_demo,
-        probability_function: Callable = probability_function_demo
-        ):
-        """
-        Define functions necessary for Bayesian optimization processes.
-        """
-        self.set_params = set_params
-        self.find_equilibrium = find_equilibrium
-        self.loss_function = loss_function
-        self.find_constraint = find_constraint
-        self.probability_function = probability_function
         
     
     
@@ -271,25 +252,25 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         except: pass
         
         # set parameter
-        self.set_params(params, **kwargs)
+        self.physics.set_params(params, **kwargs)
         
         # calculate UEDGE equilibrium and return the convergence
-        convergence = self.find_equilibrium(uetools_case=self, save_dir=sub_dir, **kwargs)
+        convergence = self.physics.find_equilibrium(uetools_case=self.c, save_dir=sub_dir, **kwargs)
         
         # calculate loss function by comparing UEDGE and observed profiles
         if convergence:
-            target = - self.loss_function(**kwargs)
+            target = - self.physics.loss_function(**kwargs)
         else:
             target = np.nan
         
         # optional: calculate the constraint if needed
         if self.optimizer.is_constrained:
-            constraint = self.find_constraint(**kwargs)
+            constraint = self.physics.find_constraint(**kwargs)
         else:
             constraint = None
             
         # save the current case
-        if save_case: self.save('{}/final.hdf5'.format(sub_dir))
+        if save_case: self.c.save('{}/final.hdf5'.format(sub_dir))
         
         # save the data for Bayesian optimzation 
         if save_bo_data:
@@ -385,7 +366,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                 except NotUniqueError: pass
                 
         # print current best
-        if self.verbose: self.print_current_best()
+        if self.c.verbose: self.print_current_best()
         
         # close the pool after calculation
         pool.close()
@@ -441,7 +422,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                     except NotUniqueError: pass
                 
         # print current best
-        if self.verbose: self.print_current_best()
+        if self.c.verbose: self.print_current_best()
         
 
 
@@ -529,7 +510,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
             
             # if multiple points are same, they will not be able to be registered. 
             except NotUniqueError:
-                if self.verbose: print('Unable to register due to duplicated points during multi_suggest.')
+                if self.c.verbose: print('Unable to register due to duplicated points during multi_suggest.')
 
         if return_optimizer:
             return suggest_points, tmp_optimizer
@@ -621,7 +602,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
 
         if len(non_repeat_data.keys()) < N:
 
-            if self.verbose:
+            if self.c.verbose:
                 print('Warning: not enough non-repeated data, missing {} points. Add random points instead.'.format(N-len(non_repeat_data.keys())))
 
             # add random data 
@@ -659,7 +640,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         plot_status:
             Whether to plot the currect status of BO. Only work for 2-D searching.
         **kwargs:
-            Additional arguments for PO.find_equilibrium().
+            Additional arguments
         """
 
         # start a multiprocessing pool
@@ -669,7 +650,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         # async searching
         for i in range(N):
 
-            if self.verbose: print('\nAsync BO step {} ====='.format(i+1))
+            if self.c.verbose: print('\nBO step {} ====='.format(i+1))
 
             # record the time in each step
             t1 = time.time()
@@ -720,13 +701,13 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                     except NotUniqueError: pass
                     
             # print current best
-            if self.verbose: self.print_current_best()
+            if self.c.verbose: self.print_current_best()
 
             # just to let optimizer fit data
             tmp = self.optimizer.suggest(self.acq_functions[0])
 
             # print the time used
-            if self.verbose:
+            if self.c.verbose:
                 print('\nTime used: {:.2f} mins'.format((time.time()-t1)/60.))
 
         # close the pool after calculation
@@ -765,7 +746,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         # the container of conclusion
         conclusion = self.bo_data[ind]
         
-        if self.probability_function is not None:
+        if getattr(self.physics, 'probability_function', None) is not None:
             conclusion['uncertainty'] = self.get_uncertainty()
         
         if verbose:
@@ -782,7 +763,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
         Return the uncertainty during the BO processes when self.probability_function is defined.
         """
         
-        if self.probability_function is not None:
+        if getattr(self.physics, 'probability_function', None) is not None:
             
             if self.optimizer.is_constrained:
                 
@@ -798,7 +779,7 @@ See uetools.UeBayesian.BayesDemo for examples.''')
                 valid_loss = - self.optimizer._space.target
                 
             # calculate probability
-            P = self.probability_function(valid_loss).reshape(-1,1)
+            P = self.physics.probability_function(valid_loss).reshape(-1,1)
             
             # calculate uncertainties
             params_max = param_to_array(self.optimizer._space.max()['params']).reshape(1,-1)
