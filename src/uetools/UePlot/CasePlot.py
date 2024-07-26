@@ -7,6 +7,7 @@ class Caseplot(Plot):
     def __init__(self, case):
         # Couple get to case
         self.get = case.get
+        self.info = case.info
         
         self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
             in ['uppersn', 'snull'])
@@ -14,6 +15,27 @@ class Caseplot(Plot):
         self.usn = (self.get('geometry')[0].decode('UTF-8').strip() \
                     == 'uppersn')
     
+    def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
+        """Adds metadata to figure"""
+        from time import ctime
+
+        label = '{}, case "{}"\n'.format(ctime(), self.info['casename'])
+        label += 'UEDGE {} v{}, UETOOLS v{}, user "{}", hostname "{}"\n'.format(
+            self.info['uedge_ver'].replace("$", "\$"),
+            self.info['pyver'],
+            self.info['uetoolsversion'],
+            self.info['user'],
+            self.info['hostname'],
+        )
+        try:
+            label += 'cwd "{}"'.format(self.info['location'])
+        except:
+            label += 'cwd "{}"'.format(self.info['casefname'])
+        figure.subplots_adjust(bottom=bottom, top=top, left=left, right=right)
+        figure.text(0.995, 0.005, label, fontsize=4, horizontalalignment="right")
+
+        return
+
 
     def it(self, variable, ylabel=None, marksep=True, staggered=False, 
                 xlim=(None, None), ylim=(None, None), primary=True, **kwargs
@@ -68,7 +90,7 @@ class Caseplot(Plot):
                 idx = self.get("ixlb")[0] + (0 ** staggered)
                 trgt = "lower"
                 x = self.get('yyrb')[1:-1,0]
-        fig = self.plotprofile(x, variable[idx, 1:-1], **kwargs)
+        fig = self.profile(x, variable[idx, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
@@ -128,7 +150,7 @@ class Caseplot(Plot):
                 idx = self.get("ixlb")[1] + (0 ** staggered)
                 trgt = "lower"
                 x = self.get('yyrb')[1:-1,1]
-        fig = self.plotprofile(x, variable[idx, 1:-1], **kwargs)
+        fig = self.profile(x, variable[idx, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
@@ -162,7 +184,7 @@ class Caseplot(Plot):
         -------
         Figure
         """
-        fig = self.plotprofile(self.get('yyc')[1:-1], variable[self.get('ixmp'), 1:-1], **kwargs)
+        fig = self.profile(self.get('yyc')[1:-1], variable[self.get('ixmp'), 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
@@ -202,7 +224,7 @@ class Caseplot(Plot):
         Figure
         """
 
-        fig = self.plotprofile(self.get('yyc')[1:-1], variable[ix, 1:-1], **kwargs)
+        fig = self.profile(self.get('yyc')[1:-1], variable[ix, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
@@ -249,7 +271,7 @@ class Caseplot(Plot):
         ixpt2 = self.get('ixpt2')[0]
         if (self.get('ixp1')[ixpt1, iy] - ixpt1) == 1:
             x = self.lcon[1:-1, iy]
-            fig = self.plotprofile(x, variable[1:-1, iy], **kwargs)
+            fig = self.profile(x, variable[1:-1, iy], **kwargs)
             # Add Sep location if requested
             if markxpts is True:
                 xpt1 = 0.5*sum(self.lcon[ixpt1:ixpt1+2, iy])
@@ -260,7 +282,7 @@ class Caseplot(Plot):
             xpt = self.lcon[ixpt1, iy]  
             x = concatenate((self.lcon[:ixpt1+1, iy], self.lcon[ixpt2+1:, iy]+xpt))
             y = concatenate((variable[:ixpt1+1, iy], variable[ixpt2+1:, iy]))
-            fig = self.plotprofile(x, y, **kwargs)
+            fig = self.profile(x, y, **kwargs)
             if markxpts is True:
                 xpt = 0.5*(self.lcon[ixpt1,iy] + self.lcon[ixpt2+1, iy])
                 fig.get_axes()[0].axvline(xpt, color="grey", linewidth=1)
@@ -331,7 +353,7 @@ class Caseplot(Plot):
 
     # Expand the 2D plot list
     def grid(self, **kwargs):
-        return self.plotmesh(**kwargs)
+        return self.mesh(**kwargs)
     
     def grid_hdf5(self, file, flip=True, **kwargs):
 
@@ -341,7 +363,7 @@ class Caseplot(Plot):
             self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
         ) and (flip is True):
             zm = self.disp-zm        
-        return self.plotmesh( 
+        return self.mesh( 
             lcfs=False,
             rm=rm,
             zm=zm,
@@ -351,15 +373,15 @@ class Caseplot(Plot):
 
     def heatmap(self, var, s=None, **kwargs):
         if isinstance(var, str):
-            return self.plotmesh(self.get(var, s), **kwargs)
+            return self.mesh(self.get(var, s), **kwargs)
         else:
-            return self.plotmesh(var, **kwargs)
+            return self.mesh(var, **kwargs)
 
     def selector2D(self, var, interactive, **kwargs):
         if interactive is True:
             return self.variablemesh(var, **kwargs)
         else:
-            return self.plotmesh(var, **kwargs)
+            return self.mesh(var, **kwargs)
 
     def ne2D(self, interactive=False, **kwargs):
         return self.selector2D(self.get("ne"), interactive, **kwargs)
@@ -419,7 +441,7 @@ class Caseplot(Plot):
         mask = self.CIII_emission[1:-1, 1:-1].reshape(self.nx * self.ny)
         mask = [1 * ((x < maskvalues[0]) or (x > maskvalues[1])) for x in mask]
         if interactive is False:
-            return self.plotmesh(z, **kwargs)
+            return self.mesh(z, **kwargs)
         else:
             kwargs["mask"] = mask
             kwargs["mvs"] = maskvalues
@@ -476,7 +498,7 @@ class Caseplot(Plot):
             origrange = kwargs["zrange"]
         mvs = kwargs.pop("mvs")
         mask = self.CIII_emission[1:-1, 1:-1]
-        cbar, verts = self.plotmesh(
+        cbar, verts = self.mesh(
             z, ax=ax, watermark=False, interactive=True, **kwargs
         )
         f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
@@ -539,7 +561,7 @@ class Caseplot(Plot):
         except:
             kwargs["zrange"] = (z[1:-1, 1:-1].min(), z[1:-1, 1:-1].max())
             origrange = kwargs["zrange"]
-        cbar, verts = self.plotmesh(
+        cbar, verts = self.mesh(
             z, ax=ax, watermark=False, interactive=True, **kwargs
         )
         f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
@@ -697,7 +719,7 @@ class Caseplot(Plot):
         except:
             kwargs["cmap"] = "bwr"
 
-        cbar, verts = self.plotmesh(
+        cbar, verts = self.mesh(
             vararray[:, :, 0], ax=ax, watermark=False, interactive=True, **kwargs
         )
         f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])

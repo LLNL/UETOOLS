@@ -785,7 +785,6 @@ class Case:
         from h5py import Group, File
         if fileobj is None:
             with File(self.info['filename'], 'r') as f:
-                print(f)
                 for subgroup, data in f.items():
                     self.load_inplace(data, group + [subgroup])
         elif isinstance(fileobj, File):
@@ -850,11 +849,8 @@ class Case:
             raise OSError('File "{}" not found!'.format(fname))
         else:
             with File(fname, "r") as f:
-                print(f)
                 recursive_read_hdf5_setup(ret, f["setup"])
         self.info['savefile'] = fname
-        with File(fname, "r") as g:
-            print(g)
         return ret
 
     def setinput(
