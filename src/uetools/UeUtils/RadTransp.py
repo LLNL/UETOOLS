@@ -1,4 +1,6 @@
 class RadTransp():
+    def __init__(self, case):
+        pass
 
 
     def profile_function(self, *args, plot=False):

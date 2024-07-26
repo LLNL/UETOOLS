@@ -6,7 +6,7 @@ ion()
 # TODO: implement divergence plotting/calculation
 
 class Plot:
-    def __init__(self, *args, rm=None, zm=None, **kwargs):
+    def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, dnull=False, **kwargs):
         """Constructs patches objects
         rm - UEDGE R-node object
         zm - UEDGE Z-node object
@@ -18,12 +18,10 @@ class Plot:
                 zm = self.get("zm")
             except:
                 return
+        self.snull = snull
+        self.dnull = dnull
+        self.usn = usn
 
-        self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
-            in ['uppersn', 'snull'])
-        self.dnull = not self.snull
-        self.usn = (self.get('geometry')[0].decode('UTF-8').strip() \
-                    == 'uppersn')
         if self.snull is False:
             sep = self.get("iysptrx1")
             if sep[0] == sep[1]:
@@ -519,13 +517,14 @@ class Plot:
             pass
         from numpy import int64
         for key, coords in self.sep.items():
-            ax.plot(
-                coords['r'], 
-                self.checkusn(coords['z'], flip), 
-                color=color,
-                linewidth=linewidth,
-                label="lcfs"
-            )
+            if not isinstance(coords['r'], (int, int64)):
+                ax.plot(
+                    coords['r'], 
+                    self.checkusn(coords['z'], flip), 
+                    color=color,
+                    linewidth=linewidth,
+                    label="lcfs"
+                )
         return
 
 

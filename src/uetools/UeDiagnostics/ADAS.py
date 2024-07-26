@@ -1,4 +1,8 @@
 class ADAS:
+    def __init__(self, case):
+        pass
+
+
     def emission_CIII(self, fname, lam=4650.1):
         from numpy import log10
 

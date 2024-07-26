@@ -5,6 +5,8 @@
 # necessary routines, etc. to handle grid modifications and interpolations
 
 class Interpolate():
+    def __init__(self, case):
+        pass
 
     def interpolate(
         self, newgrid, oldgrid=None, oldsave=None, ishdf5=None, radtranspfile=None,

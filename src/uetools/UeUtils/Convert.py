@@ -1,5 +1,20 @@
+from .Lookup import Lookup
 
 class Convert:
+    def __init__(self, case):
+        self.getue = case.getue
+        self.setue = case.setue
+        self.reload = case.reload
+        self.varinput = case.varinput
+        self.get = case.get
+        self.save = case.save
+        self.info = case.info
+        self.defaults = case.defaults
+        self.populate = case.populate
+        self.record_changes = case.tracker.record_changes
+        self.get_bottomkeys = case.utils.get_bottomkeys
+        self.getpackage = Lookup().getpackage
+
     def write_py(self, fname):
         """ Writes a standalone Python input file for the Case
         """
@@ -10,6 +25,7 @@ class Convert:
 
         def recursive_lineread(dictobj, lines=None, fails=None):
             """ Recusively parses setup variables to input lines """
+            from Forthon import getpackage
             # TODO: Implement checks on string lengths & shapes
             #       2D arrays are being set by 1D arrays work for YAMLs
             #       but not in python...
@@ -133,7 +149,7 @@ class Convert:
             f.write('from h5py import File\n')
             f.write('from uedge.hdf5 import hdf5_restore\n\n')
             # Set casename variable
-            f.write('casename = "{}"\n'.format(self.casename))
+            f.write('casename = "{}"\n'.format(self.info['casename']))
             # Set paths to rate files as defined in configuration file
             f.write('aph.aphdir = "{}"\n'.format(self.get('aphdir')[0].decode('UTF-8').strip()))
             f.write('api.apidir = "{}"\n'.format(self.get('apidir')[0].decode('UTF-8').strip()))
@@ -142,11 +158,11 @@ class Convert:
                 f.write(line)
                 f.write('\n')
             # Allocate to make space for restore variables
-            f.write('\nbbb.allocate()\n'.format(self.savefile))
+            f.write('\nbbb.allocate()\n'.format(self.info['savefile']))
             # Restore solution: use inplace version to ensure compatibility
             # with both native UEDGE saves and UETOOLS saves
             f.write('\n# ==== RESTORE SOLUTION ====\n')
-            f.write('with File("{}") as f:\n'.format(self.savefile))
+            f.write('with File("{}") as f:\n'.format(self.info['savefile']))
             f.write('    try:\n')
             f.write('        savegroup = f["restore/bbb"]\n')
             f.write('    except:\n')
@@ -175,8 +191,8 @@ class Convert:
                         f.write('\n')
             # If a file is used to set the radial transport coefficients,
             # manually for the whole domain, read and restore them here
-            if self.diff_file is not None:
-                file = self.diff_file
+            if self.info['diffusivity_file'] is not None:
+                file = self.info['diffusivity_file']
                 f.write('\n# ==== SET USER-SPECIFIED DIFFUSIVITIES ====\n')
                 f.write('with File("{}", "r") as f:\n'.format(file))
                 f.write('    try:\n')

@@ -1,8 +1,13 @@
 # Reads/creates a config environment for UEDGE
 from uetools.UeUtils.Lookup import Lookup
 
+class Config():
+    def __init__(self, case):
+        self.verbose = case.info['verbose']
+        self.configured = case.configured
+        self.search = Lookup()
+        
 
-class Config(Lookup):
     def configcase(self, verbose=True, new=True, **kwargs):
         from os import path
         from yaml import safe_load
@@ -10,11 +15,7 @@ class Config(Lookup):
 
         # True if succeeds
         self.configured = False
-        try:
-            self.verbose
-            verbose = self.verbose
-        except:
-            pass
+        verbose = self.verbose
 
         searchpath = path.expanduser("~")
         super().__init__()

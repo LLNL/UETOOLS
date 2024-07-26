@@ -1,6 +1,12 @@
+from .Tools import Tools
 
 
 class Tracker():
+    def __init__(self, case):
+        self.getue = case.getue
+        self.uevars = case.uevars
+        self.varinput = case.varinput
+        self.get_bottomkeys = Tools().get_bottomkeys
 
     def get_uevars(self):
         """ Records the attributes, packages, and hashes of all UEDGE variables
@@ -11,7 +17,8 @@ class Tracker():
         except:
             pass
         # Create object for storing variables
-        self.uevars = {'undef':{}, 'input': {}}
+        self.uevars['undef'] = {} 
+        self.uevars['input'] = {}
         # Loop through UEDGE packages
         for pkg in package():
             # Get package Object

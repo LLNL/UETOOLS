@@ -2,8 +2,18 @@
 from uetools.UePlot import Plot
 
 
+# TODO: implement profile plots
 class Caseplot(Plot):
-    # TODO: implement profile plots
+    def __init__(self, case):
+        # Couple get to case
+        self.get = case.get
+        
+        self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
+            in ['uppersn', 'snull'])
+        self.dnull = not self.snull
+        self.usn = (self.get('geometry')[0].decode('UTF-8').strip() \
+                    == 'uppersn')
+    
 
     def it(self, variable, ylabel=None, marksep=True, staggered=False, 
                 xlim=(None, None), ylim=(None, None), primary=True, **kwargs
