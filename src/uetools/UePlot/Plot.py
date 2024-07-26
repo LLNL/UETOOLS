@@ -384,7 +384,7 @@ class Plot:
 
         return ax.get_figure()
 
-    def plotmesh(
+    def mesh(
         self,
         z=None,
         rm=None,
@@ -755,13 +755,13 @@ class Plot:
 
         return
 
-    def plotmesh_masked(self, z, zmask, maskvalues, figsize=(5,7), 
+    def mesh_masked(self, z, zmask, maskvalues, figsize=(5,7), 
         **kwargs):
         from matplotlib.pyplot import subplots
         f, ax = subplots(figsize=figsize)       
 
 
-        cbar, vertices = self.plotmesh(z, interactive=True, ax=ax, **kwargs)
+        cbar, vertices = self.plot.mesh(z, interactive=True, ax=ax, **kwargs)
 
         mask = zmask[1:-1,1:-1].reshape(self.nx*self.ny)
         vertices.set_alpha( [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask])
@@ -789,7 +789,7 @@ class Plot:
         **kwargs
     ):
 
-        f = self.plotmesh(plates=plates, lcfs=lcfs, vessel=vessel, 
+        f = self.plot.mesh(plates=plates, lcfs=lcfs, vessel=vessel, 
             linewidth=linewidth)
         ax = f.get_axes()[0]
         # Check whether coords are given as poloidal or radial
@@ -913,7 +913,7 @@ class Plot:
                         xinterp[i, j] = nan
                         yinterp[i, j] = nan
 
-        f = self.plotmesh()
+        f = self.plot.mesh()
         if linewidth == "magnitude":
             linewidth = (xinterp**2 + yinterp**2) ** 0.5
             linewidth = linewidth.transpose()
@@ -975,7 +975,7 @@ class Plot:
         from copy import deepcopy
 
         if ax is None:
-            f = self.plotmesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
+            f = self.plot.mesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
                 flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor)
             ax = f.get_axes()[0]
         elif isinstance(ax, Figure):
@@ -985,7 +985,7 @@ class Plot:
         else:
             f = ax.get_figure()
         if plotgrid is True:
-            self.plotmesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
+            self.plot.mesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
                 flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor, ax=ax, watermark=watermark)
 
         rm = self.get("rm")

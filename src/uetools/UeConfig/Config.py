@@ -3,7 +3,7 @@ from uetools.UeUtils.Lookup import Lookup
 
 class Config():
     def __init__(self, case):
-        self.verbose = case.info['verbose']
+        self.info = case.info
         self.configured = case.configured
         self.search = Lookup()
         
@@ -15,7 +15,7 @@ class Config():
 
         # True if succeeds
         self.configured = False
-        verbose = self.verbose
+        verbose = self.info['verbose']
 
         searchpath = path.expanduser("~")
         super().__init__()

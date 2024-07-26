@@ -16,16 +16,15 @@ except:
 
 class Solver(UeRun):
     def __init__(self, case, *args, **kwargs):
-        self.restored_from_hdf5 = case.info['restored_from_hdf5']
-        self.location = case.info['location']
+        self.info = case.info
 
     def exmain(self):
         #        self.exmain_evals = self.get('exmain_evals') + 1
-        if self.restored_from_hdf5 is False:
+        if self.info['restored_from_hdf5'] is False:
             original_wd = os.getcwd()
             try:
                 # Run in case directory
-                os.chdir(self.location)
+                os.chdir(self.info['location'])
                 packageobject("bbb").getpyobject("exmain")()
             finally:
                 os.chdir(original_wd)

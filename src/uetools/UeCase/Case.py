@@ -24,6 +24,8 @@ except:
 
 # TODO: make yaml read/write/get/set case-insensitive?
 # TODO: Consider compression of data
+# TODO: Fix location
+# TODO: Include location in all filenames (save, grid, etc.)
 
 class Case:
     """ UEDGE Case container object.
@@ -294,6 +296,15 @@ class Case:
             except:
                 location = getcwd()
 
+        try:
+            diffusivity_file = abspath(diffusivity_file)
+        except:
+            pass
+        try:
+            savefile = abspath(savefile)
+        except:
+            pass
+
         self.info = {
             'casename': casename,
             'uetoolsversion': uetools.__version__,
@@ -307,7 +318,7 @@ class Case:
             'verbose':  verbose,
             'savefile': savefile,
             'hdf5case': None,
-            'filename': filename,
+            'filename': abspath(filename),
             'diffusivity_file': diffusivity_file
             
         }
@@ -1399,3 +1410,5 @@ class Case:
         win = StandaloneDashboard(self)    
         win.show()
         app.exec_()
+
+        
