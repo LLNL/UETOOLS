@@ -5,7 +5,7 @@ from uetools.UeUtils import Tools
 
 # TODO: implement profile plots
 class Caseplot(Plot):
-    def __init__(self, case):
+    def __init__(self, case, *args, **kwargs):
         # Couple get to case
         self.get = case.get
         self.info = case.info
@@ -15,6 +15,7 @@ class Caseplot(Plot):
         self.dnull = not self.snull
         self.usn = (self.get('geometry')[0].decode('UTF-8').strip() \
                     == 'uppersn')
+        super().__init__(*args, **kwargs)
     
     def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
         """Adds metadata to figure"""
