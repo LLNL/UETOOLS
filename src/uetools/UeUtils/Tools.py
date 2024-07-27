@@ -189,3 +189,21 @@ class Tools:
         from scipy.interpolate import splrep, BSpline
         return x, BSpline(*splrep(x, y, s=s))(x)
         
+    def readyaml(self, fname, **kwargs):
+        """Reads a YAML file and returns a nested dict
+
+        Arguments
+        ------------
+        fname : str
+            path to YAML file to be read
+
+        Returns
+        ------------
+        nested dict containing YAML data
+        """
+        from yaml import safe_load
+        from pathlib import Path
+
+        return safe_load(Path(fname).read_text())
+
+
