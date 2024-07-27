@@ -225,10 +225,14 @@ class Case:
             "savefile",
         ]
 
-        self.vars = dict()
-        self.varinput = dict()
-        self.packagelist = dict()
-        self.uevars = dict()
+
+        self.variables = {
+            'stored': {},
+            'input': {},
+            'package': {},
+            'hashes': {},
+            'defaults': {},
+        }
         self.defaults = dict()
         # TODO: add hostname, mcfilename, aphfname
 
@@ -372,7 +376,7 @@ class Case:
         self.exmain = self.solver.exmain
 
         # Set up paths
-        self.config.case()
+        self.config.case(verbose=False)
         for key, value in self.config.configs.items():
             self.info[key] = value
         # Set up rate paths: Case-level paths take precedence over
@@ -386,25 +390,20 @@ class Case:
         # Set up structure for reading/writing data
         # Load all data to object in memory
         if inplace is False:
-            self.varinput = self.readyaml("{}/{}".format(
+            self.variables['input'] = self.readyaml("{}/{}".format(
                 uetools.__path__[0], "yamls/requiredvariables.yaml"
             ))
             # Read YAML to get variables to be read/stored/used
             if variableyamlfile is None:  # No YAML variable file requested
                 if hasattr(self, "variableyamlfile"):
-                    self.varinput.update(self.readyaml(self.variableyamlfile))
+                    self.variables['input'].update(self.readyaml(self.variableyamlfile))
                 else:
                 # Use default: find package location and package YAMLs
-                    self.varinput.update(self.readyaml("{}/{}".format(
+                    self.variables['input'].update(self.readyaml("{}/{}".format(
                         uetools.__path__[0], "yamls/standardvariables.yaml"
                     )))
             else:  # YAML specified, use user input
-                self.varinput.update(self.readyaml(variableyamlfile))  # Read to memory
-            self.tracker.varinput=self.varinput
-            self.savefuncs.varinput=self.varinput
-            self.convert.varinput=self.varinput
-
-
+                self.variables['input'].update(self.readyaml(variableyamlfile))  # Read to memory
             if self.use_mutex is True:
                 self.session_id = self.getue("max_session_id") + 1
                 setattr(
@@ -426,7 +425,7 @@ class Case:
                     if store_defaults:
                         # Track potential inputs too, just to be safe
                         for pkg in ['input', 'maybeinput']:
-                            for key, _ in self.uevars[pkg].items():
+                            for key, _ in self.variables['hashes'][pkg].items():
                                 self.defaults[key] = deepcopy(self.getue(key))
         # Read all data directly from HDF5 file
 #        if self.snull:
@@ -502,7 +501,7 @@ class Case:
         
         try:
             with File(self.info['filename'], 'r') as f:
-                retvar = f[self.vars[variable]][()]
+                retvar = f[self.variables['stored'][variable]][()]
         except:
             if verbose:
                 print("{} not found in {}".format(variable, self.info['filename']))
@@ -548,7 +547,7 @@ class Case:
         self.update()  # Update results from UEDGE if they have changed
         # Switch to asses where to access data from
         try:
-            retvar = self.vars[variable]
+            retvar = self.variables['stored'][variable]
         except:
             retvar = self.getue(variable)
         # Check the size of the array, and return index if multi-species array
@@ -582,7 +581,7 @@ class Case:
         try:
             if self.info['restored_from_hdf5'] is True:
                 packageobject("grd").getpyobject("readgrid")(
-                    self.getue("GridFileName"), self.vars["runid"].strip()
+                    self.getue("GridFileName"), self.variables['stored']["runid"].strip()
                 )
         except:
             pass
@@ -611,7 +610,7 @@ class Case:
         None
         """
         try:
-            package = self.packagelist[variable]
+            package = self.variables['package'][variable]
         except:
             package = self.search.getpackage(variable, verbose=False)
         if self.mutex():
@@ -645,7 +644,7 @@ class Case:
         from numpy import ndarray
 
         try:
-            package = self.packagelist[variable]
+            package = self.variables['package'][variable]
         except:
             package = self.search.getpackage(variable, verbose=False)
 
@@ -678,7 +677,7 @@ class Case:
         Modifies
         --------
         self.vars : dict
-            Dictionary of values, with keys specified in self.varinput
+            Dictionary of values, with keys specified in self.variables['input']
 
         Returns
         -------
@@ -706,29 +705,29 @@ class Case:
                     if self.search.getpackage(group[-1], verbose=False) != None:
                         # Request to set array starting from index 0:
                         # just read the variable into memory
-                        self.vars[group[-1]] = self.getue(group[-1])
+                        self.variables['stored'][group[-1]] = self.getue(group[-1])
                     elif isinstance(group[-1], int):
                         # Setting subarray, store variable
-                        self.vars[group[-2]] = self.getue(group[-2])
+                        self.variables['stored'][group[-2]] = self.getue(group[-2])
                     else:
                         # List of variables, store each
                         for variable in dictobj:
-                            self.vars[variable] = self.getue(variable)
+                            self.variables['stored'][variable] = self.getue(variable)
                 elif isinstance(group[-1], int):
                     if len(group) > 2 and isinstance(group[-2], int):
-                        self.vars[group[-3]] = self.getue(group[-3])
+                        self.variables['stored'][group[-3]] = self.getue(group[-3])
                     else:
-                        self.vars[group[-2]] = self.getue(group[-2])
+                        self.variables['stored'][group[-2]] = self.getue(group[-2])
                 elif isinstance(dictobj, bool):
                     # TODO: Now assumed only Falses set, which do nothing
                     # In the future, we might include Trues on keywords.
                     # Such behavior goes here
                     pass
                 elif isinstance(dictobj, (int, float, int64, float64)):
-                    self.vars[group[-1]] = self.getue(group[-1])
+                    self.variables['stored'][group[-1]] = self.getue(group[-1])
                 elif isinstance(dictobj, (bytes, str)):
                     try:
-                        self.vars[group[-1]] = self.getue(group[-1])
+                        self.variables['stored'][group[-1]] = self.getue(group[-1])
                     except:
                         pass
                 else:
@@ -738,23 +737,23 @@ class Case:
                     recursivereload(value, group + [key])
         # Pop out any custom commands, as these cannot be reloaded (not vars)
         try:
-            commands = self.varinput["setup"].pop("commands")
+            commands = self.variables['input']["setup"].pop("commands")
         except:
             pass
         # Reload the variables recurively
         if group is None:
-            recursivereload(self.varinput)
+            recursivereload(self.variables['input'])
         else:
-            recursivereload(self.varinput[group], [group])
+            recursivereload(self.variables['input'][group], [group])
         # If there were any custom commands, put them back where they belong
         try:
-            self.varinput["setup"]["commands"] = commands
+            self.variables['input']["setup"]["commands"] = commands
         except:
             pass
         # Update the dict containing the package containing each variable
-        for variable in self.vars.keys():
-            if variable not in self.packagelist:
-                self.packagelist[variable] = self.search.getpackage(
+        for variable in self.variables['stored'].keys():
+            if variable not in self.variables['package']:
+                self.variables['package'][variable] = self.search.getpackage(
                                                     variable, 
                                                     verbose=False
                                             )
@@ -790,7 +789,7 @@ class Case:
             for subgroup, data in fileobj.items():
                 self.load_inplace(data, group + [subgroup])
         else:
-            self.vars[fileobj.name.split("/")[-1]] = fileobj.name
+            self.variables['stored'][fileobj.name.split("/")[-1]] = fileobj.name
 
     def readyaml(self, fname, **kwargs):
         """Reads a YAML file and returns a nested dict
@@ -917,30 +916,24 @@ class Case:
                     print("    Using casename '{}'".format(self.info['casename']))
                 setupfile = "{}.yaml".format(self.info['casename'])
             if is_hdf5(setupfile):
-                self.varinput["setup"] = self.read_hdf5_setup(setupfile)
-                self.tracker.varinput=self.varinput
-                self.savefuncs.varinput=self.varinput
-                self.convert.varinput=self.varinput
+                self.variables['input']["setup"] = self.read_hdf5_setup(setupfile)
                 self.info['restored_from_hdf5'] = True
                 self.setue("GridFileName", abspath(setupfile))
                 self.setue("isgriduehdf5", 1)
             else:
                 try:
-                    self.varinput["setup"] = self.readyaml(setupfile)
-                    self.tracker.varinput=self.varinput
-                    self.savefuncs.varinput=self.varinput
-                    self.convert.varinput=self.varinput
+                    self.variables['input']["setup"] = self.readyaml(setupfile)
                 except Exception as e:
                     raise ValueError(f"Input file could not be parsed: {e}")
                 
 #            try:
-#                self.varinput["setup"] = self.readyaml(setupfile)
+#                self.variables['input']["setup"] = self.readyaml(setupfile)
 #            except:
-#                self.varinput["setup"] = self.read_hdf5_setup(setupfile)
+#                self.variables['input']["setup"] = self.read_hdf5_setup(setupfile)
 #                self.restored_from_hdf5 = True
 #                self.setue("GridFileName", setupfile)
 #                self.setue("isgriduehdf5", 1)
-        setup = deepcopy(self.varinput["setup"])
+        setup = deepcopy(self.variables['input']["setup"])
 
         # Pop out groups that cannot be parsed by default
         try:

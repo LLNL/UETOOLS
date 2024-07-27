@@ -7,8 +7,7 @@ class Save:
         self.setue = case.setue
         self.info = case.info
         self.mutex = case.mutex
-        self.vars = case.vars
-        self.varinput = case.varinput
+        self.variables = case.variables
         self.record_changes = case.tracker.record_changes
         self.getpackobj = Lookup().getpackobj
 
@@ -66,7 +65,7 @@ class Save:
         with File(savename, "a" if append else "w") as savefile:
             if append is False:
                 self.savemetadata(savefile)
-            self.recursivesave(savefile, self.varinput[group], [group])
+            self.recursivesave(savefile, self.variables['input'][group], [group])
 
     def savesetup(self, savename, **kwargs):
         self.savegroup(savename, "setup", **kwargs)
@@ -175,9 +174,9 @@ class Save:
             self.savemetadata(savefile)
             # Write requested data to file
             if group is None:
-                self.recursivesave(savefile, self.varinput)
+                self.recursivesave(savefile, self.variables['input'])
             else:
-                self.recursivesave(savefile, self.varinput[group], [group])
+                self.recursivesave(savefile, self.variables['input'][group], [group])
 
     def dump(self, savefname, **kwargs):
         """ Dumps all variables to a save file
@@ -241,19 +240,19 @@ class Save:
                 for group, variables in savefile["restore"].items():
                     for variable, value in variables.items():
                         self.setue(variable, value[()])
-                        self.vars[variable] = value[()]
+                        self.variables['stored'][variable] = value[()]
             # If not, try reading old-style save file
                 try:
                     for group, variables in savefile["restore"].items():
                         for variable, value in variables.items():
                             self.setue(variable, value[()])
-                            self.vars[variable] = value[()]
+                            self.variables['stored'][variable] = value[()]
                 # If not, try reading old-style save file
                 except:
-                    for group, variables in self.varinput["restore"].items():
+                    for group, variables in self.variables['input']["restore"].items():
                         for variable in variables:
                             self.setue(variable, savefile[group][variable][()])
-                            self.vars[variable] = savefile[group][variable][()]
+                            self.variables['stored'][variable] = savefile[group][variable][()]
                 if self.info['verbose']:
                     print("UETOOLS-style save successfully restored "+\
                             "from {}".format(savefname))
@@ -269,7 +268,7 @@ class Save:
                     if var in savefile['bbb'].keys():
                         try:
                             self.setue(var, savefile['bbb'][var][()])
-                            self.vars[var] = savefile['bbb'][var][()]
+                            self.variables['stored'][var] = savefile['bbb'][var][()]
                         except Exception as e:
                             raise Exception(f"Could not read variable {var}: {e}")
                 if self.info['verbose']:

@@ -5,7 +5,7 @@ class Convert:
         self.getue = case.getue
         self.setue = case.setue
         self.reload = case.reload
-        self.varinput = case.varinput
+        self.variables = case.variables
         self.get = case.get
         self.save = case.save
         self.info = case.info
@@ -131,7 +131,7 @@ class Convert:
             # Pass the lines and fails up to the recursive parent
             return lines, fails
         # Get the lines parsed and those that could not be parsed
-        lines, fails = recursive_lineread(self.varinput['setup'])
+        lines, fails = recursive_lineread(self.variables['input']['setup'])
         # Pop out values defined in Case object
         try:
             fails.pop('casename')
@@ -242,7 +242,7 @@ class Convert:
     def write_yaml(self, fname):
         from yaml import dump
         from copy import deepcopy
-        setup = deepcopy(self.varinput['setup'])
+        setup = deepcopy(self.variables['input']['setup'])
         self.strip_numpy(setup)
         filedump = dump(setup, sort_keys=False, default_style=None, default_flow_style=False)
         # Fix styling of lists
@@ -297,7 +297,7 @@ class Convert:
             with open(file) as f:
                 # Dump all non-comment data to string
                 filedump = sub(r'(?m)^ *#.*\n?', '', f.read())
-            for var, value in self.varinput['setup']['detected'].items():
+            for var, value in self.variables['input']['setup']['detected'].items():
                 if ".".join([self.getpackage(var), var]) in filedump:
                     vetted_changes[var] = value
         
@@ -359,7 +359,7 @@ class Convert:
         filedump = filedump.replace("'[","[").replace("]'", "]")
         with open(fnameyaml, 'w') as f:
             f.write(filedump)
-        self.varinput['setup'] = inputdeck
+        self.variables['input']['setup'] = inputdeck
         self.reload()
         self.save(savename)
 
