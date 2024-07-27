@@ -24,8 +24,8 @@ except:
 
 # TODO: make yaml read/write/get/set case-insensitive?
 # TODO: Consider compression of data
-# TODO: Fix location
-# TODO: Include location in all filenames (save, grid, etc.)
+# TODO: Store all *var* members to var-dict 
+# TODO: Re-introduce the verices
 
 class Case:
     """ UEDGE Case container object.
@@ -469,14 +469,14 @@ class Case:
                 if self.mutex() is False:
                     raise Exception("Case doesn't own UEDGE memory")
                 self.reload()
-                self.vertices = self.plot.createpolycollection(
+                self.plot.vertices = self.plot.createpolycollection(
                                     self.get("rm"), 
                                     self.get("zm")
                                 )
         else:
             self.reload()
             try:
-                self.vertices = self.plot.createpolycollection(
+                self.plot.vertices = self.plot.createpolycollection(
                                     self.get("rm"), 
                                     self.get("zm")
                                 )
