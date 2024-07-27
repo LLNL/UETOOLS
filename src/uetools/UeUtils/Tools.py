@@ -22,20 +22,6 @@ class Tools:
                 continue
         return keys
 
-
-    def get_detected_changes(self, savefile):
-        from h5py import File
-        from os.path import exists
-        if not exists(savefile):
-            raise ValueError(f"File {savefile} does not exist.")
-        with File(savefile, 'r') as f:
-            try: 
-                detected = f['setup/detected']
-            except:
-                raise KeyError(f"File {savefile} is not a UETOOLS save")
-            for key, item in detected.items():
-                print(key)
-
     def hdf5tree(self, fname, group=None, depth=None, pre=''):
         from h5py import File, _hl
         from copy import deepcopy
@@ -105,6 +91,7 @@ class Tools:
                     h5_tree(h5file[group], maxdepth=depth)
                 else:
                     h5_tree(h5file, maxdepth=depth)
+
 
 
     def hdf5search(self, file, var):
@@ -197,3 +184,8 @@ class Tools:
 
         return len(res)
 
+    def smooth_curve(self, x, y, s=1, **kwargs):
+        """ Returns smoothed x and y data """
+        from scipy.interpolate import splrep, BSpline
+        return x, BSpline(*splrep(x, y, s=s))(x)
+        

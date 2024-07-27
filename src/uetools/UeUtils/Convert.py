@@ -25,7 +25,6 @@ class Convert:
 
         def recursive_lineread(dictobj, lines=None, fails=None):
             """ Recusively parses setup variables to input lines """
-            from Forthon import getpackage
             # TODO: Implement checks on string lengths & shapes
             #       2D arrays are being set by 1D arrays work for YAMLs
             #       but not in python...
@@ -242,8 +241,14 @@ class Convert:
 
     def write_yaml(self, fname):
         from yaml import dump
+        from copy import deepcopy
+        setup = deepcopy(self.varinput['setup'])
+        self.strip_numpy(setup)
+        filedump = dump(setup, sort_keys=False, default_style=None, default_flow_style=False)
+        # Fix styling of lists
+        filedump = filedump.replace("'[","[").replace("]'", "]")
         with open(fname, 'w') as f:
-            dump(self.varinput['setup'], f, sort_keys=False,default_style=None, default_flow_style=False)
+            f.write(filedump)
         # TODO: add capability to also write autodetected changes
 
 

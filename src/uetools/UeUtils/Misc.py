@@ -3,6 +3,7 @@
 class Misc():
     def __init__(self, case):
         self.get = case.get
+        self.setue = case.setue
  
     def calc_lcon(self):
         """ Stores connection length in Case.lcon """
@@ -23,11 +24,6 @@ class Misc():
         return lcon
 
 
-    def smooth_curve(self, x, y, s=1, **kwargs):
-        """ Returns smoothed x and y data """
-        from scipy.interpolate import splrep, BSpline
-        return x, BSpline(*splrep(x, y, s=s))(x)
-        
         
     def get_bottomkeys(self, vardict, keys=None):
         """ Returns a list of keys at the bottom of nested dict """
@@ -62,25 +58,25 @@ class Misc():
 
         phis[1,:] = self.get('kappal')[:,0]*self.get('te')[1]/self.get('qe')
         if self.get('isudsym') ==0:
-            for iy in range(1, self.ny+1):
-                for ix in range(1,self.nx+1):
+            for iy in range(1, self.get('ny')+1):
+                for ix in range(1,self.get('nx')+1):
                     ix1 = ixp1[ix, iy]
                     dxf = 0.5*(gx[ix, iy] + gx[ix1, iy])/(gx[ix, iy]*gx[ix1, iy])
                     phis[ix1, iy] = phis[ix, iy] - ex[ix, iy] * dxf
                 
-            for ix in range(self.ixpt1+1, self.ixpt2+1):
-                for iy in range(self.iysptrx+1):
-                    phis[ix, iy] = phis[ix, self.iysptrx+1]
-                phis[ix, self.ny+1] = phis[ix, self.ny]
+            for ix in range(self.get('ixpt1')[0]+1, self.get('ixpt2')[0]+1):
+                for iy in range(self.get('iysptrx')+1):
+                    phis[ix, iy] = phis[ix, self.get('iysptrx')+1]
+                phis[ix, self.get('ny')+1] = phis[ix, self.get('ny')]
         else:
             nxc = self.get('nxc')
-            for iy in range(1, self.ny+1):
+            for iy in range(1, self.get('ny')+1):
                 for ix in range(0, nxc):
                     ix1= ixp1[ix, iy]
                     dxf = 0.5*(gx[ix, iy] + gx[ix1, iy])/(gx[ix, iy]*gx[ix1, iy])
                     phis[ix1, iy] = phis[ix, iy] - ex[ix, iy] * dxf
                 # NOTE: no overlap for the two subdomains in poloidal direction
-                for ix in range(self.nx, nxc, -1):
+                for ix in range(self.get('nx'), nxc, -1):
                     ix1= ixm1[ix, iy]
                     ix2= ixp1[ix, iy]
                     dxf = 0.5*(gx[ix, iy] + gx[ix1, iy])/(gx[ix, iy]*gx[ix1, iy])
@@ -115,10 +111,10 @@ class Misc():
             for j in range(rm.shape[1]-1, -1, -1):
                 x.append(rm[-1, j, 1])
                 y.append(zm[-1, j, 1])
-            for i in range(rm.shape[0]-1, self.ixpt2, -1):
+            for i in range(rm.shape[0]-1, self.get('ixpt2')[0], -1):
                 x.append(rm[i, 0, 4])
                 y.append(zm[i, 0, 4])
-            for i in range(self.ixpt1, -1, -1):
+            for i in range(self.get(['ixpt1'])[0], -1, -1):
                 x.append(rm[i, 0, 4])
                 y.append(zm[i, 0, 4])
             if self.get("geometry")[0].strip().lower().decode("UTF-8") == "     uppersn":        
@@ -144,14 +140,6 @@ class Misc():
         # Perform interpolation
         return gx, gy, interp
 
-
-    def plot_gridue(self, fname):
-        from h5py import File
-        with File(fname) as f:
-            rm = f['grid/com/rm'][()]
-            zm = f['grid/com/zm'][()]
-        self.grid(rm=rm, zm=zm)
-    
 
 
 #     from uetools.UePostproc.ADASclass import ADASSpecies

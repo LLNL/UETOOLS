@@ -364,11 +364,10 @@ class Case:
         self.savefuncs = Save(self)
         self.save = self.savefuncs.save
         self.solver = Solver(self)
-        self.converge = self.solver.converge
-        self.continuation_solve = self.solver.continuation_solve
         self.utils = Misc(self)
         self.config = Config(self)
         self.convert = Convert(self)
+        self.exmain = self.solver.exmain
         # Set up structure for reading/writing data
         # Load all data to object in memory
         if inplace is False:
@@ -1030,7 +1029,6 @@ class Case:
                     elif (group[-1] in ['casename', 'commands', 'chgstate_format']):
                         self.info[group[-1]] = dictobj
                     else:
-                        print(group[-1])
                         self.info[group[-1]] = '/'.join([self.info['location'], dictobj])
             else:
                 for key, value in dictobj.items():
@@ -1374,13 +1372,13 @@ class Case:
     def add_spectrometer(self, specname=None, **kwargs):
         from uetools.UeDiagnostics import Spectrometer
         try:
-            self.spectrometer
+            self.diagnostics
         except:
-            self.spectrometer = {}
+            self.diagnostics = {}
         if specname is None:
-            specname = 'spec{}'.format(len(self.spectrometer)+1)
-        self.spectrometer[specname] = Spectrometer(self, **kwargs)
-        return self.spectrometer[specname]
+            specname = 'spec{}'.format(len(self.diagnostics)+1)
+        self.diagnostics[specname] = Spectrometer(self, **kwargs)
+        return self.diagnostics[specname]
 
 
     def dashboard(self):

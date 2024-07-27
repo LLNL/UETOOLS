@@ -6,9 +6,11 @@
 
 class Interpolate():
     def __init__(self, case):
-        pass
+        self.get = case.get
+        self.getue = case.getue
+        self.snull = case.plot.snull
 
-    def interpolate(
+    def solution(
         self, newgrid, oldgrid=None, oldsave=None, ishdf5=None, radtranspfile=None,
         newsavename=None, **kwargs
         ):
@@ -132,73 +134,6 @@ class Interpolate():
     # the x-dimension is the poloidal distance from the target, 
     # centered at 'cuts'. Scheme can be upgraded to include magnetics,
     # and calculating parallel distances rather than poloidal
-
-    def store_oldgrid(self):
-        from copy import deepcopy
-        self.oldgrid = {}
-        for grdvar in ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b"]:
-            self.oldgrid[grdvar] = deepcopy(self.getue(grdvar))
-
-    def gridmorph(self, newgrid, var={}, gridtarget=1, **kwargs):
-        """ Uses the continuation solver to morph the UEDGE grids """
-        from copy import deepcopy
-
-        manualgrid = deepcopy(self.get('manualgrid'))
-        self.store_oldgrid()
-        
-        self.setue('gridmorph', 0)
-        self.setue('manualgrid', 1)
-        var['gridmorph'] = {'target': gridtarget}
-
-        self.continuation_solve(
-                var, 
-                commands=[f"self.morphed_mesh('{newgrid}',"+\
-                        "self.getue('gridmorph'), standalone=False)",
-                ],
-                newgeo=True, 
-                **kwargs
-        )
-        self.setue('manualgrid', manualgrid)
-        
-        
-
-    def morphed_mesh(self, newgrid, fraction, 
-                standalone=True
-        ):
-        """ Morphs the physical and magnetic mesh between old and new grids 
-
-        Grids must have same number of poloidal and radial grid cells.
-        The number of cells in each macro-region should be identical.
-        First use interpolation routines to interpolate solution 
-        to new grid.
-        """
-        from h5py import File
-        from Forthon import packageobject
-        from copy import deepcopy
-        
-        
-        # List of variables to morph
-        variables = ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b"]
-        # "nlim", "xlim", "ylim", "nplate1", "nplate2", "rplate1", "rplate2",
-        # "zplate1", "zplate2"
-        if ("griddata"  not in dir(self)):
-            self.griddata = {'old': {}, 'new': {}, 'delta': 0}
-            for var in variables:
-                self.griddata['old'][var] = deepcopy(self.getue(var))
-                self.griddata['new'][var] = self.hdf5search(newgrid, var)
-        self.griddata['old'] = self.oldgrid
-        for var in variables:
-            self.setue(var, (1-fraction)*self.griddata['old'][var] \
-                    + fraction*self.griddata['new'][var])
-        self.griddata['delta'] = fraction
-        packageobject('bbb').__getattribute__('guardc')()
-        if standalone:
-            iprint = deepcopy(self.get('iprint'))
-            self.setue("iprint", 0)
-            self.populate(silent=True, verbose=False)
-            self.setue("iprint", iprint)
-        del self.griddata
-        
 
 
 class GridDnull():

@@ -1,5 +1,6 @@
 # Plotting routines for case objects
 from uetools.UePlot import Plot
+from uetools.UeUtils import Tools
 
 
 # TODO: implement profile plots
@@ -8,7 +9,7 @@ class Caseplot(Plot):
         # Couple get to case
         self.get = case.get
         self.info = case.info
-        
+        self.tools = Tools()
         self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
             in ['uppersn', 'snull'])
         self.dnull = not self.snull
@@ -355,10 +356,13 @@ class Caseplot(Plot):
     def grid(self, **kwargs):
         return self.mesh(**kwargs)
     
-    def grid_hdf5(self, file, flip=True, **kwargs):
+    def gridue(self, file, flip=True, **kwargs):
+        from h5py import is_hdf5
 
-        rm=self.hdf5search(file,'rm')[1:-1,1:-1]
-        zm=self.hdf5search(file,'zm')[1:-1,1:-1]
+        if not is_hdf5(file):
+            raise NotImplementedError("ASCII gridue support not implemented.")
+        rm=self.tools.hdf5search(file,'rm')[1:-1,1:-1]
+        zm=self.tools.hdf5search(file,'zm')[1:-1,1:-1]
         if (
             self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
         ) and (flip is True):
@@ -608,7 +612,7 @@ class Caseplot(Plot):
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline("fngx", "fngy", s, surfnorm, **kwargs)
 
-    def plot_driftdirection(self, ax=None, width=0.02, color='k', flip=True,
+    def iongradB(self, ax=None, width=0.02, color='k', flip=True,
         **kwargs):
         ''' Plots the drift direction on the requested axis '''
         """

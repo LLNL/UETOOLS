@@ -484,11 +484,11 @@ class Plot:
         # TODO: devise scheme to look for variables in memory, from
         # Forthon, from HDF5
         if lcfs is True:
-            self.plotlcfs(ax, flip, color=lcfscolor)
+            self.lcfs(ax, flip, color=lcfscolor)
         if vessel is True:
-            self.plotvessel(ax, flip)
+            self.vessel(ax, flip)
         if plates is True:
-            self.plotplates(ax, flip, color=platecolor)
+            self.plates(ax, flip, color=platecolor)
         ax.autoscale_view()
         ax.set_title(title)
         ax.set_xlim(xlim)
@@ -509,7 +509,7 @@ class Plot:
         else:
             return ax.get_figure()
 
-    def plotlcfs(self, ax, flip=True, color="grey", linewidth=0.5, **kwargs):
+    def lcfs(self, ax, flip=True, color="grey", linewidth=0.5, **kwargs):
         """Plots LCFS on ax"""
         try:
             from uedge import com, bbb, grd
@@ -687,7 +687,7 @@ class Plot:
                 label='lcfs'
             )
 
-    def plotvessel(self, ax, flip=True):
+    def vessel(self, ax, flip=True):
         """Plots vessel on ax"""
         try:
             from uedge import com, bbb, grd
@@ -708,7 +708,7 @@ class Plot:
             pass
 
 
-    def plotplates(self, ax, flip=True, color=None):
+    def plates(self, ax, flip=True, color=None):
         """Plot plates on ax"""
         try:
             from uedge import com, bbb, grd
