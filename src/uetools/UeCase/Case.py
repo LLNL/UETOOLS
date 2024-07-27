@@ -7,8 +7,6 @@ from uetools.UeUtils import *
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeDiagnostics.ADAS import ADAS
 import uetools
-
-
 try:
     from uedge import bbb, com, aph, api, svr
     uedge_is_installed = True
@@ -49,8 +47,6 @@ class Case:
 
     Attributes
     ----------
-    allocate : function
-        allocates the UEDGE arrays based on the input
     filename : string
         path to input file where data is read from
     inplace : boolean
@@ -112,7 +108,6 @@ class Case:
 
     Variables
     ---------
-    allocate: wrapper of UEDGE function allocate
     aphdir: path to hydrogenic rates used by Case objects
     apidir: path to impurity rates used by Case objects
     casename: string identifier for case
@@ -212,6 +207,7 @@ class Case:
         from socket import gethostname
         from matplotlib.pyplot import ioff, ion
 
+        # Set up nested dict for variable operations
         self.variables = {
             'stored': {},
             'input': {},
@@ -228,74 +224,64 @@ class Case:
                 "savefile",
             ],
         }
-        # TODO: add hostname, mcfilename, aphfname
 
-
-
-        # Assert input is correct before proceeding
+        # Assert input file exists before proceeding
         if filename is not None:
             if not exists(filename):
                 raise ValueError('File {} does not exist!'.format(\
                     filename
                 ))
-    
+        # Check whether UEDGE is installed and enter inplace mode w/
+        # msg if not
         if (inplace is False) and (uedge_is_installed is False):
             print("No working UEDGE install found: only "+\
                 "inplace-evaluation is possible.")
             print("Only UETOOLS HDF5 saves can be restored.")
             print("For more information, consult UETOOLS documentation.")
             inplace = True
-
-        # TODO: add label attribute
-        # Read from uedge.label and strip
-        # Use to restore and/or save files
-        # Initialize class attributes
-        # Checksum whether to update data
-
-        try:
-            self.allocate = packageobject("bbb").getpyobject("allocate")
-        except:
-            pass
-
-        # Initialize parameters
+        # Parse the casename
         if casename is None:
             try:
                 casename = "/".join(".".join(filename.split(".")[:-1]).split("/")[-2:])
             except:
                 casename = "/".join((".".join(getcwd().split(".")[:-1]).split("/")[-1],"Case()"))
-        # Initialize parameters for initial load
-
+        # Get the current UEDGE version
         try:
             uedge_ver = (
                 packageobject("bbb").getpyobject("uedge_ver")[0].strip().decode("UTF-8")
             )
         except:
             uedge_ver = 'unknown'
+        # Get the user-name
         try:
             user = getlogin()
         except OSError:
             # Can fail on e.g cluster nodes
             user = "unknown"
+        # Get the hostname
         try:
             hostname = gethostname()
         except OSError:
             hostname = "unknown"
+        # Get the name of the file being read
         if filename is None:
             location = getcwd()
         else:
             location = abspath(os.path.dirname(filename))
             filename = abspath(filename)
-
+        # Check whether a separate diffusivity file is requested
         try:
             diffusivity_file = abspath(diffusivity_file)
         except:
             pass
+        # Get the location of the case
         try:
             if exists('/'.join([location, savefile])):
                 savefile = '/'.join([location, savefile])  
         except:
+            # NOTE: Shoul probably raise an error here?
             pass
-
+        # Store case data and information in dictionary
         self.info = {
             'casename': casename,
             'uetoolsversion': uetools.__version__,
@@ -315,29 +301,32 @@ class Case:
             'session_id': None,
             
         }
-
-
+        # Link top-level classes to Case
         self.tools = Tools()
         self.search = Lookup()
-        # Set up get's
+        # Set up the functions to get/set data from Case and UEDGE
+        # Reading from an HDF5 file
         if inplace:
+            # Get the absolute path to the HDF5 file 
             self.info['filename'] = abspath(self.info['filename'])
-
+            # Ensure the file exists
             if not exists(self.info['filename']):
                 raise Exception("File {} not found. Aborting!".format(self.info['filename']))
+            # Get the variables available in the HDF5 and link their locations
             self.load_inplace()
-            if self.info['filename'] is None:
-                print("Must specify data file when inplace=True! Aborting.")
-                return
+            # Link commands
             self.get = self.get_inplace
             self.set = self.getsetue_inplace
             self.getue = self.getsetue_inplace
             self.setue = self.getsetue_inplace
+        # Reading from UEDGE in memory
         else:
+            # Link commands
             self.get = self.get_memory
             self.getue = self.get_uememory
             self.setue = self.set_uememory
             self.exmain_evals = self.getue("exmain_evals")
+            # Assign mutex checks, unless at early UEDGE version
             try:
                 self.exmain_evals = self.getue("exmain_evals")
                 self.use_mutex = True
@@ -345,20 +334,23 @@ class Case:
                 print('Variable "exmain_evals" not found!')
                 print('Using UEDGE version <7, deactivate mutex')
                 self.use_mutex = False
-
-
+        # Link all other Classes to Case
         self.tracker = Tracker(self)
         self.plot = Caseplot(self)
         self.postproc = PostProcessors(self)
         self.savefuncs = Save(self)
         self.save = self.savefuncs.save
         self.solver = Solver(self)
+        self.populate = self.solver.populate
         self.utils = Misc(self)
         self.config = Config()
         self.convert = Convert(self)
         self.exmain = self.solver.exmain
-
-        # Set up paths
+        self.adas = ADAS(self)
+        self.radtransp = RadTransp(self)
+        self.interpolate = Interpolate(self)
+        self.about = AboutSetup(self)
+        # Set up paths from config file
         self.config.case(verbose=False)
         for key, value in self.config.configs.items():
             self.info[key] = value
@@ -368,11 +360,10 @@ class Case:
             self.info['aphdir'] = aphdir
         if apidir is not None:
             self.info['apidir'] = apidir
-            
 
-        # Set up structure for reading/writing data
-        # Load all data to object in memory
+        # Perform additional operations, requiring linked packages
         if inplace is False:
+            # Parse
             self.variables['input'] = self.readyaml("{}/{}".format(
                 uetools.__path__[0], "yamls/requiredvariables.yaml"
             ))
@@ -395,8 +386,6 @@ class Case:
                 )
             if assign is True:
                 self.assign()
-            
-
             if self.info['filename'] is not None:
                 self.restore_input(self.info['filename'], self.info['savefile'], 
                     restoresave=restoresave)
@@ -410,24 +399,6 @@ class Case:
                         for pkg in ['input', 'maybeinput']:
                             for key, _ in self.variables['hashes'][pkg].items():
                                 self.variables['defaults'][key] = deepcopy(self.getue(key))
-        # Read all data directly from HDF5 file
-#        if self.snull:
-#            self.ixpt1 = self.get('ixpt1')[0]
-#            self.ixpt2 = self.get('ixpt2')[0]
-#            self.iysptrx = self.get('iysptrx')
-#        self.nx = self.get('nx')
-#        self.ny = self.get('ny')
-#        self.ixmp = self.get('ixmp')
-
-
-        self.adas = ADAS(self)
-        self.radtransp = RadTransp(self)
-        self.interpolate = Interpolate(self)
-        self.about = AboutSetup(self)
-        # Link commands to be available at top level
-
-        # Initialize parent classes
-        super().__init__(**kwargs)
 
 
     # NOTE: Update class data, or try reading from forthon first??
@@ -883,6 +854,7 @@ class Case:
         from numpy import array
         from h5py import is_hdf5
         from os.path import abspath
+        from Forthon import packageobject
         # Extract user-supplied casename and diff_file
         casename = deepcopy(self.info['casename'])
         diff_file = deepcopy(self.info['diffusivity_file'])
@@ -908,16 +880,7 @@ class Case:
                     self.variables['input']["setup"] = self.readyaml(setupfile)
                 except Exception as e:
                     raise ValueError(f"Input file could not be parsed: {e}")
-                
-#            try:
-#                self.variables['input']["setup"] = self.readyaml(setupfile)
-#            except:
-#                self.variables['input']["setup"] = self.read_hdf5_setup(setupfile)
-#                self.restored_from_hdf5 = True
-#                self.setue("GridFileName", setupfile)
-#                self.setue("isgriduehdf5", 1)
         setup = deepcopy(self.variables['input']["setup"])
-
         # Pop out groups that cannot be parsed by default
         try:
             commands = setup.pop("commands")
@@ -1030,10 +993,10 @@ class Case:
             self.setue('restart', self.hdf5search(setupfile, 'restart'))
         except:
             pass
-        self.allocate()
+        packageobject("bbb").getpyobject("allocate")()
         if restore is True:
             setinputrecursive(setup)
-            self.allocate()
+            packageobject("bbb").getpyobject("allocate")()
             if "detected" in locals():
                 self.detected = detected
                 setinputrecursive(detected)
@@ -1122,7 +1085,7 @@ class Case:
                         exec(command)
                     except Exception as e:
                         print(f"Command {command} failed: {e}")
-        
+ 
 
     def setuserdiff(self, fname, **kwargs):
         """Sets user-defined diffusivities from HDF5 file
@@ -1191,7 +1154,7 @@ class Case:
                 )
             return False
 
-    def set_radialdiff(self, difffname, **kwargs):
+    def setradialdiff(self, difffname, **kwargs):
         """Sets radially varying diffusivities from HDF5 file
 
         Arguments
@@ -1222,71 +1185,6 @@ class Case:
         with File(difffname) as file:
             for variable in ["difniv", "kyev", "kyiv", "travisv"]:
                 self.setue(variable, file["diffusivities"]["bbb"][variable][()])
-
-
-    def populate(self, silent=True, verbose=None, **kwargs):
-        """ Populates all UEDGE arrays by evaluating static 'time-step'
-
-        Outputs prompt assessing whether case is converged or not.
-
-        Keyword arguments
-        -----------------
-        silent : bool (default = True)
-            Tells Case object to silence UEDGE exmain writes.
-        verbose : bool (default = None)
-            Tells Case to output UETOOLS prompts if True. If 
-            verbose = None, uses Case.verbose default.
-
-        Modifies
-        --------
-        UEDGE memory : updates all UEDGE array to correspond to 
-            restored state
-
-        Returns
-        -------
-        None
-        """
-        from copy import deepcopy
-        import os
-
-        if self.mutex() is False:
-            raise Exception("Case doesn't own UEDGE memory")
-
-        if verbose is None:
-            verbose = self.info['verbose']
-
-        if silent is True:
-            old_iprint = self.getue("iprint")
-            self.setue("iprint", 0)
-
-        issfon = deepcopy(self.getue("issfon"))
-        ftol = deepcopy(self.getue("ftol"))
-        try:
-            self.setue("issfon", 0)
-            self.setue("ftol", 1e20)
-            self.solver.exmain()
-            self.setue("gengrid", 0)  # Ensure that grids aren't generated again
-        finally:
-            # Ensure that original settings and working directory are restored
-            self.setue("issfon", issfon)
-            self.setue("ftol", ftol)
-
-        self.update()  # Reloads variables from UEDGE
-
-        if verbose is True:
-            fnrm = sum(self.getue("yldot") ** 2) ** 0.5
-            prtstr = "\n*** UEDGE arrays populated: {} ***"
-            if fnrm < 10:
-                print(prtstr.format("Case appears converged"))
-                print("fnrm without preconditioning: {:.2e}\n".format(fnrm))
-            elif fnrm < 100:
-                print(prtstr.format("Warning, case may noy be fully " "converged"))
-                print("fnrm without preconditioning: {:.1f}\n".format(fnrm))
-            else:
-                print(prtstr.format("WARNING, case NOT converged"))
-                print("fnrm without preconditioning: {:.2e}\n".format(fnrm))
-        if silent is True:
-            self.setue("iprint", old_iprint)  # Restore
 
     def restore_input(self, inputfname=None, savefile=None, 
         populate=True, restoresave=True, **kwargs):

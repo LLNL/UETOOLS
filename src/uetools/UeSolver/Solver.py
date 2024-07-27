@@ -23,6 +23,8 @@ class Solver(UeRun):
         self.getue = case.getue
         self.tools = Tools()
         self.save = case.save
+        self.mutex = case.mutex
+        self.update = case.update
     
         super().__init__(*args, **kwargs)
 
@@ -255,4 +257,69 @@ class Solver(UeRun):
             self.setue("iprint", iprint)
         del self.griddata
         
+
+    def populate(self, silent=True, verbose=None, **kwargs):
+        """ Populates all UEDGE arrays by evaluating static 'time-step'
+
+        Outputs prompt assessing whether case is converged or not.
+
+        Keyword arguments
+        -----------------
+        silent : bool (default = True)
+            Tells Case object to silence UEDGE exmain writes.
+        verbose : bool (default = None)
+            Tells Case to output UETOOLS prompts if True. If 
+            verbose = None, uses Case.verbose default.
+
+        Modifies
+        --------
+        UEDGE memory : updates all UEDGE array to correspond to 
+            restored state
+
+        Returns
+        -------
+        None
+        """
+        from copy import deepcopy
+        import os
+
+        if self.mutex() is False:
+            raise Exception("Case doesn't own UEDGE memory")
+
+        if verbose is None:
+            verbose = self.info['verbose']
+
+        if silent is True:
+            old_iprint = self.getue("iprint")
+            self.setue("iprint", 0)
+
+        issfon = deepcopy(self.getue("issfon"))
+        ftol = deepcopy(self.getue("ftol"))
+        try:
+            self.setue("issfon", 0)
+            self.setue("ftol", 1e20)
+            self.exmain()
+            self.setue("gengrid", 0)  # Ensure that grids aren't generated again
+        finally:
+            # Ensure that original settings and working directory are restored
+            self.setue("issfon", issfon)
+            self.setue("ftol", ftol)
+
+        self.update()  # Reloads variables from UEDGE
+
+        if verbose is True:
+            fnrm = sum(self.getue("yldot") ** 2) ** 0.5
+            prtstr = "\n*** UEDGE arrays populated: {} ***"
+            if fnrm < 10:
+                print(prtstr.format("Case appears converged"))
+                print("fnrm without preconditioning: {:.2e}\n".format(fnrm))
+            elif fnrm < 100:
+                print(prtstr.format("Warning, case may noy be fully " "converged"))
+                print("fnrm without preconditioning: {:.1f}\n".format(fnrm))
+            else:
+                print(prtstr.format("WARNING, case NOT converged"))
+                print("fnrm without preconditioning: {:.2e}\n".format(fnrm))
+        if silent is True:
+            self.setue("iprint", old_iprint)  # Restore
+
 
