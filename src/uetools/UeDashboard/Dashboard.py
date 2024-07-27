@@ -51,6 +51,10 @@ from PyQt5.QtWidgets import (
 # TODO: Implement diagnostics GUI 
 # TODO: Store previously opened files in separate yaml under .uedgerc
 
+# TODO: Fix Variable Dropdowns
+# TODO: Redraw separatrices
+# TODO: Figure our blank plots for absolute value/logs
+# TODO: Ensure proper updateing
 
 class DatabaseDashboard(QWidget):
     """ Main Window """
@@ -125,20 +129,20 @@ class DatabaseDashboard(QWidget):
             self.updateLabel()
             self.dash.case = self.case
             self.dash.get = self.case.get
-            self.dash.caseplot.verts.set_verts(self.case.nodes)
+            self.dash.caseplot.verts.set_verts(self.case.plot.nodes)
             self.dash.caseplot.updatePlot()
             self.dash.updateVar()
             lines = {}
             for line in self.dash.caseplot.canvas.axes.lines:
                 lines[line.get_label()] = line.get_visible()
                 line.remove()
-            self.case.plotlcfs(ax=self.dash.caseplot.canvas.axes, flip=True)
+            self.case.plot.lcfs(ax=self.dash.caseplot.canvas.axes, flip=True)
             if not lines['lcfs']:
                 self.dash.caseplot.toggleSeparatrix()
-            self.case.plotplates(ax=self.dash.caseplot.canvas.axes, flip=True)
+            self.case.plot.plates(ax=self.dash.caseplot.canvas.axes, flip=True)
             if not lines['plate1']:
                 self.dash.caseplot.togglePlates()
-            self.case.plotvessel(ax=self.dash.caseplot.canvas.axes, flip=True)
+            self.case.plot.vessel(ax=self.dash.caseplot.canvas.axes, flip=True)
             if not lines['vessel']:
                 self.dash.caseplot.toggleVessel()
 
@@ -451,19 +455,19 @@ class CaseDashboard(QWidget):
     def __init__(self, case, parent=None):
         """Initializer."""
         super().__init__(parent)
-        self.file = case.filename
+        self.file = case.info['filename']
 
         self.centralWidget = QWidget(self)
         self.caseplot = HeatmapInteractiveFigure(case)
         # Cannibalize Case functions
-        self.inplace = case.inplace
-        self.casevars = case.vars
+        self.inplace = case.info['inplace']
+        self.casevars = case.variables['stored']
         self.get = case.get
-        self.nx = case.nx
-        self.ny = case.ny
-        self.ionarray = case.ionarray
-        self.gasarray = case.gasarray
-        self.casename = case.casename
+        self.nx = case.get('nx')
+        self.ny = case.get('ny')
+        self.ionarray = case.about.ionarray
+        self.gasarray = case.about.gasarray
+        self.casename = case.info['casename']
         self.ionspecies = 0
         self.gasspecies = 0
         self.species = ''
@@ -1152,9 +1156,9 @@ class HeatmapInteractiveFigure(QWidget):
         self.canvas.setMinimumWidth(550)
         self.canvas.setMinimumHeight(700)
         self.case = case        
-        self.case.te2D(ax=self.canvas.axes)
-        self.case.set_speciesarrays()
-        self.verts = self.case.Qvertices
+        self.case.plot.te2D(ax=self.canvas.axes)
+        self.case.about.set_speciesarrays()
+        self.verts = self.case.plot.Qvertices
         
         self._createSlider()
         # TODO: moce to MplCanvas??
@@ -1177,7 +1181,7 @@ class HeatmapInteractiveFigure(QWidget):
         ax.set_anchor("C")
         ax.set_position([0.1, old_ax.y0, 0.75, 0.85])
 
-        self.casename = self.case.casename
+        self.casename = self.case.info['casename']
         self.gasspecies = 0
         self.ionspecies = 0
         self.cmap = 'magma'
