@@ -3,7 +3,6 @@ from uetools.UeSolver import Solver
 from .Save import Save
 from .Config import Config
 from .Input import Input
-#from uetools.UeDashboard import CaseDashboard2D
 from uetools.UeUtils import *
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeDiagnostics.ADAS import ADAS
@@ -313,17 +312,16 @@ class Case:
                 raise Exception("File {} not found. Aborting!".format(self.info['filename']))
             # Get the variables available in the HDF5 and link their locations
             self.load_inplace()
-            # Link commands
-            self.get = self.get_inplace
-            self.set = self.getsetue_inplace
-            self.getue = self.getsetue_inplace
-            self.setue = self.getsetue_inplace
-        # Reading from UEDGE in memory
+            self.getset = GetSetInplace(self)
         else:
-            # Link commands
-            self.get = self.get_memory
-            self.getue = self.get_uememory
-            self.setue = self.set_uememory
+            self.getset = GetSetMemory(self)
+
+        # Link commands
+        self.get = self.getset.get
+        self.getue = self.getset.getue
+        self.setue = self.getset.setue
+
+        if not inplace:
             self.exmain_evals = self.getue("exmain_evals")
             # Assign mutex checks, unless at early UEDGE version
             try:
@@ -333,6 +331,8 @@ class Case:
                 print('Variable "exmain_evals" not found!')
                 print('Using UEDGE version <7, deactivate mutex')
                 self.use_mutex = False
+
+
         # Link all other Classes to Case
         self.tracker = Tracker(self)
         self.plot = Caseplot(self)
@@ -399,7 +399,7 @@ class Case:
                         for pkg in ['input', 'maybeinput']:
                             for key, _ in self.variables['hashes'][pkg].items():
                                 self.variables['defaults'][key] = deepcopy(self.getue(key))
-
+        self.plot = Caseplot(self)
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
@@ -419,97 +419,15 @@ class Case:
                 if self.mutex() is False:
                     raise Exception("Case doesn't own UEDGE memory")
                 self.reload()
-                self.plot.vertices = self.plot.createpolycollection(
-                                    self.get("rm"), 
-                                    self.get("zm")
-                                )
+                self.plot = Caseplot(self, rm=self.get("rm"), zm=self.get("zm"))
         else:
             self.reload()
             try:
-                self.plot.vertices = self.plot.createpolycollection(
-                                    self.get("rm"), 
-                                    self.get("zm")
-                                )
+                self.plot = Caseplot(self, rm=self.get("rm"), zm=self.get("zm"))
             except:
                 pass
 
-    def get_inplace(self, variable, s=None, verbose=True, **kwargs):
-        """Returns variable from HDF5 file
 
-        Arguments
-        -----------------
-        variable : str
-            Variable to return from HDF5 file
-
-        Keyword arguments
-        -----------------
-        s : int (None)
-            Species index, if variable is multi-species array
-
-        Returns
-        -------
-        ndarray containing data or None if not found
-        """
-        from numpy import ndarray
-        from h5py import File
-        
-        try:
-            with File(self.info['filename'], 'r') as f:
-                retvar = f[self.variables['stored'][variable]][()]
-        except:
-            if verbose:
-                print("{} not found in {}".format(variable, self.info['filename']))
-            return
-
-        if isinstance(retvar, (ndarray, list)):
-            if len(retvar.shape) == 3:
-                if s is not None:
-                    retvar = retvar[:, :, s]
-        return retvar
-
-    def get_memory(self, variable, s=None, **kwargs):
-        """Returns variable
-
-        Method assumes unique variable names across all packages and
-        groups.
-
-        First, checks if UEDGE solution has changed from previous step.
-        If it has, updates UeCase data. Then, looks for data in UeCase
-        and returns it if found. If not found, returns data from Forthon
-        memory.
-        NOTE: return None, or access value from UEDGE?
-
-        Arguments
-        ---------
-        variable : str
-            name of variable to be returned
-
-        Keyword arguments
-        -----------------
-        s : int (default = None)
-            species index to be returned for 3-dimensional arrays. If
-            None, get returns the full 3-dimensional array. Otherwise,
-            get returns the s:th index of the third dimension
-
-        Returns
-        -------
-        UeCase value of variable
-        """
-        # TODO: search input too? Store input to Vars?
-        from numpy import ndarray
-
-        self.update()  # Update results from UEDGE if they have changed
-        # Switch to asses where to access data from
-        try:
-            retvar = self.variables['stored'][variable]
-        except:
-            retvar = self.getue(variable)
-        # Check the size of the array, and return index if multi-species array
-        if isinstance(retvar, (ndarray, list)):
-            if len(retvar.shape) == 3:
-                if s is not None:
-                    retvar = retvar[:, :, s]
-        return retvar
 
     def assign(self, **kwargs):
         """Assigns the UEDGE session to this object
@@ -540,81 +458,7 @@ class Case:
         except:
             pass
 
-    def getsetue_inplace(self, *args, **kwargs):
-        """Placeholder to avoid getting/setting when reading inplace."""
-        raise Exception("Cannot set/get UEDGE values when reading from "+\
-                            "HDF5 file")
 
-    def set_uememory(self, variable, value, **kwargs):
-        """Sets the Forthon variable in package to data
-
-        Arguments
-        ---------
-        variable : str
-            variable name
-        value : array/list/float/int
-            data to be written to the UEDGE variable
-
-        Modifies
-        --------
-        UEDGE memory : sets variable value to value
-
-        Returns
-        -------
-        None
-        """
-        try:
-            package = self.variables['package'][variable]
-        except:
-            package = self.search.getpackage(variable, verbose=False)
-        if self.mutex():
-            try:
-                setattr(packageobject(package), variable, value)
-            except Exception as e:
-                raise KeyError("{} could not be set: {}".format(variable, e))
-
-    def get_uememory(self, variable, s=None, cp=True, **kwargs):
-        """Retrieves data from UEDGE variable in package.
-
-        Arguments
-        ---------
-        variable : str
-            variable name
-
-        Keyword arguments
-        -----------------
-        s : int (default = None)
-            species index to return if requested array is 3D species dependent
-        cp : boolean (default = True)
-            returns a copy of the values if True, a pointer to variable
-            if False
-
-        Returns
-        -------
-        value of/pointer to UEDGE variable
-        """
-        # TODO: fix get on functions!
-        from copy import deepcopy
-        from numpy import ndarray
-
-        try:
-            package = self.variables['package'][variable]
-        except:
-            package = self.search.getpackage(variable, verbose=False)
-
-        try:
-            if cp is True:
-                retvar = deepcopy(packageobject(package).getpyobject(variable))
-            else:
-                retvar = packageobject(package).getpyobject(variable)
-        except:
-            raise KeyError("{} not found".format(variable))
-
-        if isinstance(retvar, (ndarray, list)):
-            if len(retvar.shape) == 3:
-                if s is not None:
-                    retvar = retvar[:, :, s]
-        return retvar
 
     def reload(self, group=None, **kwargs):
         """Reloads variables from UEDGE to UeCase
@@ -845,3 +689,177 @@ class Case:
         app.exec_()
 
         
+class GetSetMemory:
+    def __init__(self, case):
+        self.update = case.update
+        self.variables = case.variables
+        self.search = Lookup()
+        self.mutex = case.mutex
+
+
+    def get(self, variable, s=None, **kwargs):
+        """Returns variable
+
+        Method assumes unique variable names across all packages and
+        groups.
+
+        First, checks if UEDGE solution has changed from previous step.
+        If it has, updates UeCase data. Then, looks for data in UeCase
+        and returns it if found. If not found, returns data from Forthon
+        memory.
+        NOTE: return None, or access value from UEDGE?
+
+        Arguments
+        ---------
+        variable : str
+            name of variable to be returned
+
+        Keyword arguments
+        -----------------
+        s : int (default = None)
+            species index to be returned for 3-dimensional arrays. If
+            None, get returns the full 3-dimensional array. Otherwise,
+            get returns the s:th index of the third dimension
+
+        Returns
+        -------
+        UeCase value of variable
+        """
+        # TODO: search input too? Store input to Vars?
+        from numpy import ndarray
+
+        self.update()  # Update results from UEDGE if they have changed
+        # Switch to asses where to access data from
+        try:
+            retvar = self.variables['stored'][variable]
+        except:
+            retvar = self.getue(variable)
+        # Check the size of the array, and return index if multi-species array
+        if isinstance(retvar, (ndarray, list)):
+            if len(retvar.shape) == 3:
+                if s is not None:
+                    retvar = retvar[:, :, s]
+        return retvar
+
+    def setue(self, variable, value, **kwargs):
+        """Sets the Forthon variable in package to data
+
+        Arguments
+        ---------
+        variable : str
+            variable name
+        value : array/list/float/int
+            data to be written to the UEDGE variable
+
+        Modifies
+        --------
+        UEDGE memory : sets variable value to value
+
+        Returns
+        -------
+        None
+        """
+        try:
+            package = self.variables['package'][variable]
+        except:
+            package = self.search.getpackage(variable, verbose=False)
+        if self.mutex():
+            try:
+                setattr(packageobject(package), variable, value)
+            except Exception as e:
+                raise KeyError("{} could not be set: {}".format(variable, e))
+
+    def getue(self, variable, s=None, cp=True, **kwargs):
+        """Retrieves data from UEDGE variable in package.
+
+        Arguments
+        ---------
+        variable : str
+            variable name
+
+        Keyword arguments
+        -----------------
+        s : int (default = None)
+            species index to return if requested array is 3D species dependent
+        cp : boolean (default = True)
+            returns a copy of the values if True, a pointer to variable
+            if False
+
+        Returns
+        -------
+        value of/pointer to UEDGE variable
+        """
+        # TODO: fix get on functions!
+        from copy import deepcopy
+        from numpy import ndarray
+
+        try:
+            package = self.variables['package'][variable]
+        except:
+            package = self.search.getpackage(variable, verbose=False)
+
+        try:
+            if cp is True:
+                retvar = deepcopy(packageobject(package).getpyobject(variable))
+            else:
+                retvar = packageobject(package).getpyobject(variable)
+        except:
+            raise KeyError("{} not found".format(variable))
+
+        if isinstance(retvar, (ndarray, list)):
+            if len(retvar.shape) == 3:
+                if s is not None:
+                    retvar = retvar[:, :, s]
+        return retvar
+
+
+class GetSetInplace:
+    def __init__(self, case):
+        self.info = case.info
+        self.variables = case.variables
+
+    def get(self, variable, s=None, verbose=True, **kwargs):
+        """Returns variable from HDF5 file
+
+        Arguments
+        -----------------
+        variable : str
+            Variable to return from HDF5 file
+
+        Keyword arguments
+        -----------------
+        s : int (None)
+            Species index, if variable is multi-species array
+
+        Returns
+        -------
+        ndarray containing data or None if not found
+        """
+        from numpy import ndarray
+        from h5py import File
+        
+        try:
+            with File(self.info['filename'], 'r') as f:
+                retvar = f[self.variables['stored'][variable]][()]
+        except:
+            if verbose:
+                print("{} not found in {}".format(variable, self.info['filename']))
+            return
+
+        if isinstance(retvar, (ndarray, list)):
+            if len(retvar.shape) == 3:
+                if s is not None:
+                    retvar = retvar[:, :, s]
+        return retvar
+
+    def getue(self, *args, **kwargs):
+        """Placeholder to avoid getting/setting when reading inplace."""
+        raise Exception("Cannot get UEDGE values when reading from "+\
+                            "HDF5 file")
+
+    def setue(self, *args, **kwargs):
+        """Placeholder to avoid getting/setting when reading inplace."""
+        raise Exception("Cannot set UEDGE values when reading from "+\
+                            "HDF5 file")
+
+
