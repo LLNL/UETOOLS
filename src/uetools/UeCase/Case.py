@@ -1,12 +1,13 @@
 from uetools.UePlot import Caseplot
 from uetools.UeSolver import Solver
 from .Save import Save
+from .Config import Config
 #from uetools.UeDashboard import CaseDashboard2D
 from uetools.UeUtils import *
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeDiagnostics.ADAS import ADAS
-from uetools.UeConfig.Config import Config
 import uetools
+
 
 try:
     from uedge import bbb, com, aph, api, svr
@@ -229,7 +230,6 @@ class Case:
         self.packagelist = dict()
         self.uevars = dict()
         self.defaults = dict()
-        self.configured = False
         # TODO: add hostname, mcfilename, aphfname
 
 
@@ -323,7 +323,9 @@ class Case:
             'verbose':  verbose,
             'savefile': savefile,
             'filename': filename,
-            'diffusivity_file': diffusivity_file
+            'diffusivity_file': diffusivity_file,
+            'aphdir': None,
+            'apidir': None,
             
         }
 
@@ -365,9 +367,22 @@ class Case:
         self.save = self.savefuncs.save
         self.solver = Solver(self)
         self.utils = Misc(self)
-        self.config = Config(self)
+        self.config = Config()
         self.convert = Convert(self)
         self.exmain = self.solver.exmain
+
+        # Set up paths
+        self.config.case()
+        for key, value in self.config.configs.items():
+            self.info[key] = value
+        # Set up rate paths: Case-level paths take precedence over
+        # config paths
+        if aphdir is not None:
+            self.info['aphdir'] = aphdir
+        if apidir is not None:
+            self.info['apidir'] = apidir
+            
+
         # Set up structure for reading/writing data
         # Load all data to object in memory
         if inplace is False:
@@ -400,23 +415,6 @@ class Case:
                 self.assign()
             
 
-
-            self.config.configcase(verbose=verbose)
-            try: 
-                self.apidir
-                if apidir is not None:
-                    self.apidir = aphdir
-            except:
-                self.apidir = apidir
-            try: 
-                self.aphdir
-                if aphdir is not None:
-                    self.aphdir = aphdir
-            except:
-                self.aphdir = aphdir
-
-
-
             if self.info['filename'] is not None:
                 self.restore_input(self.info['filename'], self.info['savefile'], 
                     restoresave=restoresave)
@@ -443,7 +441,6 @@ class Case:
         self.adas = ADAS(self)
         self.radtransp = RadTransp(self)
         self.interpolate = Interpolate(self)
-        self.config = Config(self)
         self.about = AboutSetup(self)
         # Link commands to be available at top level
 
@@ -1126,10 +1123,10 @@ class Case:
             self.info['casename'] = casename
         if savefile is not None:
             self.info["savefile"] = savefile
-        if self.aphdir is not None:
-            self.setue("aphdir", self.aphdir)
-        if self.apidir is not None:
-            self.setue("apidir", self.apidir)
+        if self.info['aphdir'] is not None:
+            self.setue("aphdir", self.info['aphdir'])
+        if self.info['apidir'] is not None:
+            self.setue("apidir", self.info['apidir'])
         if restoresave is True:
             if (self.info["savefile"] is None) and (self.get('restart') == 1):
                 raise ValueError("No save-file supplied!")
