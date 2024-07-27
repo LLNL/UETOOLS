@@ -9,7 +9,6 @@ class Convert:
         self.get = case.get
         self.save = case.save
         self.info = case.info
-        self.defaults = case.defaults
         self.populate = case.populate
         self.record_changes = case.tracker.record_changes
         self.get_bottomkeys = case.utils.get_bottomkeys
@@ -457,14 +456,14 @@ class Convert:
             # Check whether the array has been dynamically changed/allocated 
             if (len(value) == 1) and isinstance(value[0], bytes_):
                 buff = value[0].decode('UTF-8').strip()
-            elif len(self.defaults[var]) != len(value):
-                buff = self.set2Dbuff(value, self.defaults[var])
+            elif len(self.variables['defaults'][var]) != len(value):
+                buff = self.set2Dbuff(value, self.variables['defaults'][var])
             # Check whether the input is multi-dimensional (2D assumed max)
             elif len(value.shape) > 1:
-                buff = self.set2Dbuff(value, self.defaults[var])
+                buff = self.set2Dbuff(value, self.variables['defaults'][var])
             # 1D array of settings detected
             else:
-                buff = self.set1Dbuff(self.defaults[var], value)
+                buff = self.set1Dbuff(self.variables['defaults'][var], value)
             if buff is not False:
                 location[var] = buff
             else:

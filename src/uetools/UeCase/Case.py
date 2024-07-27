@@ -212,28 +212,22 @@ class Case:
         from socket import gethostname
         from matplotlib.pyplot import ioff, ion
 
-
-
-
-        self.unset_variables = []
-        self.omitvars = [
-            "userdifffname",
-            "radialdifffname",
-            "diff_file",
-            "casename",
-            "commands",
-            "savefile",
-        ]
-
-
         self.variables = {
             'stored': {},
             'input': {},
             'package': {},
             'hashes': {},
             'defaults': {},
+            'unset': [],
+            'omit': [
+                "userdifffname",
+                "radialdifffname",
+                "diff_file",
+                "casename",
+                "commands",
+                "savefile",
+            ],
         }
-        self.defaults = dict()
         # TODO: add hostname, mcfilename, aphfname
 
 
@@ -292,14 +286,6 @@ class Case:
             location = abspath(os.path.dirname(filename))
             filename = abspath(filename)
 
-
-
-#            try:
-#                # Get the directory containing the input file
-#                location = os.path.dirname(abspath(filename))
-#            except:
-#                location = getcwd()
-
         try:
             diffusivity_file = abspath(diffusivity_file)
         except:
@@ -309,10 +295,6 @@ class Case:
                 savefile = '/'.join([location, savefile])  
         except:
             pass
-#        try:
-#            savefile = abspath(savefile)
-#        except:
-#            pass
 
         self.info = {
             'casename': casename,
@@ -330,6 +312,7 @@ class Case:
             'diffusivity_file': diffusivity_file,
             'aphdir': None,
             'apidir': None,
+            'session_id': None,
             
         }
 
@@ -405,7 +388,7 @@ class Case:
             else:  # YAML specified, use user input
                 self.variables['input'].update(self.readyaml(variableyamlfile))  # Read to memory
             if self.use_mutex is True:
-                self.session_id = self.getue("max_session_id") + 1
+                self.info['session_id'] = self.getue("max_session_id") + 1
                 setattr(
                     packageobject("bbb"), "max_session_id", 
                     self.getue("max_session_id") + 1
@@ -426,7 +409,7 @@ class Case:
                         # Track potential inputs too, just to be safe
                         for pkg in ['input', 'maybeinput']:
                             for key, _ in self.variables['hashes'][pkg].items():
-                                self.defaults[key] = deepcopy(self.getue(key))
+                                self.variables['defaults'][key] = deepcopy(self.getue(key))
         # Read all data directly from HDF5 file
 #        if self.snull:
 #            self.ixpt1 = self.get('ixpt1')[0]
@@ -569,7 +552,7 @@ class Case:
         None
         """
         if self.use_mutex is True:
-            setattr(packageobject("bbb"), "session_id", self.session_id)
+            setattr(packageobject("bbb"), "session_id", self.info['session_id'])
 #        try:
 #            # Restore input to UEDGE
 #            # NOTE: variables not set maintain previous values. Reset
@@ -731,7 +714,7 @@ class Case:
                     except:
                         pass
                 else:
-                    self.unset_variables.append([group, dictobj])
+                    self.variables['unset'].append([group, dictobj])
             else:
                 for key, value in dictobj.items():
                     recursivereload(value, group + [key])
@@ -949,7 +932,7 @@ class Case:
         def setinputrecursive(dictobj, group=[]):
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
-                if group[-1] not in self.omitvars + ['chgstate_format']:
+                if group[-1] not in self.variables['omit'] + ['chgstate_format']:
                     # NOTE: Not sure what to do with chgstate_format, fauls for some strange reason...
                     # NOTE: Should not be an input, just skip for the time being
                     # Avoid overwriting grid path when restoring from HDF5
@@ -1198,13 +1181,13 @@ class Case:
         """
         if self.use_mutex == False:
             return True
-        if self.session_id == self.getue("session_id"):
+        if self.info['session_id'] == self.getue("session_id"):
             return True
         else:
             if silent is False:
                 print(
                     "Mutex error! Object run-ID is {}, UEDGE run-ID "
-                    "is {}. Aborting.".format(self.session_id, self.getue("session_id"))
+                    "is {}. Aborting.".format(self.info['session_id'], self.getue("session_id"))
                 )
             return False
 
