@@ -499,7 +499,7 @@ class CaseDashboard(QWidget):
                WIDGET CREATION
         ==========================="""
     def _createVarButtons(self):
-        from numpy import sum
+        from numpy import sum, ndarray
         self.buttons = {
             'layout': QGridLayout(),
             'title': QLabel(self.title("Plots")),
@@ -560,13 +560,19 @@ class CaseDashboard(QWidget):
         self.buttons['items']['dropdown'].addItem("", 0)
         # TODO: Check that can be plotted --> len(shape)
         for vartype in ['centered', 'staggered']:
-            if self.inplace:
-                for var, path in self.casevars.items():
-                    if (vartype in path) and (var not in varlist):
-                        getvar = self.get(var)
+            for var, path in self.casevars.items():
+                inpath = True
+                if self.inplace:
+                    inpath = (vartype in path)
+                if inpath and (var not in varlist):
+                    getvar = self.get(var)
+                    if isinstance(getvar, ndarray):
                         if (len(getvar.shape) <= 3) and \
                             (len(getvar.shape) > 1) and \
-                            (abs(getvar).max() > 0):
+                            (abs(getvar).max() > 0) and \
+                            (getvar.shape[-1] != 5) and \
+                            (getvar.shape[1] not in (1, 2)):
+                            print(var, getvar.shape)
                             self.buttons['items']['dropdown'].addItem(var, i)
 
         cols[-1].addWidget(self.buttons['items']['dropdown'])
@@ -914,6 +920,8 @@ class CaseDashboard(QWidget):
 
     def plot_dropdown(self, text):
         # TODO: attempt auto-detecting shape
+        if text == "":
+            return
         self.raise_message(text)
         var = self.get(text)
         if len(var.shape) == 3:
