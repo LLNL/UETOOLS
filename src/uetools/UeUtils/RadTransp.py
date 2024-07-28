@@ -1,4 +1,6 @@
 class RadTransp():
+    def __init__(self, case):
+        pass
 
 
     def profile_function(self, *args, plot=False):
@@ -125,7 +127,7 @@ class RadTransp():
         # TODO: Punish exponentially for >10% radial power transport
         fey = (self.get('feey')+self.get('feiy'))[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1]
         radfraction = sum(fey[:,-2])/sum(fey[:,0])
-        radval = 1000*exp(radfraction*20 - 13)*self.bayopt['optimize_radtransp']
+        radval = 1000*exp(radfraction*20 - 13)*self.bayopt['optimize']
         radval = nan_to_num(radval)
         print(" BLACKBOX EVALUATION COMPLETED")
         print(f'    Radiated fraction: {radfraction}')
@@ -152,7 +154,7 @@ class RadTransp():
         # TODO: define optimization function
 
 
-    def optimize_transport(self, ne=None, te=None, psine=None, psite=None, random_state=None,
+    def optimize(self, ne=None, te=None, psine=None, psite=None, random_state=None,
         n_calls=10, n_initial_points=5, initres=1e3, savedir='test', savename='test{}', 
         oldstate = None,  resolution = 8, optimize_radtransp=True, interpolator='linear',
         setkyi=False):
@@ -268,13 +270,13 @@ class RadTransp():
 
 
     
-    def iterate_radtransp(self, savefname, psite, teexp, psine, neexp, 
+    def iterate(self, savefname, psite, teexp, psine, neexp, 
         sibdrys=None, simagxs=None, iters=10, steps=4, **kwargs):
         from numpy import linspace
         i = 0
         if steps != 0:
             for frac in linspace(1/steps, 1, steps):
-                self.step_radtransp(frac, psite, teexp, psine, neexp, 
+                self.step(frac, psite, teexp, psine, neexp, 
                     sibdrys=sibdrys, simagxs=simagxs, **kwargs)
                 self.converge(savefname='{}_radtransp_frac{}_iter{}'.format(\
                     savefname, str(frac).replace('.', ''), i+1), dtreal=1e-10)
@@ -283,7 +285,7 @@ class RadTransp():
                     return
                 i +=1
         for itr in range(i, iters):
-            self.step_radtransp(1, psite, teexp, psine, neexp, 
+            self.step(1, psite, teexp, psine, neexp, 
                 sibdrys=sibdrys, simagxs=simagxs, **kwargs)
             self.converge(savefname='{}_radtransp_iter{}'.format(savefname, i+1), 
                 dtreal=1e-10)
@@ -293,7 +295,7 @@ class RadTransp():
             i +=1
 
 
-    def step_radtransp(self, frac, psite, teexp, psine, neexp, sibdrys=None, 
+    def step(self, frac, psite, teexp, psine, neexp, sibdrys=None, 
         simagxs=None, **kwargs):
         from uedge import bbb
         diff = self.diffrad(psine, neexp, sibdrys=sibdrys, simagxs=simagxs, **kwargs)

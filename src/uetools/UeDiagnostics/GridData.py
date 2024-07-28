@@ -5,7 +5,7 @@ class Grid():
         self.case = case
         self.geometry = self.case.get("geometry")[0].strip().lower().decode("UTF-8")
         self.cells = []
-        self.case.set_speciesarrays()
+        self.case.about.set_speciesarrays()
         rm = self.case.get('rm')
         zm = self.case.get('zm')
         self.vars = {}
@@ -18,8 +18,8 @@ class Grid():
 
 
         self.densities = {'e': {0: self.vars['ne']}}
-        for i in range(len(case.ionarray)):
-            ion = case.ionarray[i]
+        for i in range(len(case.about.ionarray)):
+            ion = case.about.ionarray[i]
             species = (ion.split("+")[0]).lower()
             if species in ["d", "t"]:
                 species = "h"
@@ -34,8 +34,8 @@ class Grid():
             if species not in self.densities:
                 self.densities[species] = {}
             self.densities[species][charge] = self.vars["ni"][:,:,i]
-        for g in range(len(case.gasarray)):
-            gas = case.gasarray[g]
+        for g in range(len(case.about.gasarray)):
+            gas = case.about.gasarray[g]
             species = (gas.replace("0", "").replace("_2","")).lower()
             if species in ["d", "t"]:
                 species = "h"
@@ -152,8 +152,8 @@ class Grid():
         for cell in self.cells:
             cell.plot_cell(ax)
 
-        self.case.plotvessel(f)
-        self.case.plotplates(f)
+        self.case.plot.vessel(f)
+        self.case.plot.plates(f)
 
 
         ax.set_aspect('equal')

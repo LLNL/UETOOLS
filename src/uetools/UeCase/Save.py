@@ -1,4 +1,16 @@
+from uetools.UeUtils import Lookup
+
 class Save:
+    def __init__(self, case):
+        self.get = case.get
+        self.getue = case.getue
+        self.setue = case.setue
+        self.info = case.info
+        self.mutex = case.mutex
+        self.variables = case.variables
+        self.record_changes = case.tracker.record_changes
+        self.getpackobj = Lookup().getpackobj
+
     def savevar(self, savefile, groups, variable, data, **kwargs):
         """Saves variable and metadata to HDF5 group and dataset
 
@@ -19,6 +31,7 @@ class Save:
         -------
         None
         """
+        from Forthon import packageobject
         # Make group, package, file into a list and iterate?
         output = []
         for group in groups:
@@ -52,7 +65,7 @@ class Save:
         with File(savename, "a" if append else "w") as savefile:
             if append is False:
                 self.savemetadata(savefile)
-            self.recursivesave(savefile, self.varinput[group], [group])
+            self.recursivesave(savefile, self.variables['input'][group], [group])
 
     def savesetup(self, savename, **kwargs):
         self.savegroup(savename, "setup", **kwargs)
@@ -111,19 +124,19 @@ class Save:
         from time import time, ctime
 
         try:
-            savefile.attrs["casename"] = self.casename
+            savefile.attrs["casename"] = self.info['casename']
         except:
             pass
-        savefile.attrs["UETOOLS_version"] = self.uetoolsversion
+        savefile.attrs["UETOOLS_version"] = self.info['uetoolsversion']
         savefile.attrs["time"] = time()
         savefile.attrs["ctime"] = ctime()
         savefile.attrs["code"] = "UEDGE"
-        savefile.attrs["ver"] = self.uedge_ver
-        savefile.attrs["pyver"] = self.pyver
-        savefile.attrs["user"] = self.user
-        savefile.attrs["hostname"] = self.hostname
+        savefile.attrs["ver"] = self.info['uedge_ver']
+        savefile.attrs["pyver"] = self.info['pyver']
+        savefile.attrs["user"] = self.info['user']
+        savefile.attrs["hostname"] = self.info['hostname']
         try:
-            savefile.attrs["location"] = self.location
+            savefile.attrs["location"] = self.info['location']
         except:
             pass
 
@@ -145,7 +158,7 @@ class Save:
         from h5py import File
         from Forthon import packageobject
 
-        if self.inplace:
+        if self.info['inplace']:
             print("Data read from file, no data to save. Aborting.")
             return
         if postprocess is True:
@@ -161,9 +174,9 @@ class Save:
             self.savemetadata(savefile)
             # Write requested data to file
             if group is None:
-                self.recursivesave(savefile, self.varinput)
+                self.recursivesave(savefile, self.variables['input'])
             else:
-                self.recursivesave(savefile, self.varinput[group], [group])
+                self.recursivesave(savefile, self.variables['input'][group], [group])
 
     def dump(self, savefname, **kwargs):
         """ Dumps all variables to a save file
@@ -204,7 +217,7 @@ class Save:
             return
 
         if savefname is None:
-            savefname = "{}.hdf5".format(self.casename)
+            savefname = "{}.hdf5".format(self.info['casename'])
         if not exists(savefname):
             raise ValueError('Save file {} does not exist!'.format(\
                 savefname
@@ -224,18 +237,23 @@ class Save:
 #        except:
 #            pass
             if "restore" in savefile.keys():
+                for group, variables in savefile["restore"].items():
+                    for variable, value in variables.items():
+                        self.setue(variable, value[()])
+                        self.variables['stored'][variable] = value[()]
+            # If not, try reading old-style save file
                 try:
                     for group, variables in savefile["restore"].items():
                         for variable, value in variables.items():
                             self.setue(variable, value[()])
-                            self.vars[variable] = value[()]
+                            self.variables['stored'][variable] = value[()]
                 # If not, try reading old-style save file
                 except:
-                    for group, variables in self.varinput["restore"].items():
+                    for group, variables in self.variables['input']["restore"].items():
                         for variable in variables:
                             self.setue(variable, savefile[group][variable][()])
-                            self.vars[variable] = savefile[group][variable][()]
-                if self.verbose:
+                            self.variables['stored'][variable] = savefile[group][variable][()]
+                if self.info['verbose']:
                     print("UETOOLS-style save successfully restored "+\
                             "from {}".format(savefname))
             elif "bbb" in savefile.keys():
@@ -250,10 +268,10 @@ class Save:
                     if var in savefile['bbb'].keys():
                         try:
                             self.setue(var, savefile['bbb'][var][()])
-                            self.vars[var] = savefile['bbb'][var][()]
+                            self.variables['stored'][var] = savefile['bbb'][var][()]
                         except Exception as e:
                             raise Exception(f"Could not read variable {var}: {e}")
-                if self.verbose:
+                if self.info['verbose']:
                     print("Native UEDGE-style save successfully restored "+\
                             "from {}".format(savefname))
             else:

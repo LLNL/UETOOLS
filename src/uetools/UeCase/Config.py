@@ -1,37 +1,37 @@
 # Reads/creates a config environment for UEDGE
 from uetools.UeUtils.Lookup import Lookup
 
+class Config():
+    def __init__(self):
+        self.configured = False
+        self.search = Lookup()
+        self.configs = {}
+        
 
-class Config(Lookup):
-    def configcase(self, verbose=True, new=True, **kwargs):
+    def case(self, verbose=True, new=True, **kwargs):
         from os import path
         from yaml import safe_load
         from pathlib import Path
 
         # True if succeeds
         self.configured = False
-        try:
-            self.verbose
-            verbose = self.verbose
-        except:
-            pass
 
         searchpath = path.expanduser("~")
-        super().__init__()
         try:
             config = safe_load(Path("{}/.uetoolsrc".format(searchpath)).read_text())
             if verbose is True:
                 print("UEDGE configuration file {}/.uetoolsrc read.".format(searchpath))
         except:
-            print("No UETOOLS config file found: Configure file by calling Case.CreateConfig()")
-            print("Alternatively, manually create the .uetoolsrc configuration YAML in your home directory.")
+            if verbose is True:
+                print("No UETOOLS config file found: Configure file by calling Case().config.create() or uetools.config.create()")
+                print("Alternatively, manually create the .uetoolsrc configuration YAML in your home directory.")
             config = None
         if config is not None:
             for key, variable in config.items():
-                setattr(self, key, variable)
+                self.configs[key] = variable
             # NOTE: what other information to write/store?
 
-    def CreateConfig(self):
+    def create(self):
         from os import path
         from yaml import dump
 
@@ -83,5 +83,3 @@ class Config(Lookup):
             dump(paths, file)
         print("UEDGE config file {}.uetoolsrc successfully created!".format(searchpath))
 
-    def configured(self):
-        return self.configured

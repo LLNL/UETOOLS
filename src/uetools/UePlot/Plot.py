@@ -6,7 +6,7 @@ ion()
 # TODO: implement divergence plotting/calculation
 
 class Plot:
-    def __init__(self, *args, rm=None, zm=None, **kwargs):
+    def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, dnull=False, **kwargs):
         """Constructs patches objects
         rm - UEDGE R-node object
         zm - UEDGE Z-node object
@@ -18,12 +18,10 @@ class Plot:
                 zm = self.get("zm")
             except:
                 return
+        self.snull = snull
+        self.dnull = dnull
+        self.usn = usn
 
-        self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
-            in ['uppersn', 'snull'])
-        self.dnull = not self.snull
-        self.usn = (self.get('geometry')[0].decode('UTF-8').strip() \
-                    == 'uppersn')
         if self.snull is False:
             sep = self.get("iysptrx1")
             if sep[0] == sep[1]:
@@ -114,7 +112,7 @@ class Plot:
         self.dumpfig, self.dumpax = subplots(**kwargs)
 
 
-    def plot(self, 
+    def xy(self, 
             x=[], 
             y=[], 
             new=False,
@@ -338,7 +336,7 @@ class Plot:
         else:
             return array
 
-    def plotprofile(
+    def profile(
         self,
         x,
         y,
@@ -386,7 +384,7 @@ class Plot:
 
         return ax.get_figure()
 
-    def plotmesh(
+    def mesh(
         self,
         z=None,
         rm=None,
@@ -486,11 +484,11 @@ class Plot:
         # TODO: devise scheme to look for variables in memory, from
         # Forthon, from HDF5
         if lcfs is True:
-            self.plotlcfs(ax, flip, color=lcfscolor)
+            self.lcfs(ax, flip, color=lcfscolor)
         if vessel is True:
-            self.plotvessel(ax, flip)
+            self.vessel(ax, flip)
         if plates is True:
-            self.plotplates(ax, flip, color=platecolor)
+            self.plates(ax, flip, color=platecolor)
         ax.autoscale_view()
         ax.set_title(title)
         ax.set_xlim(xlim)
@@ -511,7 +509,7 @@ class Plot:
         else:
             return ax.get_figure()
 
-    def plotlcfs(self, ax, flip=True, color="grey", linewidth=0.5, **kwargs):
+    def lcfs(self, ax, flip=True, color="grey", linewidth=0.5, **kwargs):
         """Plots LCFS on ax"""
         try:
             from uedge import com, bbb, grd
@@ -519,13 +517,14 @@ class Plot:
             pass
         from numpy import int64
         for key, coords in self.sep.items():
-            ax.plot(
-                coords['r'], 
-                self.checkusn(coords['z'], flip), 
-                color=color,
-                linewidth=linewidth,
-                label="lcfs"
-            )
+            if not isinstance(coords['r'], (int, int64)):
+                ax.plot(
+                    coords['r'], 
+                    self.checkusn(coords['z'], flip), 
+                    color=color,
+                    linewidth=linewidth,
+                    label="lcfs"
+                )
         return
 
 
@@ -688,7 +687,7 @@ class Plot:
                 label='lcfs'
             )
 
-    def plotvessel(self, ax, flip=True):
+    def vessel(self, ax, flip=True):
         """Plots vessel on ax"""
         try:
             from uedge import com, bbb, grd
@@ -709,7 +708,7 @@ class Plot:
             pass
 
 
-    def plotplates(self, ax, flip=True, color=None):
+    def plates(self, ax, flip=True, color=None):
         """Plot plates on ax"""
         try:
             from uedge import com, bbb, grd
@@ -735,34 +734,16 @@ class Plot:
         except:
             pass
 
-    def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
-        """Adds metadata to figure"""
-        from time import ctime
+    def watermark(self, *args, **kwargs):
+        pass
 
-        label = '{}, case "{}"\n'.format(ctime(), self.casename)
-        label += 'UEDGE {} v{}, UETOOLS v{}, user "{}", hostname "{}"\n'.format(
-            self.uedge_ver.replace("$", "\$"),
-            self.pyver,
-            self.uetoolsversion,
-            self.user,
-            self.hostname,
-        )
-        try:
-            label += 'cwd "{}"'.format(self.location)
-        except:
-            label += 'cwd "{}"'.format(self.casefname)
-        figure.subplots_adjust(bottom=bottom, top=top, left=left, right=right)
-        figure.text(0.995, 0.005, label, fontsize=4, horizontalalignment="right")
-
-        return
-
-    def plotmesh_masked(self, z, zmask, maskvalues, figsize=(5,7), 
+    def mesh_masked(self, z, zmask, maskvalues, figsize=(5,7), 
         **kwargs):
         from matplotlib.pyplot import subplots
         f, ax = subplots(figsize=figsize)       
 
 
-        cbar, vertices = self.plotmesh(z, interactive=True, ax=ax, **kwargs)
+        cbar, vertices = self.mesh(z, interactive=True, ax=ax, **kwargs)
 
         mask = zmask[1:-1,1:-1].reshape(self.nx*self.ny)
         vertices.set_alpha( [1*( (x<maskvalues[0]) or (x>maskvalues[1])) for x in mask])
@@ -790,7 +771,7 @@ class Plot:
         **kwargs
     ):
 
-        f = self.plotmesh(plates=plates, lcfs=lcfs, vessel=vessel, 
+        f = self.mesh(plates=plates, lcfs=lcfs, vessel=vessel, 
             linewidth=linewidth)
         ax = f.get_axes()[0]
         # Check whether coords are given as poloidal or radial
@@ -914,7 +895,7 @@ class Plot:
                         xinterp[i, j] = nan
                         yinterp[i, j] = nan
 
-        f = self.plotmesh()
+        f = self.mesh()
         if linewidth == "magnitude":
             linewidth = (xinterp**2 + yinterp**2) ** 0.5
             linewidth = linewidth.transpose()
@@ -976,7 +957,7 @@ class Plot:
         from copy import deepcopy
 
         if ax is None:
-            f = self.plotmesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
+            f = self.mesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
                 flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor)
             ax = f.get_axes()[0]
         elif isinstance(ax, Figure):
@@ -986,7 +967,7 @@ class Plot:
         else:
             f = ax.get_figure()
         if plotgrid is True:
-            self.plotmesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
+            self.mesh(linewidth=gridlinewidth, vessel=vessel, plates=plates,
                 flip=flip, lcfs=lcfs, lcfscolor=lcfscolor, linecolor=gridlinecolor, ax=ax, watermark=watermark)
 
         rm = self.get("rm")

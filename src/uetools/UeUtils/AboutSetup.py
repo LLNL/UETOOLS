@@ -1,6 +1,8 @@
 
 
 class AboutSetup():
+    def __init__(self, case):
+        self.get = case.get
  
     def elements(self):
         return {
@@ -18,13 +20,13 @@ class AboutSetup():
         }
     
 
-    def about_uedge_setup(self):
-        self.about_species_setup()
+    def uedge_setup(self):
+        self.species_setup()
 #        self.about_equations()
 #        self.about_recycling()
 #        self.about_sputtering()
 
-    def about_recycling_snull(self):
+    def recycling_snull(self):
         from sys import modules
 
         for var in ['albedo_by_user']:
@@ -35,10 +37,10 @@ class AboutSetup():
         print('Core boundary')
         print('Outer boundary')
 
-    def about_equations(self):
+    def equations(self):
         print('TBD')
 
-    def about_sputtering(self):
+    def sputtering(self):
         print('TBD')
 
 
@@ -95,7 +97,7 @@ class AboutSetup():
         # TODO: add option for detecting mixes
 
 
-    def about_species_setup(self):
+    def species_setup(self):
         """ Displays the species included """
         from sys import modules
 

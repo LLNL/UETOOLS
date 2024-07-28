@@ -1,5 +1,19 @@
+from .Lookup import Lookup
 
 class Convert:
+    def __init__(self, case):
+        self.getue = case.getue
+        self.setue = case.setue
+        self.reload = case.reload
+        self.variables = case.variables
+        self.get = case.get
+        self.save = case.save
+        self.info = case.info
+        self.populate = case.populate
+        self.record_changes = case.tracker.record_changes
+        self.get_bottomkeys = case.utils.get_bottomkeys
+        self.getpackage = Lookup().getpackage
+
     def write_py(self, fname):
         """ Writes a standalone Python input file for the Case
         """
@@ -116,7 +130,7 @@ class Convert:
             # Pass the lines and fails up to the recursive parent
             return lines, fails
         # Get the lines parsed and those that could not be parsed
-        lines, fails = recursive_lineread(self.varinput['setup'])
+        lines, fails = recursive_lineread(self.variables['input']['setup'])
         # Pop out values defined in Case object
         try:
             fails.pop('casename')
@@ -133,7 +147,7 @@ class Convert:
             f.write('from h5py import File\n')
             f.write('from uedge.hdf5 import hdf5_restore\n\n')
             # Set casename variable
-            f.write('casename = "{}"\n'.format(self.casename))
+            f.write('casename = "{}"\n'.format(self.info['casename']))
             # Set paths to rate files as defined in configuration file
             f.write('aph.aphdir = "{}"\n'.format(self.get('aphdir')[0].decode('UTF-8').strip()))
             f.write('api.apidir = "{}"\n'.format(self.get('apidir')[0].decode('UTF-8').strip()))
@@ -142,11 +156,11 @@ class Convert:
                 f.write(line)
                 f.write('\n')
             # Allocate to make space for restore variables
-            f.write('\nbbb.allocate()\n'.format(self.savefile))
+            f.write('\nbbb.allocate()\n'.format(self.info['savefile']))
             # Restore solution: use inplace version to ensure compatibility
             # with both native UEDGE saves and UETOOLS saves
             f.write('\n# ==== RESTORE SOLUTION ====\n')
-            f.write('with File("{}") as f:\n'.format(self.savefile))
+            f.write('with File("{}") as f:\n'.format(self.info['savefile']))
             f.write('    try:\n')
             f.write('        savegroup = f["restore/bbb"]\n')
             f.write('    except:\n')
@@ -175,8 +189,8 @@ class Convert:
                         f.write('\n')
             # If a file is used to set the radial transport coefficients,
             # manually for the whole domain, read and restore them here
-            if self.diff_file is not None:
-                file = self.diff_file
+            if self.info['diffusivity_file'] is not None:
+                file = self.info['diffusivity_file']
                 f.write('\n# ==== SET USER-SPECIFIED DIFFUSIVITIES ====\n')
                 f.write('with File("{}", "r") as f:\n'.format(file))
                 f.write('    try:\n')
@@ -226,8 +240,14 @@ class Convert:
 
     def write_yaml(self, fname):
         from yaml import dump
+        from copy import deepcopy
+        setup = deepcopy(self.variables['input']['setup'])
+        self.strip_numpy(setup)
+        filedump = dump(setup, sort_keys=False, default_style=None, default_flow_style=False)
+        # Fix styling of lists
+        filedump = filedump.replace("'[","[").replace("]'", "]")
         with open(fname, 'w') as f:
-            dump(self.varinput['setup'], f, sort_keys=False,default_style=None, default_flow_style=False)
+            f.write(filedump)
         # TODO: add capability to also write autodetected changes
 
 
@@ -276,7 +296,7 @@ class Convert:
             with open(file) as f:
                 # Dump all non-comment data to string
                 filedump = sub(r'(?m)^ *#.*\n?', '', f.read())
-            for var, value in self.varinput['setup']['detected'].items():
+            for var, value in self.variables['input']['setup']['detected'].items():
                 if ".".join([self.getpackage(var), var]) in filedump:
                     vetted_changes[var] = value
         
@@ -338,7 +358,7 @@ class Convert:
         filedump = filedump.replace("'[","[").replace("]'", "]")
         with open(fnameyaml, 'w') as f:
             f.write(filedump)
-        self.varinput['setup'] = inputdeck
+        self.variables['input']['setup'] = inputdeck
         self.reload()
         self.save(savename)
 
@@ -436,14 +456,14 @@ class Convert:
             # Check whether the array has been dynamically changed/allocated 
             if (len(value) == 1) and isinstance(value[0], bytes_):
                 buff = value[0].decode('UTF-8').strip()
-            elif len(self.defaults[var]) != len(value):
-                buff = self.set2Dbuff(value, self.defaults[var])
+            elif len(self.variables['defaults'][var]) != len(value):
+                buff = self.set2Dbuff(value, self.variables['defaults'][var])
             # Check whether the input is multi-dimensional (2D assumed max)
             elif len(value.shape) > 1:
-                buff = self.set2Dbuff(value, self.defaults[var])
+                buff = self.set2Dbuff(value, self.variables['defaults'][var])
             # 1D array of settings detected
             else:
-                buff = self.set1Dbuff(self.defaults[var], value)
+                buff = self.set1Dbuff(self.variables['defaults'][var], value)
             if buff is not False:
                 location[var] = buff
             else:
