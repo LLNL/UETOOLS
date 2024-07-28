@@ -1,10 +1,9 @@
 
 
-class Misc():
+class Utilities():
     def __init__(self, case):
         self.get = case.get
         self.setue = case.setue
-        self.case = case
  
     def calc_lcon(self):
         """ Stores connection length in Case.lcon """

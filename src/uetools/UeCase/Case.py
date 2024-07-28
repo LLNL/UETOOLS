@@ -341,7 +341,7 @@ class Case:
         self.save = self.savefuncs.save
         self.solver = Solver(self)
         self.populate = self.solver.populate
-        self.utils = Misc(self)
+        self.utils = Utilities(self)
         self.config = Config()
         self.convert = Convert(self)
         self.exmain = self.solver.exmain

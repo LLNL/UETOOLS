@@ -1,4 +1,4 @@
-from .Misc import Misc
+from .Utilities import Utilities
 from .Tools import Tools
 from .Lookup import Lookup
 from .Tracker import Tracker

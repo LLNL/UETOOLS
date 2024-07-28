@@ -572,7 +572,6 @@ class CaseDashboard(QWidget):
                             (abs(getvar).max() > 0) and \
                             (getvar.shape[-1] != 5) and \
                             (getvar.shape[1] not in (1, 2)):
-                            print(var, getvar.shape)
                             self.buttons['items']['dropdown'].addItem(var, i)
 
         cols[-1].addWidget(self.buttons['items']['dropdown'])
