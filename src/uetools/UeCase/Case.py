@@ -400,6 +400,9 @@ class Case:
                             for key, _ in self.variables['hashes'][pkg].items():
                                 self.variables['defaults'][key] = deepcopy(self.getue(key))
         self.plot = Caseplot(self)
+        self.continuation_solve = self.solver.continuation_solve
+        self.converge = self.solver.converge
+
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
