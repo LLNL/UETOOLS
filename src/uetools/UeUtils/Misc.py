@@ -4,6 +4,7 @@ class Misc():
     def __init__(self, case):
         self.get = case.get
         self.setue = case.setue
+        self.case = case
  
     def calc_lcon(self):
         """ Stores connection length in Case.lcon """
@@ -139,6 +140,23 @@ class Misc():
 
         # Perform interpolation
         return gx, gy, interp
+
+    def psinormc(self, simagxs=None, sibdrys=None):
+        if simagxs is None:
+            simagxs = self.get('simagxs')
+        if sibdrys is None:
+            sibdrys = self.get('sibdrys')
+        return (self.get('psi')[self.get('ixmp'),:,0]-simagxs)/ \
+            (sibdrys-simagxs)
+
+    def psinormf(self, simagxs=None, sibdrys=None):
+        if simagxs is None:
+            simagxs = self.get('simagxs')
+        if sibdrys is None:
+            sibdrys = self.get('sibdrys')
+        psi = self.get('psi')[self.get('ixmp')]
+        return ((0.5*(psi[:,3] + psi[:,4])) -simagxs)/ \
+            (sibdrys-simagxs)
 
 
 
