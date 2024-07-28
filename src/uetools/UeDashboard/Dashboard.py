@@ -50,11 +50,7 @@ from PyQt5.QtWidgets import (
 # TODO: Add "Grid" plot, plotting a B&W grid only
 # TODO: Implement diagnostics GUI 
 # TODO: Store previously opened files in separate yaml under .uedgerc
-
-# TODO: Fix Variable Dropdowns
-# TODO: Redraw separatrices
-# TODO: Figure our blank plots for absolute value/logs
-# TODO: Ensure proper updateing
+# TODO: Implement opening an additional window for secondary parameter
 
 class DatabaseDashboard(QWidget):
     """ Main Window """
@@ -86,7 +82,7 @@ class DatabaseDashboard(QWidget):
         self.slider.setMinimum(0)
         self.slider.setMaximum(1000)
         self.slider.setValue(0)
-        self.slider.sliderMoved.connect(\
+        self.slider.valueChanged.connect(\
                 self.update_case)
         
         self.buttons = QHBoxLayout()
@@ -145,6 +141,7 @@ class DatabaseDashboard(QWidget):
             self.case.plot.vessel(ax=self.dash.caseplot.canvas.axes, flip=True)
             if not lines['vessel']:
                 self.dash.caseplot.toggleVessel()
+            self.dash.caseplot.canvas.draw()
 
     def sort(self):
         dlg = DatabaseSort(self.db)
@@ -1403,6 +1400,7 @@ class HeatmapInteractiveFigure(QWidget):
                 clim[0]=1e-100
             if (clim[1] <= 0) or (clim[1]<clim[0]):
                 clim[1]=1e100
+        self.updatePlot()
         self.verts.set_clim(clim)
         self.canvas.draw()
 
@@ -1430,7 +1428,12 @@ class HeatmapInteractiveFigure(QWidget):
 
 
         if self.log:
-            self.var.mask=(self.var<=0)
+            if self.abs:
+                self.var.mask = False
+            else:
+                self.var.mask=(self.var<=0)
+        else:
+            self.var.mask=False
         self.suptitle = self.suptitle.split("(")[0] \
             + (self.varscale != 1)*" (x{:.3g})".format(self.varscale)
         var = self.varscale*self.var
@@ -1441,8 +1444,8 @@ class HeatmapInteractiveFigure(QWidget):
         if self.abs:
             var = abs(var)
         # Record old values slider values
-        [llim, ulim] = deepcopy(self.verts.get_clim())
         self.verts.set_array(var[1:-1,1:-1].reshape(self.xy))
+        [llim, ulim] = deepcopy(self.verts.get_clim())
         clim = self.verts.get_clim()
         lims = self.get_lims()
         if ulim <= lims[0]:
@@ -1461,6 +1464,7 @@ class HeatmapInteractiveFigure(QWidget):
         # I HAVE NO CLUE WHY THE LOWER LIMIT DOES NOT REGISTER
         # AT THE FIRST CET_CLIM CALL, AND DONT ASK ME HOW LONG
         # IT TOOK TO FIGURE IT OUT!!!
+        self.verts.set_clim((llim, ulim))
         self.verts.set_clim((llim, ulim))
         self.verts.set_clim((llim, ulim))
         self.slider['items']['ulim'].setText(\
