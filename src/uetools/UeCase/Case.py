@@ -3,6 +3,7 @@ from uetools.UeSolver import Solver
 from .Save import Save
 from .Config import Config
 from .Input import Input
+from uetools.UeGrid import Grid
 from uetools.UeUtils import *
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeDiagnostics.ADAS import ADAS
@@ -347,6 +348,7 @@ class Case:
         self.convert = Convert(self)
         self.exmain = self.solver.exmain
         self.adas = ADAS(self)
+        self.grid = Grid(self)
 #        self.radtransp = RadTransp(self)
         self.interpolate = Interpolate(self)
         self.about = AboutSetup(self)
