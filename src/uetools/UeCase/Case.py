@@ -99,7 +99,7 @@ class Case:
         sets radial diffusion coefficient profiles as defined HDF5 file
     set_uememory(variable, value, **kwargs)
         sets the UEDGE variable in memory to value
-    setuserdiff(fname, **kwargs)
+    userdiff(fname, **kwargs)
         sets user-defined diffusion coefficients as defined HDF5 file
     update    
         checks UEDGE state and updates Case variables if necessary
@@ -212,6 +212,7 @@ class Case:
             'package': {},
             'hashes': {},
             'defaults': {},
+            'dims': {},
             'unset': [],
             'omit': [
                 "userdifffname",

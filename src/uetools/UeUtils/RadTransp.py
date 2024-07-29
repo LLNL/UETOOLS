@@ -1,5 +1,6 @@
 class RadTransp():
     def __init__(self, case):
+        self.setuserdiff = case.input.userdiff
         pass
 
 

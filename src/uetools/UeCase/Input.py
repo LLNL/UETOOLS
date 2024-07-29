@@ -19,7 +19,6 @@ class Input:
         self.tracker = case.tracker
         self.savefuncs = case.savefuncs
         
-    
 
     def read_hdf5_setup(self, fname):
         """ Reads the UEDGE input deck from setup group of HDF5 
@@ -120,7 +119,6 @@ class Input:
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
-        # TODO: check whether file is HDF5 instead of Try
         if readinput is True:
             if setupfile is None:
                 print("No setup file specified:")
@@ -141,14 +139,10 @@ class Input:
                     raise ValueError(f"Input file could not be parsed: {e}")
         setup = deepcopy(self.variables['input']["setup"])
         # Pop out groups that cannot be parsed by default
-        try:
+        if 'commands' in setup:
             commands = setup.pop("commands")
-        except:
-            pass
-        try:
+        if 'detected' in setup:
             detected = setup.pop('detected')
-        except:
-            pass
         # TODO: Add mist.dat as an optional parameter/etc to allow changing
         #       the name/path to the data file
         def setinputrecursive(dictobj, group=[]):
@@ -158,11 +152,9 @@ class Input:
                     # NOTE: Not sure what to do with chgstate_format, fauls for some strange reason...
                     # NOTE: Should not be an input, just skip for the time being
                     # Avoid overwriting grid path when restoring from HDF5
-                    if (group[-1]=='GridFileName') and\
-                        (self.info['restored_from_hdf5'] is True):
-                        return
-                    elif (group[-1]=='GridFileName'):
-                        self.setue("GridFileName", '/'.join([self.info['location'], dictobj]))
+                    if group[-1]=='GridFileName':
+                        if not self.info['restored_from_hdf5']:
+                            self.setue("GridFileName", '/'.join([self.info['location'], dictobj]))
                         return
                     # Circumvent the padding with nulls for strings
                     try:
@@ -179,12 +171,15 @@ class Input:
                             var = group[-1]
                             ind0 = 0
                         if len(self.getue(var).shape) > 1:
+#                            print('2D arrays set')
                             ueshape = self.getue(var).shape
-                            if sum(ueshape) == sum(array(dictobj).shape):
-                                try:
-                                    self.setue(var, array(dictobj))
-                                except:
-                                    self.setue(var, array(dictobj).T)
+                            # TODO: Check compatibility here
+                            # Check whether full 2D array is being set
+                            if ueshape == array(dictobj).shape:
+                                self.setue(var, array(dictobj))
+                            elif ueshape == (array(dictobj).T).shape:
+                                self.setue(var, array(dictobj).T)
+                            # Only part of the array is being set
                             elif len(ueshape) != len(array(dictobj).shape):
                                 for j in range(ueshape[-1]):
                                     self.getue(var, cp=False)[:, j].put(
@@ -195,22 +190,28 @@ class Input:
                                     "!!! ERROR !!! Unable to determine "
                                     "shape of {} from input".format(var)
                                 )
+                        # A 1D array is being set with a list
                         else:
+#                            print('1D array set')
                             # Edit array without copying == setue
+                            # TODO: Check compatibility here
                             self.getue(var, cp=False).put(
                                 range(ind0, len(dictobj) + ind0), dictobj
                             )
+                    # A single entry in a 1D or 2D array is set
                     elif isinstance(group[-1], int):
-                        # Set a single entry in a 1D or 2D array
+#                        print('Setting single index')
                         if len(group) > 2 and isinstance(group[-2], int):
                             # 2D array
                             datalist = self.getue(group[-3])
                             datalist[group[-2], group[-1]] = dictobj
+                            # TODO: Check compatibility here
                             self.setue(group[-3], datalist)
                         else:
                             # 1D array
                             datalist = self.getue(group[-2])
                             datalist[group[-1]] = dictobj
+                            # TODO: Check compatibility here
                             self.setue(group[-2], datalist)
                     elif dictobj is None:
                         print("WARNING Unset specifier in input:", group[-1])
@@ -298,9 +299,9 @@ class Input:
             if self.getue("isbohmcalc") == 0:
                 print("  User-specified diffusivities read from HDF5 "+\
                     'file "{}"'.format(self.info["diffusivity_file"]))
-                self.setuserdiff(self.info["diffusivity_file"])
+                self.userdiff(self.info["diffusivity_file"])
                 try: 
-                    self.setuserdiff(self.info["diffusivity_file"])
+                    self.userdiff(self.info["diffusivity_file"])
                 except Exception as e:
                     print(
                         f"WARNING: failed to read diffusivities "+\
@@ -310,7 +311,7 @@ class Input:
                 print("  Radial diffusivities read from HDF5 file "+\
                     '"{}"'.format(self.info["diffusivity_file"]))
                 try:
-                    self.setradialdiff(self.info["diffusivity_file"])
+                    self.radialdiff(self.info["diffusivity_file"])
                 except Exception as e:
                     print(
                         f"WARNING: failed to read radial diffusivities "+\
@@ -344,7 +345,9 @@ class Input:
                     except Exception as e:
                         print(f"Command {command} failed: {e}")
  
-    def setuserdiff(self, fname, **kwargs):
+        
+
+    def userdiff(self, fname, **kwargs):
         """Sets user-defined diffusivities from HDF5 file
 
         Arguments
@@ -387,7 +390,7 @@ class Input:
                         file[f"diffusivities/bbb/{variable}"][()]
                     )
 
-    def setradialdiff(self, difffname, **kwargs):
+    def radialdiff(self, difffname, **kwargs):
         """Sets radially varying diffusivities from HDF5 file
 
         Arguments
@@ -420,3 +423,16 @@ class Input:
                 self.setue(variable, file["diffusivities"]["bbb"][variable][()])
 
 
+    def validate_settings(self, var, data):
+        # Checks: check variable if:
+        #   - Dimension is dependent on ngsp or nisp
+        #   - Dimension is equal to ngspmx or nispmx
+        # If either satisfied:
+        #   - See if index beyond nisp/ngs is modified
+        #   - If yes, raise a warning        
+        pass
+#        if var in self.variables['dims']:
+#            if  ('ngsp' in str(self.variables['dims'][var])) or\
+#                ('nisp' in str(self.variables['dims'][var])):
+#                raise NotImplementedError("")
+#                print('Shaped')

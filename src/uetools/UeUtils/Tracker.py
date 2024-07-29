@@ -25,8 +25,14 @@ class Tracker():
             # Loop through all variables in package
             for var in pkgobj.varlist():
                 # Parse the variable attributes into list
-                attrs = pkgobj.listvar(var).split('Attributes:')[1].split(\
+                info = pkgobj.listvar(var)
+                attrs = info.split('Attributes:')[1].split(\
                     '\n')[0].replace('  ','').split()
+                # Extract dimensions if array
+                try:
+                    self.variables['dims'][var] = info.split("Dimension:")[1].split("\n")[0].strip().replace('(','').replace(')','').split(',')
+                except:
+                    pass
                 try:
                     self.variables['hashes']['undef'][attrs[0]][var] = [pkg, hash(str(var))]
                 except:
