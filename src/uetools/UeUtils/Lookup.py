@@ -41,7 +41,7 @@ class Lookup:
             return None
         return ret[0]
 
-    def about(self, variable):
+    def var(self, variable):
         """Prints *.v info available for variable"""
         abt = self.infostring(variable)
         if abt is not False:
