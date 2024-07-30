@@ -33,16 +33,14 @@ except:
 class Case:
     """UEDGE Case container object.
 
-    Subclasses
-    ----------
+    General subclasses
+    ------------------
     Case.about -- uetools.AboutSetup object, containing tools that
             help identify the current case setup
     Case.adas -- uetools.UeDiagnostics.ADAS object containing routines
             for reading ADAS file structures and calculating rates
     Case.config -- uetools.Config object used to read and create
             personal ~/.uetoolsrc-files
-    Case.convert -- uetoos.UeUtils.Convert object for converting
-            UETOOLS saves to Python scripts and vice versa
     Case.getset -- uetools.Case.GetSetMemory or GetSetInplace object
             helper classes for duck typing get/set-methods
     Case.grid -- uetools.UeGrid.Grid object stub containing tools
@@ -57,19 +55,25 @@ class Case:
             routines for the package
     Case.postproc -- uetools.UeUtils.Postproc object providing vetted
             postprocessor routines for UEDGE
-    Case.savefuncs -- uetools.UeCase.Save object containing methods for
-            saving and restoring UETOOLS saves
     Case.search -- uetools.UeUtils.Lookup object providing package- and
             variable-level search-functionality
-    Case.solver -- uetools.UeCase.Solver object providing UETOOLS-
-            compatible solver functionalities, inherited from
-            uedge.UeRun objects
     Case.tools -- uetools.UeUtils.Tools object containing useful tools
             and utilities, that are not based on UEDGE functionalities
     Case.tracker -- uetools.UeUtils.Tracker object providing variable
             tracking and default storage routines
+    
+    Inplace=False subclasses
+    ------------------------
+    Case.convert -- uetoos.UeUtils.Convert object for converting
+            UETOOLS saves to Python scripts and vice versa
+    Case.savefuncs -- uetools.UeCase.Save object containing methods for
+            saving and restoring UETOOLS saves
+    Case.solver -- uetools.UeCase.Solver object providing UETOOLS-
+            compatible solver functionalities, inherited from
+            uedge.UeRun objects
     Case.utils -- uetools.UeUtils.Utils object containing useful tools
             and utilities that _are_ based on UEDGE functionalities
+
 
     Attributes
     ----------
@@ -132,10 +136,6 @@ class Case:
         adds a spectrometer to case.diagnostics with handle specname
     assign(**kwargs)
         assigns the UEDGE memory to the Case object
-    continuation_solve(...)
-        wrapper of UeRun.continuation_solve
-    converge(...)
-        wrapper of UeRun.converge
     dashboard()
         opens interactive Qt5 GUI
     exmain()
@@ -152,21 +152,28 @@ class Case:
         creates the necessary dictionaries for accessing HDF5 data
     mutex(silent=False, **kwargs)
         returns True if UEDGE memory assigned to this Case object
-    populate(...)
-        wrapper of Case.savefunc.populate
     reload(group=None, **kwargs)
         reloads variables from UEDGE to Case
     restore_input(fname=None, savefile=None, populate=True, **kwargs)
         sets UEDGE input parameters according to setup attribute
-    restore_save(savefile, **kwargs)
-        restores the UEDGE state from HDF5 savefile
-    save(...)
-        wrapper of case.savefuncs.save
     setue(variable, value, **kwargs)
         Sets variable to value. If Case loaded inplace, raises a
         message
     update()
         checks UEDGE state and updates Case variables if necessary
+
+    Inplace=False methods
+    ---------------------
+    continuation_solve(...)
+        wrapper of UeRun.continuation_solve
+    converge(...)
+        wrapper of UeRun.converge
+    populate(...)
+        wrapper of Case.savefunc.populate
+    restore_save(savefile, **kwargs)
+        restores the UEDGE state from HDF5 savefile
+    save(...)
+        wrapper of case.savefuncs.save
 
 
 
@@ -382,18 +389,19 @@ class Case:
         self.tracker = Tracker(self)
         self.plot = Caseplot(self)
         self.postproc = PostProcessors(self)
-        self.savefuncs = Save(self)
-        self.save = self.savefuncs.save
-        self.solver = Solver(self)
-        self.populate = self.solver.populate
-        self.utils = Utilities(self)
+        if not inplace:
+            self.savefuncs = Save(self)
+            self.save = self.savefuncs.save
+            self.solver = Solver(self)
+            self.populate = self.solver.populate
+            self.utils = Utilities(self)
+            self.convert = Convert(self)
+            self.exmain = self.solver.exmain
+        self.interpolate = Interpolate(self)
+        #    self.radtransp = RadTransp(self)
         self.config = Config()
-        self.convert = Convert(self)
-        self.exmain = self.solver.exmain
         self.adas = ADAS(self)
         self.grid = Grid(self)
-        #        self.radtransp = RadTransp(self)
-        self.interpolate = Interpolate(self)
         self.about = AboutSetup(self)
         self.input = Input(self)
         # Set up paths from config file
@@ -459,9 +467,10 @@ class Case:
                                 self.variables["defaults"][key] = deepcopy(
                                     self.getue(key)
                                 )
+            self.continuation_solve = self.solver.continuation_solve
+            self.converge = self.solver.converge
+            
         self.plot = Caseplot(self)
-        self.continuation_solve = self.solver.continuation_solve
-        self.converge = self.solver.converge
 
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
