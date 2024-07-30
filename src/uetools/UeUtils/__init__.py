@@ -6,3 +6,4 @@ from .Convert import Convert
 from .RadTransp import RadTransp
 from .Interpolate import Interpolate
 from .AboutSetup import AboutSetup
+from .ADASclass import ADASSpecies

@@ -6,7 +6,6 @@ from .Input import Input
 from uetools.UeGrid import Grid
 from uetools.UeUtils import *
 from uetools.UePostproc.Postproc import PostProcessors
-from uetools.UeDiagnostics.ADAS import ADAS
 import uetools
 
 try:
@@ -37,8 +36,6 @@ class Case:
     ------------------
     Case.about -- uetools.AboutSetup object, containing tools that
             help identify the current case setup
-    Case.adas -- uetools.UeDiagnostics.ADAS object containing routines
-            for reading ADAS file structures and calculating rates
     Case.config -- uetools.Config object used to read and create
             personal ~/.uetoolsrc-files
     Case.getset -- uetools.Case.GetSetMemory or GetSetInplace object
@@ -400,7 +397,6 @@ class Case:
         self.interpolate = Interpolate(self)
         #    self.radtransp = RadTransp(self)
         self.config = Config()
-        self.adas = ADAS(self)
         self.grid = Grid(self)
         self.about = AboutSetup(self)
         self.input = Input(self)

@@ -1,19 +1,33 @@
 class ChordLine():
-    """ Creates a single 0D chord object """
+    """ Creates a single pencil-beam chord object """
     def __init__(self, p0, p1, grid, *args, res = 500, **kwargs):
+        """ Creates a generalized pencil-beam
+
+        Pencil-beams are used for 1D line-integration and can accommodate
+        tangential view-chords.
+
+        Arguments:
+        ==========
+        p0 - start point of chord, Shapely Point object
+        p1 - end point of chord, Shapely Point object
+        grid - UETOOLS Grid object used to link chord to geometry
+
+        Keyword arguments:
+        =================
+        res [500] - Number of segments to split the chord into
+        """
         from shapely.geometry import Point, LineString
         from numpy import array, pi, linspace
         from scipy.interpolate import interp1d
 
         self.p0 = p0 # Chord starting point
         self.p1 = p1 # Chord end point
+        # Catch edge-case of purely horizontal tangential view-chord
         if abs(self.p0.z - self.p1.z) < 1e-5:
             raise Exception("Tangential lines in the horizontal plane not yet implemented")
-
-
         # Get the total vector length 
         self.length = p0.distance(p1)
-        
+        # Parametrize the lines as a function of path-length along chord 
         # f(L) = x
         self.fx = interp1d([0, self.length], [self.p0.x, self.p1.x])
         # f(L) = y
@@ -28,78 +42,129 @@ class ChordLine():
                 ( self.fx(L)**2 + self.fy(L)**2)**0.5,
                 self.fz(L)
             )
-    
-        self.chunkL = self.length/res
+        # Create a res long set of poloidal coordinates along the chord 
         points = [generator(0)]
-        segments = {
-            'outside': [],
-            'inside': [],
-        }
         for chunk in linspace(0, self.length, res):
             points.append(generator(chunk))
-    
+        # Ceate Shapely LineString object of polidal projection of chord 
         self.chord = LineString(points)
-
+        # Get start- and end-points in poloidal plane
         p0rz = Point(points[0])
         p1rz = Point(points[-1])
         # Find the cells intersected by the chord and store 
         # their path-lengths and indices
-        self.intersects = []
         self.cells = {}
+        # Loop through all cells to find the cells intersected by the chord
         for ix, row in grid.map.items():
             for iy, cell in row.items():
+                # Check whether the chord starts/ends within the grid and raise errors
+                # TODO: implement handling of chords starting/terminating within grid?
+                # TODO: raise Exception if chord starts in core?
                 if cell.polygon.contains(p0rz):
                     raise ValueError("Chord start point inside grid")
                 elif cell.polygon.contains(p1rz):
                     raise ValueError("Chord end point inside grid")
                 buff = []
+                # See whether chord intersect (ix, iy) grid-cell
                 if grid.map[ix][iy].polygon.intersects(self.chord):
+                    # Store the start- and end-points in paramtrized chord-distance
                     for intersect in grid.map[ix][iy].polygon.exterior.intersection(self.chord).geoms:
+                        # Use the polidal Z-coordinate for back-projection
+                        # NOTE: this back-projection is what limits the routine
+                        # to non-horizontal tangential chords only
                         buff.append(self.fL(intersect.y))
+                    # Set up objects if this is the first chord intersection 
+                    # with the cell
                     if ix not in self.cells:
                         self.cells[ix] = {}
                     if iy not in self.cells[ix]:
                         self.cells[ix][iy] = {
                             'dL': 0
                         }
+                    # Store the path-length through the cell
                     buff.sort()
                     self.cells[ix][iy]['dL'] += buff[1] - buff[0]
-                    self.intersects.append(buff)
 
+    def plot_chord(self, ax=None, color='r', linewidth=0.5):
+        """ Plots poloidal projection of the chord object
+        
+        Keyword arguments:
+        ==================
+        ax [None] - axis to plot chord on. If none, creates a new figure
+        color ['r'] - color of chord
+        linewidth [0.5] - width of chord
 
-    def plot_chord(self, ax=None, color='r', alpha=0.2):
+        Returns:
+        ========
+        Figure object
+        
+        """
         from matplotlib.pyplot import Figure, subplots
+        # Check whether axis is specified, create a new fig if not 
         if ax is None:
             f, ax = subplots()
         elif isinstance(ax, Figure):
             ax = ax.get_axes()[0]
-        ax.plot(*self.chord.xy, '-', color=color)
+        # Plot the polidal projection
+        ax.plot(*self.chord.xy, '-', color=color, linewidth=linewidth)
+        # Ensure Figure object is returned
         return ax.get_figure()
-
-
         
     def integrate_field(self, field):
+        """ Returns the path-integral of chord through field
+
+        Arguments:
+        ==========
+        field - 2D array of shape compatible with UEDGE setup containing 
+                field values
+
+        Returns:
+        ========
+        Float: line-integral of chord through field in [field]*m 
+        """
         integral = 0
+        # Loop through all cells intersected by chord
         for ix, row in self.cells.items():
             for iy, L in row.items():
+                # Access the correct cell data from field and perform
+                # numerical line-integral
                 integral += field[ix,iy]*L['dL']
         return integral
 
 
-
-        
-
 class ChordPoly():
-    ''' Creates a single chord object '''
+    ''' Creates a 2D poloidal chord object '''
     def __init__(self, p0, p1, grid, width=None, omega=None):
+        """ Creates a generalized pencil-beam
+
+        Pencil-beams are used for 1D line-integration and can accommodate
+        tangential view-chords.
+
+        Arguments:
+        ==========
+        p0 - start point of chord, Shapely Point object
+        p1 - end point of chord, Shapely Point object
+        grid - UETOOLS Grid object used to link chord to geometry
+
+        Keyword arguments:
+        =================
+        width [None] - Width of beam at end-point in m. Calculated if 
+                       omega is set. Assumed to be 1e-9m if both width
+                       and omega are None (approximate pencil-beam).
+        omega [None] - Solid-angle of detector at start-point. Calculated
+                       if width is set. 
+
+        """
         from shapely.geometry import Point
         from numpy import array, pi
         self.p0 = p0 # Chord starting point
         self.p1 = p1 # Chord end point
-
+        # Get total chord length
         self.length = self.p0.distance(self.p1)
-
+        # Set up the 2D polygon triangle approximating the chord 
+        # view geomtery
         if (width is None) and (omega is None):
+            # Approximate pencil beam
             self.width = 1e-9 # Pencil beam
             self.omega = self.calc_solidangle(self.width)
         elif (width is None) and (omega is not None):
@@ -195,7 +260,6 @@ class ChordPoly():
                                 self.p1.y - 0.5*self.width*sin(theta))
             ]
         )
-
  
     def integrate_field(self, field):
         integral = 0
@@ -230,293 +294,6 @@ class ChordPoly():
 
 
 
-
-
-    # TODO: Implement using integrate_field
-
-
-    def add_emission(self, emission, dL):
-        """ Populates self.emission with emissivities from volumetric emission
-        
-            Arguments:
-            emission - dictionary with lines and corresponding volum. emission 
-            in 1/(s cm**-3)
-            dL - path length through cell in m
-            
-            Populates self.emission with emissivities in units
-            1/(s * sr * cm**-2)
-
-
-        """
-        from numpy import pi
-        for lam, e in emission.items():
-            try:
-                self.emission[lam] += e*dL
-            except:
-                self.emission[lam] = e*dL
-        for lam, emission in self.emission.items():
-            emission *= 1/(4*pi*1e-2)
-
-    def calc_emission(self, rates, chargestate, lam=None, rerun=True,
-        rtype = ['excit', 'recom', 'chexc']):
-        from numpy import array
-        species = rates.species.lower()
-        # Reset emission dictionary to avoid double-counting
-        self.emission = {}
-        if isinstance(lam, (int, float)):
-            if lam not in rates.lines[chargestate]:
-                lam = rates.get_closest_line(lam, rates.linelist[chargestate])
-        elif isinstance(lam, (list, tuple)):
-            _lam = []
-            for l in lam:
-                if l not in rates.lines[chargestate]:
-                    l = rates.get_closest_line(l, rates.linelist[chargestate])
-                _lam.append(l)
-            lam = _lam
-        for _, obj in self.dL.items():
-            species = rates.species.lower()
-            o = obj['cell']
-            obj['cell'].emission[species] = rates.calc_emission(
-                    obj['cell'].ne, 
-                    obj['cell'].te, 
-                    obj['cell'].densities[species][chargestate], 
-                    obj['cell'].densities[species][chargestate+1], 
-                    obj['cell'].densities['h'][0],
-                    chargestate, 
-                    lam=lam, 
-                    rtype=rtype
-            )
-            self.add_emission(obj['cell'].emission[species], obj['dL'])
-        
-             
-    def plot_emission(self, rates, chargestate,
-        rtype = ['excit', 'recom', 'chexc']):
-        from matplotlib.pyplot import subplots
-        species = rates.species.lower()
-        # Reset emission dictionary to avoid double-counting
-        self.emission = {}
-        for _, obj in self.dL.items():
-            species = rates.species.lower()
-            o = obj['cell']
-            obj['cell'].emission[species] = rates.calc_emission(
-                    obj['cell'].ne, 
-                    obj['cell'].te, 
-                    obj['cell'].densities[species][chargestate], 
-                    obj['cell'].densities[species][chargestate+1], 
-                    obj['cell'].densities['h'][0],
-                    chargestate, 
-                    lam=None, 
-                    rtype=rtype
-            )
-            self.add_emission(obj['cell'].emission[species], obj['dL'])
-
-
-        f, ax = subplots()
-        for x, y in self.emission.items():
-            ax.semilogy([x,x], [0,y], 'r-')
-        return f
-
-
-
-
-
-
-
-
-
-
-
-    def calc_L(self, point1, point2):
-        return ( (point1.x - point2.x)**2 + (point1.y - point2.y)**2 )**0.5
-
-    def add_contained_cell(self, cell):
-        from numpy import sqrt, pi
-        # Add the entire cell polygon to the list of grid cells
-        # inside the LOS polygon:
-
-        # Calculate dL for the integration by postulating a
-        # rectangular cell orthogonal to the line-of-sight with
-        # area of the original cell and width determined by the
-        # distance of the cell from the origin of the LOS and
-        # the width of the LOS at its end:
-        L_cell = self.calc_L(cell.polygon.centroid, self.p0)
-        w_orthog = L_cell/self.length*self.width
-        dL = cell.polygon.area/w_orthog
-        
-        self.dL[str(cell.indices)] = {
-            'cell': cell,
-            'dL': dL,
-            'L': L_cell,
-            'A': cell.polygon.area,
-        }
-        self.cell_polys.append(cell.polygon)
-
-    def add_intersected_cell(self, cell):
-        from numpy import sqrt, pi
-        # Determine the part of the grid cell polygon that
-        # intersects with the line-of-sight polygon:
-        clipped = self.poly.intersection(cell.polygon)
-
-        # Calculate dL for the integration by postulating a
-        # rectangular cell orthogonal to the line-of-sight with
-        # area of the original cell and width determined by the
-        # distance of the cell from the origin of the LOS and
-        # the width of the LOS at its end: 
-        L_cell = self.calc_L(clipped.centroid, self.p0)
-        w_orthog = L_cell/self.length*self.width
-        dL = clipped.area/w_orthog
-            
-        self.dL[str(cell.indices)] = {
-            'cell': cell,
-            'dL': dL,
-            'L': L_cell,
-            'A': cell.polygon.area,
-        }
-        self.cell_polys.append(clipped)
-
-
-    def calc_LOS_spectra(self,lower, upper):
-        from numpy import nonzero
-        ret = [0,0]
-        for i in nonzero(self.LOS_H2_emission_integral)[0]:
-            ene = self.LOS_H2_energies[i]
-            if 10*ene > lower and 10*ene < upper:
-                ret[0] += self.LOS_H2_emission_integral[i]
-        for i in nonzero(self.LOS_H_emission_integral)[0]:
-            ene = self.LOS_H_energies[i]
-            if 10*ene > lower and 10*ene < upper:
-                ret[1] += self.LOS_H_emission_integral[i]
-        return ret     
-            
-    def plot_LOS_spectra(self, ax=None, xlim=(500,8500), ylim=(None, None),yaxis='lin',yscale=1):
-        from matplotlib.pyplot import subplots
-        from numpy import nonzero
-        ret = False
-        
-        if ax is None:
-            f, ax = subplots()
-            ret = True
-
-        if yaxis == 'lin':
-            pl = ax.plot
-        elif yaxis == 'log':
-            pl = ax.semilogy
-        
-    
-        for i in nonzero(self.LOS_H2_emission_integral)[0]:
-            ene = 10*self.LOS_H2_energies[i]
-            if (ene > xlim[0]) and (ene < xlim[1]):
-                pl([ene, ene], [0, yscale*self.LOS_H2_emission_integral[i]], 'r-')
-
-        for i in nonzero(self.LOS_H_emission_integral)[0]:
-            ene = 10*self.LOS_H_energies[i]
-            if (ene > xlim[0]) and (ene < xlim[1]):
-                pl([ene, ene], [0, yscale*self.LOS_H_emission_integral[i]], 'b-')
-        
-
-        ax.set_xlabel(r'Wavelength [Å]')
-        ax.set_ylabel(r'Intensity [ph/sr/s/$\rm cm^3$]')
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
-
-        if ret is True:
-            return f
-
-    def LOS_integral(self, grid, reevaluate=False, nH=None):
-        from numpy import sqrt, sum, array
-        from tqdm import tqdm
-        self.LOS_cells = [] 
-        self.LOS_area = []
-        self.LOS_H2_emission = []
-        self.LOS_H_emission = []
-        self.LOS_dL = []
-        self.LOS_L = []
-        
-        
-        # Loop through each inversion grid cell:
-        for cell in tqdm(grid.cells):
-            
-            # Check if the grid cell is completely inside the line-of-
-            # sight polygon:
-            if self.poly.contains(cell.polygon):
-                
-                # Add the entire cell polygon to the list of grid cells
-                # inside the LOS polygon:
-                self.LOS_cells.append(cell)
-                
-                # Calculate dL for the integration by postulating a
-                # rectangular cell orthogonal to the line-of-sight with
-                # area of the original cell and width determined by the
-                # distance of the cell from the origin of the LOS and
-                # the width of the LOS at its end:
-                L_cell = sqrt((cell.polygon.centroid.x - self.points[0].x)**2 + 
-                                (cell.polygon.centroid.y - self.points[0].y)**2)
-                w_orthog = L_cell/sqrt((self.points[1].x - self.points[0].x)**2 + 
-                                (self.points[1].y - self.points[0].y)**2)*self.width
-                dL = cell.polygon.area/w_orthog
-                
-                # Store the emission in the grid cell multiplied by dL
-                # in the list of emission inside the LOS polygon:
-                # TODO: do CRM if it is not done
-                if (cell.crmeval is False) or (reevaluate is True):
-                    cell.calc_emissivity(self.crm, nH=nH)
-                self.LOS_H_emission.append(cell.H_emission[1]*dL)
-                self.LOS_H2_emission.append(cell.H2_emission[1]*dL)
-                self.LOS_L.append(L_cell)
-                self.LOS_dL.append(dL)
-                
-                self.LOS_area.append(cell.polygon.area)
-                self.LOS_H_energies = cell.H_emission[0]
-                self.LOS_H2_energies = cell.H2_emission[0]
-            
-            # Alternatively, check if part of the grid cell is inside
-            # the line-of-sight polygon:
-            elif self.poly.intersects(cell.polygon):
-                
-                # Determine the part of the grid cell polygon that
-                # intersects with the line-of-sight polygon:
-                grid_poly_clipped = self.poly.intersection(cell.polygon)
-                
-                # Add the intersecting part of the cell polygon to the
-                # list of grid cells inside the LOS polygon:
-                # TODO: How to do this using objects?
-                self.LOS_cells.append(cell)
-                
-                # Calculate dL for the integration by postulating a
-                # rectangular cell orthogonal to the line-of-sight with
-                # area of the original cell and width determined by the
-                # distance of the cell from the origin of the LOS and
-                # the width of the LOS at its end: 
-                L_cell = sqrt((grid_poly_clipped.centroid.x - self.points[0].x)**2 + 
-                                (grid_poly_clipped.centroid.y - self.points[0].y)**2)
-                w_orthog = L_cell/sqrt((self.points[1].x - self.points[0].x)**2 + 
-                                (self.points[1].y - self.points[0].y)**2)*self.width
-                dL = grid_poly_clipped.area/w_orthog
-                
-                # Store the emission in the grid cell multiplied by dL
-                # in the list of emission inside the LOS polygon:
-                if (cell.crmeval is False) or (reevaluate is True):
-                    cell.calc_emissivity(self.crm, nH=nH)
-                self.LOS_H_emission.append(cell.H_emission[1]*dL)
-                self.LOS_H2_emission.append(cell.H2_emission[1]*dL)
-                self.LOS_dL.append(dL)
-                self.LOS_L.append(L_cell)
-                
-                self.LOS_area.append(cell.polygon.area)
-                self.LOS_H_energies = cell.H_emission[0]
-                self.LOS_H2_energies = cell.H2_emission[0]
-        
-        self.LOS_cells = array(self.LOS_cells)
-        self.LOS_area = array(self.LOS_area)
-        self.LOS_H_emission = array(self.LOS_H_emission)
-        self.LOS_H2_emission = array(self.LOS_H2_emission)
-        self.LOS_dL = array(self.LOS_dL)
-        self.LOS_L = array(self.LOS_L)
-        # Calculate the LOS-integrated emission as a sum of each
-        # emission*dL element stored for the current LOS:   
-        self.LOS_H_emission_integral = sum(self.LOS_H_emission, axis=0)
-        self.LOS_H2_emission_integral = sum(self.LOS_H2_emission, axis=0)
-        
 
 
 class Spectrometer():
@@ -575,7 +352,7 @@ class Spectrometer():
             omega = self.omega
 
         if (len(points[0]) == 3) and (self.line is False):
-            print("Tangential chords treated as bencil-beams!")
+            print("Tangential chords treated as pencil-beams!")
             self.line = True
 
         pointcoords = []
@@ -709,4 +486,189 @@ class Spectrometer():
         ax.plot(x, self.emission[lam], linestyle=linestyle, marker=marker, color=color)
         
         return ax.get_figure()
+
+class Grid():
+    def __init__(self, case, flip=True, variables = ['te', 'ne', 'ni', 'ng']):
+        from shapely import coverage_union_all, Polygon
+        self.case = case
+        self.geometry = self.case.get("geometry")[0].strip().lower().decode("UTF-8")
+        self.cells = []
+        self.case.about.set_speciesarrays()
+        rm = self.case.get('rm')
+        zm = self.case.get('zm')
+        self.vars = {}
+        for var in variables:
+            self.vars[var] = self.case.get(var)
+
+        if (self.geometry == "uppersn") and (flip is True):
+            zm = self.case.disp - zm
+
+
+
+        self.densities = {'e': {0: self.vars['ne']}}
+        for i in range(len(case.about.ionarray)):
+            ion = case.about.ionarray[i]
+            species = (ion.split("+")[0]).lower()
+            if species in ["d", "t"]:
+                species = "h"
+            try: 
+                charge = int(ion.split("+")[1])
+            except:
+                if '+' not in ion:
+                    # No charge: inertial neutral species
+                    continue
+                else:
+                    charge = 1
+            if species not in self.densities:
+                self.densities[species] = {}
+            self.densities[species][charge] = self.vars["ni"][:,:,i]
+        for g in range(len(case.about.gasarray)):
+            gas = case.about.gasarray[g]
+            species = (gas.replace("0", "").replace("_2","")).lower()
+            if species in ["d", "t"]:
+                species = "h"
+            mols = "_2" in gas
+            if not mols:
+                self.densities[species][0] = self.vars["ng"][:,:,g]
+            else:
+                self.densities[species]['mol'] = self.vars["ng"][:,:,g]
+
+
+
+
+        mapdict = {}
+        geometries = []
+        # Create polygons for all cells
+        (nx, ny, _) = rm.shape
+        for ix in range(1,nx-1):
+            if ix not in mapdict:
+                mapdict[ix] ={}
+            for iy in range(1,ny-1):
+                verts = []
+                for iv in [1, 2, 4, 3]:
+                    verts.append([rm[ix, iy, iv], zm[ix, iy, iv]])
+                self.cells.append(Cell(verts, (ix,iy)))#, self.vars)),
+#                    case.ionarray, case.gasarray
+#                ))
+                # Create list of plygons for union
+                geometries.append(self.cells[-1].polygon)
+                # Map the coordinates to the appropriate Cell object
+                mapdict[ix][iy] = self.cells[-1]
+        # Create union cells, consisting of the plasma grid
+        self.area = coverage_union_all(geometries)
+        # Create and store Polygon for core
+        corepts = []
+        for nxpt in range(case.get('nxpt')):
+            for ix in range(case.get('ixpt1')[nxpt]+1, case.get('ixpt2')[nxpt]+1):
+                corepts.append([
+                            case.get('rm')[ix, 0, 3], 
+                            case.get('zm')[ix, 0, 3],
+                ])
+        self.core = Polygon(corepts)
+        self.map = mapdict
+
+
+    def plot_intensity(self, interval, ax=None,crm=None,zrange=(None,None), 
+        mol=True, cbar=True,zscale=1
+    ):
+        from matplotlib.pyplot import subplots
+        from numpy import array, nonzero, transpose, log10, floor
+        from tqdm import tqdm
+        from matplotlib.colors import Normalize,LogNorm
+        from matplotlib.cm import ScalarMappable
+        from matplotlib.pyplot import get_cmap,colorbar,figure
+
+        if ax is None:
+            f, ax = subplots()
+            ret = True
+        else:
+            ret = False
+
+        # Store all cell intensities in the requested interval to a list
+        intensity = []
+        for i in tqdm(range(len(self.cells))):
+            cell = self.cells[i]
+            if cell.crmeval is False:
+                cell.calc_emissivity(crm)
+
+            ci = [0,0]
+            for i in nonzero(cell.H2_emission[1])[0]:
+                ene = cell.H2_emission[0][i]
+                if 10*ene > interval[0] and 10*ene < interval[1]:
+                    ci[0] += cell.H2_emission[1][i]
+            for i in nonzero(cell.H_emission[1])[0]:
+                ene = cell.H_emission[0][i]
+                if 10*ene > interval[0] and 10*ene < interval[1]:
+                    ci[1] += cell.H_emission[1][i]
+            intensity.append(ci)
+        intensity = zscale*transpose(array(intensity))
+
+        ind = 0
+        if mol is False:
+            ind = 1
+        zmin, zmax = intensity[ind].min(), intensity[ind].max()
+        if zrange[0] is not None:
+            zmin=zrange[0]
+        if zrange[1] is not None:
+            zmax=zrange[1]
+        Zcol=((log10(intensity[ind])-floor(log10(zmin)))/(floor(log10(zmax))-floor(log10(zmin))))
+        cmap=get_cmap('magma')
+
+        for i in range(len(self.cells)):
+            cell = self.cells[i]
+            xs, ys = cell.polygon.exterior.xy    
+            col=cmap(Zcol[i])
+            ax.fill(xs, ys, fc=col, ec='none')
+
+        if cbar is True:
+            norm = Normalize(vmin=floor(log10(zmin)),vmax=floor(log10(zmax)))
+            norm = LogNorm(vmin=zmin,vmax=zmax)
+            sm = ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])
+            cbar=colorbar(sm,ax=ax)
+        ax.set_aspect('equal')
+        return ax.get_figure()
+
+    def plot_grid(self, ax=None):
+        ''' Plots a polygrid of Patches '''
+        from matplotlib.pyplot import subplots, Figure
+        if ax is None:
+            f, ax = subplots()
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+
+        for cell in self.cells:
+            cell.plot_cell(ax)
+
+        self.case.plot.vessel(f)
+        self.case.plot.plates(f)
+
+
+        ax.set_aspect('equal')
+        return ax.get_figure()
+  
+
+
+
+
+
+class Cell():
+    ''' Containter object for grid cell info '''
+    
+    # TODO: create function calculating and storing the spectra
+    def __init__(self, vertices, indices):
+#, variables, ionarray=None,
+#        gasarray=None
+#    ):
+        from shapely.geometry import Polygon
+        self.vertices = vertices
+        self.indices = indices
+        self.polygon = Polygon(vertices)
+
+                    
+    def plot_cell(self, ax=None, linewidth = 0.05):
+        if ax is None:
+            f, ax = subplots()
+        ax.plot(*self.polygon.exterior.xy, 'k-', linewidth=linewidth) 
+
 
