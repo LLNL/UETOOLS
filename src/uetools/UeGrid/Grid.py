@@ -43,38 +43,65 @@ class Grid:
         pts = []
         gradmin = []
         psimin = []
+        contours = []
+        crosses = []
         ptlabels = [' - Magnetic axis', ' - Lower X-point', ' - Upper X-point']
         colors = ['b','r','m']
         for i in range(3):
             print(ptlabels[i])
-            textbox.set_text(boxtext.format(ptlabels[i])) 
-            pt = ginput(1,0)
-            nearest = [abs(xf(interpres)-pt[0][0]).argmin(), abs(yf(interpres)-pt[0][1]).argmin()]
-            gradmin_nearest = gradinterp[nearest[1], nearest[0]]
-            psimin_nearest = interp[nearest[1], nearest[0]]
-            gradmin_optimum = gradinterp[
-                        nearest[1]-int(interpres/50):nearest[1]+int(interpres/50),  
-                        nearest[0]-int(interpres/50):nearest[0]+int(interpres/50)
-            ].min()
-            y, x = where(gradinterp == gradmin_optimum)
-            psimin_optimum = interp[y[0], x[0]]
-            if psimin_optimum < psimin_nearest:
-                gradmin.append(gradmin_optimum)
-                psimin.append(psimin_optimum)
-                pts.append([xf(interpres)[x[0]], yf(interpres)[y[0]]])
-            else:
-                gradmin.append(gradmin_nearest)
-                psimin.append(psimin_nearest)
-                pts.append([xf(interpres)[nearest[0]], yf(interpres)[nearest[1]]])
-            cross = ax.plot(*pts[-1], '+', color=colors[i])
-            contour = ax.contour(xf(rorig), yf(zorig), fold, [psimin[-1]], colors=colors[i], 
-            linewidths=1.5, linestyles='-') 
+            while True:
+                textbox.set_text(boxtext.format(ptlabels[i])) 
+                try:
+                    ax.draw(f.canvas.renderer)
+                    print(textbox.get_text)
+                except:
+                    pass
+                pt = ginput(1,timeout=-1)
+                try:
+                    for line in contours[i].collections:
+                        line.remove()
+                    del(contours[i])
+                    l = crosses[i].pop(0)
+                    l.remove()
+                    del(crosses[i])
+                except:
+                    pass
+                nearest = [abs(xf(interpres)-pt[0][0]).argmin(), abs(yf(interpres)-pt[0][1]).argmin()]
+                gradmin_nearest = gradinterp[nearest[1], nearest[0]]
+                psimin_nearest = interp[nearest[1], nearest[0]]
+                gradmin_optimum = gradinterp[
+                            nearest[1]-int(interpres/50):nearest[1]+int(interpres/50),  
+                            nearest[0]-int(interpres/50):nearest[0]+int(interpres/50)
+                ].min()
+                y, x = where(gradinterp == gradmin_optimum)
+                psimin_optimum = interp[y[0], x[0]]
+                if psimin_optimum < psimin_nearest:
+                    gradmin_use = gradmin_optimum
+                    psimin_use = psimin_optimum
+                    pts_use = [xf(interpres)[x[0]], yf(interpres)[y[0]]]
+                else:
+                    gradmin_use = gradmin_nearest
+                    psimin_use = psimin_nearest
+                    pts_use = [xf(interpres)[nearest[0]], yf(interpres)[nearest[1]]]
+                crosses.append(ax.plot(*pts_use, 'x', color=colors[i], markersize=12))
+                contours.append(ax.contour(xf(rorig), yf(zorig), fold, [psimin_use], colors=colors[i], 
+                linewidths=1.5, linestyles='-'))
+                textbox.set_text(boxtext.format(ptlabels[i]) + "\nPress return to accepts surface\nDouble-click to pick a new point") 
+                
 
-            try:
-                textbox.set_text(boxtext.format(ptlabels[i+1])) 
-            except:
-                textbox.set_text("All points defined!") 
-            ax.draw(f.canvas.renderer)
+                ax.draw(f.canvas.renderer)
+
+                if waitforbuttonpress():    
+                    try:
+                        textbox.set_text(boxtext.format(ptlabels[i+1])) 
+                    except:
+                        textbox.set_text("All points defined!") 
+                    ax.draw(f.canvas.renderer)
+                    gradmin.append(gradmin_use)
+                    psimin.append(psimin_use)
+                    pts.append(pts_use)
+                    break 
+
 
 
 #        magx, lxpt, uxpt = ginput(3,0)
