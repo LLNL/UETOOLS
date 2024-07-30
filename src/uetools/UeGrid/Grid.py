@@ -6,11 +6,13 @@ class Grid:
         self.plot = GridPlot(self)
 
     def pick_aeqdskdata(self,geqdsk, ncontour=250, interpres=2000, **kwargs):
+        """ Tool for manually defining aeqdsk data """
         from uedge import com
         from scipy.interpolate import griddata
         from scipy.optimize import fmin
         from numpy import linspace, array, gradient, sum, meshgrid, where
         from matplotlib.pyplot import subplots, ginput, waitforbuttonpress
+        from shapely import Polygon, Point, LineString
 
         f, ax = subplots(figsize=(7,9))
         ax.plot([],[], 'ko')
@@ -38,76 +40,97 @@ class Grid:
         print('Manually identify the following points in order')
         print('(Choose by clicking in the figure)')#, undo by right-clicking)')
         textbox = f.get_axes()[0].text(.87, 1.5, "", backgroundcolor='w', zorder=10)
-        boxtext = 'Please click on the:\n{}'
+        boxtext = 'Please click on the:\n{}\nPress return to accepts surface\nMouse-click to clear and pick again'
+        xlim = self.get('xlim')
+        ylim = self.get('ylim')
+        vessel = Polygon(zip(xlim, ylim))
 
         pts = []
         gradmin = []
         psimin = []
         contours = []
         crosses = []
+        strike_points = []
         ptlabels = [' - Magnetic axis', ' - Lower X-point', ' - Upper X-point']
         colors = ['b','r','m']
+        # TODO: Fix message
+        # TODO: Figure out why double-clicks are needed to clear+redo
         for i in range(3):
             print(ptlabels[i])
             while True:
                 textbox.set_text(boxtext.format(ptlabels[i])) 
-                try:
-                    ax.draw(f.canvas.renderer)
-                    print(textbox.get_text)
-                except:
-                    pass
-                pt = ginput(1,timeout=-1)
-                try:
-                    for line in contours[i].collections:
-                        line.remove()
-                    del(contours[i])
-                    l = crosses[i].pop(0)
-                    l.remove()
-                    del(crosses[i])
-                except:
-                    pass
-                nearest = [abs(xf(interpres)-pt[0][0]).argmin(), abs(yf(interpres)-pt[0][1]).argmin()]
-                gradmin_nearest = gradinterp[nearest[1], nearest[0]]
-                psimin_nearest = interp[nearest[1], nearest[0]]
-                gradmin_optimum = gradinterp[
-                            nearest[1]-int(interpres/50):nearest[1]+int(interpres/50),  
-                            nearest[0]-int(interpres/50):nearest[0]+int(interpres/50)
-                ].min()
-                y, x = where(gradinterp == gradmin_optimum)
-                psimin_optimum = interp[y[0], x[0]]
-                if psimin_optimum < psimin_nearest:
-                    gradmin_use = gradmin_optimum
-                    psimin_use = psimin_optimum
-                    pts_use = [xf(interpres)[x[0]], yf(interpres)[y[0]]]
-                else:
-                    gradmin_use = gradmin_nearest
-                    psimin_use = psimin_nearest
-                    pts_use = [xf(interpres)[nearest[0]], yf(interpres)[nearest[1]]]
-                crosses.append(ax.plot(*pts_use, 'x', color=colors[i], markersize=12))
-                contours.append(ax.contour(xf(rorig), yf(zorig), fold, [psimin_use], colors=colors[i], 
-                linewidths=1.5, linestyles='-'))
-                textbox.set_text(boxtext.format(ptlabels[i]) + "\nPress return to accepts surface\nDouble-click to pick a new point") 
-                
+                pt = ginput(1,0, False)
+                if len(pt)>0:
+                    nearest = [abs(xf(interpres)-pt[0][0]).argmin(), abs(yf(interpres)-pt[0][1]).argmin()]
+                    gradmin_nearest = gradinterp[nearest[1], nearest[0]]
+                    psimin_nearest = interp[nearest[1], nearest[0]]
+                    gradmin_optimum = gradinterp[
+                                nearest[1]-int(interpres/50):nearest[1]+int(interpres/50),  
+                                nearest[0]-int(interpres/50):nearest[0]+int(interpres/50)
+                    ].min()
+                    y, x = where(gradinterp == gradmin_optimum)
+                    psimin_optimum = interp[y[0], x[0]]
+                    if psimin_optimum < psimin_nearest:
+                        gradmin_use = gradmin_optimum
+                        psimin_use = psimin_optimum
+                        pts_use = [xf(interpres)[x[0]], yf(interpres)[y[0]]]
+                    else:
+                        gradmin_use = gradmin_nearest
+                        psimin_use = psimin_nearest
+                        pts_use = [xf(interpres)[nearest[0]], yf(interpres)[nearest[1]]]
+                    crosses.append(ax.plot(*pts_use, 'x', color=colors[i], markersize=12))
+                    contours.append(ax.contour(xf(rorig), yf(zorig), fold, [psimin_use], colors=colors[i], 
+                    linewidths=1.5, linestyles='-'))
+                    # Identify strike-point locations
+                    if i > 0:
+                        sps = []
+                        # Store line (x,y)'s
+                        for line in contours[-1].collections:
+                            lines = []
+                            for v in line.get_paths():
+                                lines.append([v.vertices[:,0], v.vertices[:,1]])
+                        # Find contour intersects w/ vessel
+                        intersects = []
+                        for segment in lines:
+                            # Create LineString from object
+                            seg = LineString(zip(segment[0], segment[1]))
+                            if vessel.exterior.intersects(seg):
+                                for point in vessel.exterior.intersection(seg).geoms:
+                                    intersects.append(point)
+                        dists = [Point(pts_use).distance(x) for x in intersects]
+                        strike_points.append([x for _,x in sorted(zip(dists, intersects))][:2])
+                        for point in strike_points[-1]:
+                                sps.append(ax.plot(*point.xy, 'o', color=colors[i]))
+                    textbox.set_text(boxtext.format(ptlabels[i]))
+                    f.canvas.draw()
+                    # Check whether line is accepted or rejected
+                    if waitforbuttonpress():    
+                        try:
+                            textbox.set_text(boxtext.format(ptlabels[i+1])) 
+                        except:
+                            textbox.set_text("All points defined!") 
+                        # Store lines for finding strike-points
+                                
+                            # TODO: Find and store intersects here
+                        f.canvas.draw()
+                        gradmin.append(gradmin_use)
+                        psimin.append(psimin_use)
+                        pts.append(pts_use)
+                        break 
+                    else:
+                        for line in contours[i].collections:
+                            line.remove()
+                        del(contours[i])
+                        l = crosses[i].pop(0)
+                        l.remove()
+                        del(crosses[i])
+                        if i>0:
+                            for sp in sps:
+                                o = sp.pop(0)
+                                o.remove()
+                        f.canvas.draw()
 
-                ax.draw(f.canvas.renderer)
-
-                if waitforbuttonpress():    
-                    try:
-                        textbox.set_text(boxtext.format(ptlabels[i+1])) 
-                    except:
-                        textbox.set_text("All points defined!") 
-                    ax.draw(f.canvas.renderer)
-                    gradmin.append(gradmin_use)
-                    psimin.append(psimin_use)
-                    pts.append(pts_use)
-                    break 
-
-
-
-#        magx, lxpt, uxpt = ginput(3,0)
-#        textbox.set_visible(False)
-        
-        # Reconstruct EFIT grid
+        # TODO: Set UEDGE variables based on detected variable
         
 
         return textbox
@@ -288,10 +311,6 @@ class GridPlot:
                     colors=sepcolor, linewidths=1, linestyles='solid') 
 
         ax.plot(self.get('xlim'), self.get('ylim'), 'k-', linewidth=2)
-        try:
-            ax.plot(self.get('xlim'), self.get('ylim'), 'k-', linewidth=2)
-        except:
-            pass
         ax.set_aspect('equal')
         ax.set_xlabel('Horizontal position [m]')
         ax.set_ylabel('Vertical position [m]')
