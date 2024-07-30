@@ -32,107 +32,139 @@ class Case:
 
     Subclasses
     ----------
-    Solver -- contains time-stepping and convergence routines
-    PostProcessors -- contains useful post-processing routines
-    ConvergeStep -- iterative advancement using time-dependent solver
-    ADAS -- routines for use with ADAS atomic data files
-    RadTransp -- routines for radial transport coefficient fitting
-    Interpolate -- grid interpolation routines
-    Convert -- writes UETOOLS data to Python/YAML input file
-    Tracker -- routines for tracking changes to UEDGE input variables
-    Config -- UETOOLS configuration routines (for .uetoolsrc-file)
-    Caseplot -- plotting routines using Case object functionalities
-    Misc -- miscellaneous UETOOLS utilities
-    Save -- routines for saving and loading UEDGE states
-    AboutSetup -- utility to display information about case setup
+    Case.about -- uetools.AboutSetup object, containing tools that
+            help identify the current case setup 
+    Case.adas -- uetools.UeDiagnostics.ADAS object containing routines 
+            for reading ADAS file structures and calculating rates
+    Case.config -- uetools.Config object used to read and create
+            personal ~/.uetoolsrc-files
+    Case.convert -- uetoos.UeUtils.Convert object for converting
+            UETOOLS saves to Python scripts and vice versa
+    Case.getset -- uetools.Case.GetSetMemory or GetSetInplace object
+            helper classes for duck typing get/set-methods
+    Case.grid -- uetools.UeGrid.Grid object stub containing tools
+            for plotting mid-generation grids and EFIT equilibria (plans
+            to expand into GRIDUE module)
+    Case.input -- uetools.UeCase.Input object containing routines
+            for parsing UETOOLS YAML and HDF5 input files
+    Case.interpolate -- uetools.UeUtils.Interpolate object that
+            contains routines for interpolating grids using a patch-map
+            approach 
+    Case.plot -- uetools.UePlot.Caseplot object providing all plotting
+            routines for the package
+    Case.postproc -- uetools.UeUtils.Postproc object providing vetted
+            postprocessor routines for UEDGE
+    Case.savefuncs -- uetools.UeCase.Save object containing methods for
+            saving and restoring UETOOLS saves
+    Case.search -- uetools.UeUtils.Lookup object providing package- and
+            variable-level search-functionality
+    Case.solver -- uetools.UeCase.Solver object providing UETOOLS-
+            compatible solver functionalities, inherited from
+            uedge.UeRun objects
+    Case.tools -- uetools.UeUtils.Tools object containing useful tools 
+            and utilities, that are not based on UEDGE functionalities
+    Case.tracker -- uetools.UeUtils.Tracker object providing variable
+            tracking and default storage routines
+    Case.utils -- uetools.UeUtils.Utils object containing useful tools
+            and utilities that _are_ based on UEDGE functionalities
 
     Attributes
     ----------
-    filename : string
-        path to input file where data is read from
-    inplace : boolean
-        switch defining whether to read data into memory or read from
-        HDF5
-    vars : nested dict
-        variables available based on YAML variable file:
-        structure vars[package][varname]
-    varinput : nested dict
-        variables from YAML variable file:
-        structure varinput[group][package][varname]
-    packagelist : dict
-        lookup dictionary listing packages associated with
-        individual variables
-    setup : nested dict
-        variables defined in YAML input file
-    userdifffname : string
-        path to user-defined spatial diffusivity coefficients
-    radialdifffname : string
-        path to user-defined radial diffusivity coefficients
+    info : dict
+        Dictionary containing information of the Case setup referenced
+        by internal and external routines:
+            - casename: str of the current case name (only used for 
+                    identification)
+            - uetoolsversion: str of the version of UETOOLS
+            - uedge_ver: str of the version of UEDGE
+            - pyver: str of the version of Python
+            - user: str of the current user name
+            - hostname: str of the current machine hostname
+            - location: str of the absolute path of the CWD
+            - inplace: bool whether to read data from HDF5 file
+            - restored_from_hdf5: bool whether an HDF5 file is 
+                    used as input file
+            - verbose: bool whether to output info to stdout
+            - savefile: str of absolute path to save file used
+            - filename: str of absolute path to input file read
+            - diffusivity_file: str of absolute path to HDF5 file
+                    containing 1D/2D radial diffusivity coefficients
+            - aphdir: str of absolute path to directory contaning 
+                    hydrogenic rate files (read from ~/.uetoolsrc, 
+                    Case-definition, or input file)
+            - apidir: str of absolute path to directory contaning 
+                    impurity rate files (read from ~/.uetoolsrc, 
+                    Case-definition, or input file)
+            - use_mutex: bool whether to apply mutex checks
+            - session_id: ID of the current Case object, must 
+                    match that of UEDGE if using mutex
+            - exmain_evals: number of case evaluations performed 
+                    in UEDGE, used to update local variables
+    variables : dict
+        Nesteed dictionary containing information on variables:
+            - stored: dict of variables stored to the case object, based
+                    on the variable YAML files. Necessary for having 
+                    several interactive Case objects open and their data 
+                    available at the same time
+            - input: nested dict of the input file. Entries based on 
+                    variable YAML files and any read input files
+            - package: dictionary of the packages for each parameter
+            - hashes: nested dict containing hashes of the variable 
+                    values at the last exmain-execution the Case object
+                    was assigned to UEDGE
+            - defaults: nested dict containing the default values/arrays
+                    of all variable assigned the input/maybeinput 
+                    attributes. Only populated if Case initialized with
+                    the store_defaults option
+            - dims: dictionary of the dimensions (as list of strings)
+                    of all multi-dimensional UEDGE arrays
+            - unset: list of variables not set when reading input, used
+                    for troubleshooting. Should be empty if all is well
+            - omit: list of variables to omit when reading input files,
+                    as they have special logic applied
 
     Methods
     -------
+    add_spectrometer(specname=None, **kwargs)
+        adds a spectrometer to case.diagnostics with handle specname
     assign(**kwargs)
-        assignes the UEDGE memory to the Case object
-    get_inplace(variable, s=None, **kwargs)
-        returns the value of variable from HDF5 file
-    get_memory(variable, s=None, **kwargs)
-        returns the value of variable from Case memory
-    getsetue_inplace(*args, **kwargs)
-        placeholder for returning UEDGE variables when reading inplace
-    get_uememory(variable, s=None, cp=True, **kwargs)
-        returns the value of variable from UEDGE memory
+        assigns the UEDGE memory to the Case object
+    continuation_solve(...)
+        wrapper of UeRun.continuation_solve
+    converge(...)
+        wrapper of UeRun.converge
+    dashboard()
+        opens interactive Qt5 GUI
+    exmain()
+        executes a time-step: wrapper of bbb.exmain with more logic
+    get(variable, s=None, **kwargs)
+        get variable from Case local storage. If not available, calls
+        getue if variable not in local storage. If multi-species array,
+        a species index can be returned by setting s
+    getue(variable, s=None, cp=True, **kwargs)
+        returns a copy of variable from UEDGE memory. If cp=False,
+        returns the pointer. If multi-species array, a species index can
+        be returned by setting s. If loaded inplace, raises a message
     load_inplace(fileobj=None, group=[])
         creates the necessary dictionaries for accessing HDF5 data
     mutex(silent=False, **kwargs)
         returns True if UEDGE memory assigned to this Case object
-    read_hdf5_setup(fname)
-        reads the UEDGE input deck from setup group of HDF5
-    reload
+    populate(...)
+        wrapper of Case.savefunc.populate
+    reload(group=None, **kwargs)
+        reloads variables from UEDGE to Case
     restore_input(fname=None, savefile=None, populate=True, **kwargs)
         sets UEDGE input parameters according to setup attribute
     restore_save(savefile, **kwargs)
         restores the UEDGE state from HDF5 savefile
-    setinput(   setupfile=None, restore=True, savefile=None, 
-                readinput=True, restoresave=False, **kwargs
-        )
-        Reads a YAML input file and sets up UEDGE case
-    setradialdiff(fname, **kwargs)
-        sets radial diffusion coefficient profiles as defined HDF5 file
-    set_uememory(variable, value, **kwargs)
-        sets the UEDGE variable in memory to value
-    userdiff(fname, **kwargs)
-        sets user-defined diffusion coefficients as defined HDF5 file
-    update    
+    save(...)
+        wrapper of case.savefuncs.save
+    setue(variable, value, **kwargs)
+        Sets variable to value. If Case loaded inplace, raises a 
+        message
+    update()
         checks UEDGE state and updates Case variables if necessary
-
-    Variables
-    ---------
-    aphdir: path to hydrogenic rates used by Case objects
-    apidir: path to impurity rates used by Case objects
-    casename: string identifier for case
-    diff_file: path to file containing diffusivity data
-    exmain_evals: the number of exmain evaluations perfored by UEDGE
-    filename: path to YAML input/HDF5 file read
-    get: wrapper for function to get data depending on setup
-    getue: wrapper for function to get UEDGE data depending on setup
-    hostname: machine name for writing figure labels
-    inplace: boolean for controling case setup and behavior
-    location: cwd where data read to Case object is located
-    omitvars: special named variables to not be parsed from input YAML
-    packagelist: list of UEDGE packages available
-    pyver: version of python UEDGE package/build
-    restored_from_hdf5: boolean set to true if case read from HDF5 file
-    savefile: path to HDF5 file containing save variables
-    session_id: mutex ID of Case object
-    uedge_ver: internal UEDGE version uedge_ver
-    uetoolsversion: version of UETOOLS (internal)
-    uevars: nested dict of UEDGE packages, variables, and hashes
-    unset_variables: UEDGE variables that have not been allocated
-    use_mutex: boolean instructing Case to perform mutex if True
-    user: user name for writing to figure labels
-    varinput: nested dict of variables to be saved to save files
-    vars: data for all variables tracked by Case object
-    verbose: boolean telling Case to operate silently if Dalse
+    
      
 
     Side-effects
@@ -145,7 +177,6 @@ class Case:
       before returning, so that there is no net change.
 
     """
-
     def __init__(
         self,
         filename=None,
@@ -176,6 +207,9 @@ class Case:
         variableyamlfile : str (default = None)
             Path to YAML file containing definitions of data and
             variables to be read. If None, accesses the module defaults
+        casename : str (default None)
+            Case identifier to describe case. If None, looks for 
+            casename in the input file
         assign : bool (default = True)
             Switch whether to assign the current run to the caseobject
         verbose : bool (default = True)
@@ -184,7 +218,7 @@ class Case:
             Path to HDF5 file containing saved UEDGE state. Redundant
             if reading case form HDF5. Read from YAML input if 
             available (kwarg takes precedence).
-        diff_file : str (default = None)
+        diffusivity_file : str (default = None)
             Path to HDF5 file containing diffusivity coefficients. 
             Ignored if isbohmcalc != 0 or 2
         aphdir : str (default = None)
@@ -197,6 +231,8 @@ class Case:
             files. Reads apidir from run comand files or input if None.
         restoresave : bool (default = True)
             Switch whether to restore save file or not during reading
+        store_defaults : bool (default = False)
+            Switch whether to track default values of input variables
         """
         import uetools
         import os
@@ -224,7 +260,6 @@ class Case:
                 "savefile",
             ],
         }
-
         # Assert input file exists before proceeding
         if filename is not None:
             if not exists(filename):
@@ -298,8 +333,9 @@ class Case:
             'diffusivity_file': diffusivity_file,
             'aphdir': None,
             'apidir': None,
+            'use_mutex': None,
             'session_id': None,
-            
+            'exmain_evals': None,
         }
         # Link top-level classes to Case
         self.tools = Tools()
@@ -324,16 +360,15 @@ class Case:
         self.setue = self.getset.setue
 
         if not inplace:
-            self.exmain_evals = self.getue("exmain_evals")
+            self.info['exmain_evals'] = self.getue("exmain_evals")
             # Assign mutex checks, unless at early UEDGE version
             try:
-                self.exmain_evals = self.getue("exmain_evals")
-                self.use_mutex = True
+                self.info['exmain_evals'] = self.getue("exmain_evals")
+                self.info['use_mutex'] = True
             except:
                 print('Variable "exmain_evals" not found!')
                 print('Using UEDGE version <7, deactivate mutex')
-                self.use_mutex = False
-
+                self.info['use_mutex'] = False
 
         # Link all other Classes to Case
         self.tracker = Tracker(self)
@@ -381,7 +416,7 @@ class Case:
                     )))
             else:  # YAML specified, use user input
                 self.variables['input'].update(self.tools.readyaml(variableyamlfile))  # Read to memory
-            if self.use_mutex is True:
+            if self.info['use_mutex'] is True:
                 self.info['session_id'] = self.getue("max_session_id") + 1
                 setattr(
                     packageobject("bbb"), "max_session_id", 
@@ -406,7 +441,6 @@ class Case:
         self.continuation_solve = self.solver.continuation_solve
         self.converge = self.solver.converge
 
-
     # NOTE: Update class data, or try reading from forthon first??
     def update(self, **kwargs):
         """Checks if UEDGE state has changed and updates as needed.
@@ -419,9 +453,9 @@ class Case:
         -------
         """
 
-        if self.use_mutex:
-            if self.exmain_evals != self.getue("exmain_evals"):
-                self.exmain_evals = self.getue("exmain_evals")
+        if self.info['use_mutex']:
+            if self.info['exmain_evals'] != self.getue("exmain_evals"):
+                self.info['exmain_evals'] = self.getue("exmain_evals")
                 if self.mutex() is False:
                     raise Exception("Case doesn't own UEDGE memory")
                 self.reload()
@@ -432,8 +466,6 @@ class Case:
                 self.plot = Caseplot(self, rm=self.get("rm"), zm=self.get("zm"))
             except:
                 pass
-
-
 
     def assign(self, **kwargs):
         """Assigns the UEDGE session to this object
@@ -446,7 +478,7 @@ class Case:
         -------
         None
         """
-        if self.use_mutex is True:
+        if self.info['use_mutex'] is True:
             setattr(packageobject("bbb"), "session_id", self.info['session_id'])
 #        try:
 #            # Restore input to UEDGE
@@ -463,8 +495,6 @@ class Case:
                 )
         except:
             pass
-
-
 
     def reload(self, group=None, **kwargs):
         """Reloads variables from UEDGE to UeCase
@@ -594,6 +624,7 @@ class Case:
                 self.load_inplace(data, group + [subgroup])
         else:
             self.variables['stored'][fileobj.name.split("/")[-1]] = fileobj.name
+
     def mutex(self, silent=False, **kwargs):
         """Returns True if case assigned to current UEDGE session.
 
@@ -606,7 +637,7 @@ class Case:
         -------
         True if Case object own UEDGE memore, False otherwise
         """
-        if self.use_mutex == False:
+        if self.info['use_mutex'] == False:
             return True
         if self.info['session_id'] == self.getue("session_id"):
             return True
@@ -696,7 +727,23 @@ class Case:
 
         
 class GetSetMemory:
+    """ Duck typing helper class for cases using UEDGE
+
+    Methods
+    -------
+    get(variable, s=None, **kwargs)
+        get variable from Case local storage. If not available, calls
+        getue if variable not in local storage. If multi-species array,
+        a species index can be returned by setting s
+    getue(variable, s=None, cp=True, **kwargs)
+        returns a copy of variable from UEDGE memory. If cp=False,
+        returns the pointer. If multi-species array, a species index can
+        be returned by setting s. 
+    setue(variable, value, **kwargs)
+        sets variable to value in UEDGE memory.
+    """
     def __init__(self, case):
+        """ Initializes the GetSetMemory class """
         self.update = case.update
         self.variables = case.variables
         self.search = Lookup()
@@ -818,9 +865,22 @@ class GetSetMemory:
                     retvar = retvar[:, :, s]
         return retvar
 
-
 class GetSetInplace:
+    """ Duck typing helper class for cases reading HDF5 files
+
+    Methods
+    -------
+    get(variable, s=None, **kwargs)
+        get variable from HDF5 local storage. If not available, prints 
+        a warning.
+    getue(variable, s=None, cp=True, **kwargs)
+        raises an exception as not UEDGE memory is used/available
+    setue(variable, value, **kwargs)
+        raises an exception as not UEDGE memory is used/available
+    """
+
     def __init__(self, case):
+        """ Initializes the GetSetInplace class """
         self.info = case.info
         self.variables = case.variables
 

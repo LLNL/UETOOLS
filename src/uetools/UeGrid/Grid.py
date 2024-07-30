@@ -131,9 +131,10 @@ class Grid:
                         f.canvas.draw()
 
         # TODO: Set UEDGE variables based on detected variable
+        #( rseps, zseps, rseps, zseps2,) rvsin, rvsout, zvsin, zvsout
+        
         
 
-        return textbox
     
 
 

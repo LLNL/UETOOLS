@@ -1,6 +1,19 @@
 from uetools.UeUtils import Lookup
 
 class Save:
+    """
+    read_hdf5_setup(fname)
+        reads the UEDGE input deck from setup group of HDF5
+    setinput(   setupfile=None, restore=True, savefile=None, 
+                readinput=True, restoresave=False, **kwargs
+        )
+        Reads a YAML input file and sets up UEDGE case
+    setradialdiff(fname, **kwargs)
+        sets radial diffusion coefficient profiles as defined HDF5 file
+    userdiff(fname, **kwargs)
+        sets user-defined diffusion coefficients as defined HDF5 file
+    """
+
     def __init__(self, case):
         self.get = case.get
         self.getue = case.getue
