@@ -8,15 +8,17 @@ from uetools.UeUtils import *
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeDiagnostics.ADAS import ADAS
 import uetools
+
 try:
     from uedge import bbb, com, aph, api, svr
+
     uedge_is_installed = True
 except:
     uedge_is_installed = False
 try:
     from uedge import __version__
 except:
-    __version__ = 'N/A'
+    __version__ = "N/A"
 try:
     from Forthon import packageobject
 except:
@@ -24,17 +26,18 @@ except:
 
 # TODO: make yaml read/write/get/set case-insensitive?
 # TODO: Consider compression of data
-# TODO: Store all *var* members to var-dict 
+# TODO: Store all *var* members to var-dict
 # TODO: Re-introduce the verices
 
+
 class Case:
-    """ UEDGE Case container object.
+    """UEDGE Case container object.
 
     Subclasses
     ----------
     Case.about -- uetools.AboutSetup object, containing tools that
-            help identify the current case setup 
-    Case.adas -- uetools.UeDiagnostics.ADAS object containing routines 
+            help identify the current case setup
+    Case.adas -- uetools.UeDiagnostics.ADAS object containing routines
             for reading ADAS file structures and calculating rates
     Case.config -- uetools.Config object used to read and create
             personal ~/.uetoolsrc-files
@@ -49,7 +52,7 @@ class Case:
             for parsing UETOOLS YAML and HDF5 input files
     Case.interpolate -- uetools.UeUtils.Interpolate object that
             contains routines for interpolating grids using a patch-map
-            approach 
+            approach
     Case.plot -- uetools.UePlot.Caseplot object providing all plotting
             routines for the package
     Case.postproc -- uetools.UeUtils.Postproc object providing vetted
@@ -61,7 +64,7 @@ class Case:
     Case.solver -- uetools.UeCase.Solver object providing UETOOLS-
             compatible solver functionalities, inherited from
             uedge.UeRun objects
-    Case.tools -- uetools.UeUtils.Tools object containing useful tools 
+    Case.tools -- uetools.UeUtils.Tools object containing useful tools
             and utilities, that are not based on UEDGE functionalities
     Case.tracker -- uetools.UeUtils.Tracker object providing variable
             tracking and default storage routines
@@ -73,7 +76,7 @@ class Case:
     info : dict
         Dictionary containing information of the Case setup referenced
         by internal and external routines:
-            - casename: str of the current case name (only used for 
+            - casename: str of the current case name (only used for
                     identification)
             - uetoolsversion: str of the version of UETOOLS
             - uedge_ver: str of the version of UEDGE
@@ -82,38 +85,38 @@ class Case:
             - hostname: str of the current machine hostname
             - location: str of the absolute path of the CWD
             - inplace: bool whether to read data from HDF5 file
-            - restored_from_hdf5: bool whether an HDF5 file is 
+            - restored_from_hdf5: bool whether an HDF5 file is
                     used as input file
             - verbose: bool whether to output info to stdout
             - savefile: str of absolute path to save file used
             - filename: str of absolute path to input file read
             - diffusivity_file: str of absolute path to HDF5 file
                     containing 1D/2D radial diffusivity coefficients
-            - aphdir: str of absolute path to directory contaning 
-                    hydrogenic rate files (read from ~/.uetoolsrc, 
+            - aphdir: str of absolute path to directory contaning
+                    hydrogenic rate files (read from ~/.uetoolsrc,
                     Case-definition, or input file)
-            - apidir: str of absolute path to directory contaning 
-                    impurity rate files (read from ~/.uetoolsrc, 
+            - apidir: str of absolute path to directory contaning
+                    impurity rate files (read from ~/.uetoolsrc,
                     Case-definition, or input file)
             - use_mutex: bool whether to apply mutex checks
-            - session_id: ID of the current Case object, must 
+            - session_id: ID of the current Case object, must
                     match that of UEDGE if using mutex
-            - exmain_evals: number of case evaluations performed 
+            - exmain_evals: number of case evaluations performed
                     in UEDGE, used to update local variables
     variables : dict
         Nesteed dictionary containing information on variables:
             - stored: dict of variables stored to the case object, based
-                    on the variable YAML files. Necessary for having 
-                    several interactive Case objects open and their data 
+                    on the variable YAML files. Necessary for having
+                    several interactive Case objects open and their data
                     available at the same time
-            - input: nested dict of the input file. Entries based on 
+            - input: nested dict of the input file. Entries based on
                     variable YAML files and any read input files
             - package: dictionary of the packages for each parameter
-            - hashes: nested dict containing hashes of the variable 
+            - hashes: nested dict containing hashes of the variable
                     values at the last exmain-execution the Case object
                     was assigned to UEDGE
             - defaults: nested dict containing the default values/arrays
-                    of all variable assigned the input/maybeinput 
+                    of all variable assigned the input/maybeinput
                     attributes. Only populated if Case initialized with
                     the store_defaults option
             - dims: dictionary of the dimensions (as list of strings)
@@ -160,12 +163,12 @@ class Case:
     save(...)
         wrapper of case.savefuncs.save
     setue(variable, value, **kwargs)
-        Sets variable to value. If Case loaded inplace, raises a 
+        Sets variable to value. If Case loaded inplace, raises a
         message
     update()
         checks UEDGE state and updates Case variables if necessary
-    
-     
+
+
 
     Side-effects
     ------------
@@ -177,6 +180,7 @@ class Case:
       before returning, so that there is no net change.
 
     """
+
     def __init__(
         self,
         filename=None,
@@ -208,7 +212,7 @@ class Case:
             Path to YAML file containing definitions of data and
             variables to be read. If None, accesses the module defaults
         casename : str (default None)
-            Case identifier to describe case. If None, looks for 
+            Case identifier to describe case. If None, looks for
             casename in the input file
         assign : bool (default = True)
             Switch whether to assign the current run to the caseobject
@@ -216,17 +220,17 @@ class Case:
             Silences Case object if verbose = False
         savefile : str (default = None)
             Path to HDF5 file containing saved UEDGE state. Redundant
-            if reading case form HDF5. Read from YAML input if 
+            if reading case form HDF5. Read from YAML input if
             available (kwarg takes precedence).
         diffusivity_file : str (default = None)
-            Path to HDF5 file containing diffusivity coefficients. 
+            Path to HDF5 file containing diffusivity coefficients.
             Ignored if isbohmcalc != 0 or 2
         aphdir : str (default = None)
-            Path to directory with hydrogenic rate files. Kwarg 
+            Path to directory with hydrogenic rate files. Kwarg
             defintion takes precedence over input file and run command
             files. Reads aphdir from run comand files or input if None.
         apidir : str (default = None)
-            Path to directory with impurity rate files. Kwarg 
+            Path to directory with impurity rate files. Kwarg
             defintion takes precedence over input file and run command
             files. Reads apidir from run comand files or input if None.
         restoresave : bool (default = True)
@@ -244,14 +248,14 @@ class Case:
 
         # Set up nested dict for variable operations
         self.variables = {
-            'stored': {},
-            'input': {},
-            'package': {},
-            'hashes': {},
-            'defaults': {},
-            'dims': {},
-            'unset': [],
-            'omit': [
+            "stored": {},
+            "input": {},
+            "package": {},
+            "hashes": {},
+            "defaults": {},
+            "dims": {},
+            "unset": [],
+            "omit": [
                 "userdifffname",
                 "radialdifffname",
                 "diff_file",
@@ -263,14 +267,14 @@ class Case:
         # Assert input file exists before proceeding
         if filename is not None:
             if not exists(filename):
-                raise ValueError('File {} does not exist!'.format(\
-                    filename
-                ))
+                raise ValueError("File {} does not exist!".format(filename))
         # Check whether UEDGE is installed and enter inplace mode w/
         # msg if not
         if (inplace is False) and (uedge_is_installed is False):
-            print("No working UEDGE install found: only "+\
-                "inplace-evaluation is possible.")
+            print(
+                "No working UEDGE install found: only "
+                + "inplace-evaluation is possible."
+            )
             print("Only UETOOLS HDF5 saves can be restored.")
             print("For more information, consult UETOOLS documentation.")
             inplace = True
@@ -279,14 +283,16 @@ class Case:
             try:
                 casename = "/".join(".".join(filename.split(".")[:-1]).split("/")[-2:])
             except:
-                casename = "/".join((".".join(getcwd().split(".")[:-1]).split("/")[-1],"Case()"))
+                casename = "/".join(
+                    (".".join(getcwd().split(".")[:-1]).split("/")[-1], "Case()")
+                )
         # Get the current UEDGE version
         try:
             uedge_ver = (
                 packageobject("bbb").getpyobject("uedge_ver")[0].strip().decode("UTF-8")
             )
         except:
-            uedge_ver = 'unknown'
+            uedge_ver = "unknown"
         # Get the user-name
         try:
             user = getlogin()
@@ -311,31 +317,31 @@ class Case:
             pass
         # Get the location of the case
         try:
-            if exists('/'.join([location, savefile])):
-                savefile = '/'.join([location, savefile])  
+            if exists("/".join([location, savefile])):
+                savefile = "/".join([location, savefile])
         except:
             # NOTE: Shoul probably raise an error here?
             pass
         # Store case data and information in dictionary
         self.info = {
-            'casename': casename,
-            'uetoolsversion': uetools.__version__,
-            'uedge_ver':    uedge_ver,
-            'pyver':    __version__,
-            'user':     user,
-            'hostname': hostname,
-            'location': location,
-            'inplace':  inplace,
-            'restored_from_hdf5': False,
-            'verbose':  verbose,
-            'savefile': savefile,
-            'filename': filename,
-            'diffusivity_file': diffusivity_file,
-            'aphdir': None,
-            'apidir': None,
-            'use_mutex': None,
-            'session_id': None,
-            'exmain_evals': None,
+            "casename": casename,
+            "uetoolsversion": uetools.__version__,
+            "uedge_ver": uedge_ver,
+            "pyver": __version__,
+            "user": user,
+            "hostname": hostname,
+            "location": location,
+            "inplace": inplace,
+            "restored_from_hdf5": False,
+            "verbose": verbose,
+            "savefile": savefile,
+            "filename": filename,
+            "diffusivity_file": diffusivity_file,
+            "aphdir": None,
+            "apidir": None,
+            "use_mutex": None,
+            "session_id": None,
+            "exmain_evals": None,
         }
         # Link top-level classes to Case
         self.tools = Tools()
@@ -343,11 +349,13 @@ class Case:
         # Set up the functions to get/set data from Case and UEDGE
         # Reading from an HDF5 file
         if inplace:
-            # Get the absolute path to the HDF5 file 
-            self.info['filename'] = abspath(self.info['filename'])
+            # Get the absolute path to the HDF5 file
+            self.info["filename"] = abspath(self.info["filename"])
             # Ensure the file exists
-            if not exists(self.info['filename']):
-                raise Exception("File {} not found. Aborting!".format(self.info['filename']))
+            if not exists(self.info["filename"]):
+                raise Exception(
+                    "File {} not found. Aborting!".format(self.info["filename"])
+                )
             # Get the variables available in the HDF5 and link their locations
             self.load_inplace()
             self.getset = GetSetInplace(self)
@@ -360,15 +368,15 @@ class Case:
         self.setue = self.getset.setue
 
         if not inplace:
-            self.info['exmain_evals'] = self.getue("exmain_evals")
+            self.info["exmain_evals"] = self.getue("exmain_evals")
             # Assign mutex checks, unless at early UEDGE version
             try:
-                self.info['exmain_evals'] = self.getue("exmain_evals")
-                self.info['use_mutex'] = True
+                self.info["exmain_evals"] = self.getue("exmain_evals")
+                self.info["use_mutex"] = True
             except:
                 print('Variable "exmain_evals" not found!')
-                print('Using UEDGE version <7, deactivate mutex')
-                self.info['use_mutex'] = False
+                print("Using UEDGE version <7, deactivate mutex")
+                self.info["use_mutex"] = False
 
         # Link all other Classes to Case
         self.tracker = Tracker(self)
@@ -384,7 +392,7 @@ class Case:
         self.exmain = self.solver.exmain
         self.adas = ADAS(self)
         self.grid = Grid(self)
-#        self.radtransp = RadTransp(self)
+        #        self.radtransp = RadTransp(self)
         self.interpolate = Interpolate(self)
         self.about = AboutSetup(self)
         self.input = Input(self)
@@ -395,48 +403,62 @@ class Case:
         # Set up rate paths: Case-level paths take precedence over
         # config paths
         if aphdir is not None:
-            self.info['aphdir'] = aphdir
+            self.info["aphdir"] = aphdir
         if apidir is not None:
-            self.info['apidir'] = apidir
+            self.info["apidir"] = apidir
 
         # Perform additional operations, requiring linked packages
         if inplace is False:
             # Parse
-            self.variables['input'] = self.tools.readyaml("{}/{}".format(
-                uetools.__path__[0], "yamls/requiredvariables.yaml"
-            ))
+            self.variables["input"] = self.tools.readyaml(
+                "{}/{}".format(uetools.__path__[0], "yamls/requiredvariables.yaml")
+            )
             # Read YAML to get variables to be read/stored/used
             if variableyamlfile is None:  # No YAML variable file requested
                 if hasattr(self, "variableyamlfile"):
-                    self.variables['input'].update(self.tools.readyaml(self.variableyamlfile))
+                    self.variables["input"].update(
+                        self.tools.readyaml(self.variableyamlfile)
+                    )
                 else:
-                # Use default: find package location and package YAMLs
-                    self.variables['input'].update(self.tools.readyaml("{}/{}".format(
-                        uetools.__path__[0], "yamls/standardvariables.yaml"
-                    )))
+                    # Use default: find package location and package YAMLs
+                    self.variables["input"].update(
+                        self.tools.readyaml(
+                            "{}/{}".format(
+                                uetools.__path__[0], "yamls/standardvariables.yaml"
+                            )
+                        )
+                    )
             else:  # YAML specified, use user input
-                self.variables['input'].update(self.tools.readyaml(variableyamlfile))  # Read to memory
-            if self.info['use_mutex'] is True:
-                self.info['session_id'] = self.getue("max_session_id") + 1
+                self.variables["input"].update(
+                    self.tools.readyaml(variableyamlfile)
+                )  # Read to memory
+            if self.info["use_mutex"] is True:
+                self.info["session_id"] = self.getue("max_session_id") + 1
                 setattr(
-                    packageobject("bbb"), "max_session_id", 
-                    self.getue("max_session_id") + 1
+                    packageobject("bbb"),
+                    "max_session_id",
+                    self.getue("max_session_id") + 1,
                 )
             if assign is True:
                 self.assign()
-            if self.info['filename'] is not None:
-                self.restore_input(self.info['filename'], self.info['savefile'], 
-                    restoresave=restoresave)
+            if self.info["filename"] is not None:
+                self.restore_input(
+                    self.info["filename"],
+                    self.info["savefile"],
+                    restoresave=restoresave,
+                )
             else:
                 self.reload()
                 # TODO:
-                if uedge_is_installed and not self.info['inplace']:
+                if uedge_is_installed and not self.info["inplace"]:
                     self.tracker.get_uevars()
                     if store_defaults:
                         # Track potential inputs too, just to be safe
-                        for pkg in ['input', 'maybeinput']:
-                            for key, _ in self.variables['hashes'][pkg].items():
-                                self.variables['defaults'][key] = deepcopy(self.getue(key))
+                        for pkg in ["input", "maybeinput"]:
+                            for key, _ in self.variables["hashes"][pkg].items():
+                                self.variables["defaults"][key] = deepcopy(
+                                    self.getue(key)
+                                )
         self.plot = Caseplot(self)
         self.continuation_solve = self.solver.continuation_solve
         self.converge = self.solver.converge
@@ -453,9 +475,9 @@ class Case:
         -------
         """
 
-        if self.info['use_mutex']:
-            if self.info['exmain_evals'] != self.getue("exmain_evals"):
-                self.info['exmain_evals'] = self.getue("exmain_evals")
+        if self.info["use_mutex"]:
+            if self.info["exmain_evals"] != self.getue("exmain_evals"):
+                self.info["exmain_evals"] = self.getue("exmain_evals")
                 if self.mutex() is False:
                     raise Exception("Case doesn't own UEDGE memory")
                 self.reload()
@@ -478,20 +500,21 @@ class Case:
         -------
         None
         """
-        if self.info['use_mutex'] is True:
-            setattr(packageobject("bbb"), "session_id", self.info['session_id'])
-#        try:
-#            # Restore input to UEDGE
-#            # NOTE: variables not set maintain previous values. Reset
-#            # all values before setting input?
-#            print('assing')
-#            self.setinput(readinput=False)
-#        except:
-#            pass
+        if self.info["use_mutex"] is True:
+            setattr(packageobject("bbb"), "session_id", self.info["session_id"])
+        #        try:
+        #            # Restore input to UEDGE
+        #            # NOTE: variables not set maintain previous values. Reset
+        #            # all values before setting input?
+        #            print('assing')
+        #            self.setinput(readinput=False)
+        #        except:
+        #            pass
         try:
-            if self.info['restored_from_hdf5'] is True:
+            if self.info["restored_from_hdf5"] is True:
                 packageobject("grd").getpyobject("readgrid")(
-                    self.getue("GridFileName"), self.variables['stored']["runid"].strip()
+                    self.getue("GridFileName"),
+                    self.variables["stored"]["runid"].strip(),
                 )
         except:
             pass
@@ -521,7 +544,7 @@ class Case:
         from numpy import ndarray, int64, float64
 
         # Check whether data is read into memory
-        if self.info['inplace']:
+        if self.info["inplace"]:
             raise Exception(
                 'Cannot reload directly to HDF5 file with option "inplace".'
             )
@@ -530,7 +553,7 @@ class Case:
             raise Exception("Case doesn't own UEDGE memory")
 
         def recursivereload(dictobj, group=[]):
-            """ Recursively traverses dictionary and stores UEDGE data to self """
+            """Recursively traverses dictionary and stores UEDGE data to self"""
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
                 if isinstance(dictobj, (list, ndarray)):
@@ -539,58 +562,58 @@ class Case:
                     if self.search.getpackage(group[-1], verbose=False) != None:
                         # Request to set array starting from index 0:
                         # just read the variable into memory
-                        self.variables['stored'][group[-1]] = self.getue(group[-1])
+                        self.variables["stored"][group[-1]] = self.getue(group[-1])
                     elif isinstance(group[-1], int):
                         # Setting subarray, store variable
-                        self.variables['stored'][group[-2]] = self.getue(group[-2])
+                        self.variables["stored"][group[-2]] = self.getue(group[-2])
                     else:
                         # List of variables, store each
                         for variable in dictobj:
-                            self.variables['stored'][variable] = self.getue(variable)
+                            self.variables["stored"][variable] = self.getue(variable)
                 elif isinstance(group[-1], int):
                     if len(group) > 2 and isinstance(group[-2], int):
-                        self.variables['stored'][group[-3]] = self.getue(group[-3])
+                        self.variables["stored"][group[-3]] = self.getue(group[-3])
                     else:
-                        self.variables['stored'][group[-2]] = self.getue(group[-2])
+                        self.variables["stored"][group[-2]] = self.getue(group[-2])
                 elif isinstance(dictobj, bool):
                     # TODO: Now assumed only Falses set, which do nothing
                     # In the future, we might include Trues on keywords.
                     # Such behavior goes here
                     pass
                 elif isinstance(dictobj, (int, float, int64, float64)):
-                    self.variables['stored'][group[-1]] = self.getue(group[-1])
+                    self.variables["stored"][group[-1]] = self.getue(group[-1])
                 elif isinstance(dictobj, (bytes, str)):
                     try:
-                        self.variables['stored'][group[-1]] = self.getue(group[-1])
+                        self.variables["stored"][group[-1]] = self.getue(group[-1])
                     except:
                         pass
                 else:
-                    self.variables['unset'].append([group, dictobj])
+                    self.variables["unset"].append([group, dictobj])
             else:
                 for key, value in dictobj.items():
                     recursivereload(value, group + [key])
+
         # Pop out any custom commands, as these cannot be reloaded (not vars)
         try:
-            commands = self.variables['input']["setup"].pop("commands")
+            commands = self.variables["input"]["setup"].pop("commands")
         except:
             pass
         # Reload the variables recurively
         if group is None:
-            recursivereload(self.variables['input'])
+            recursivereload(self.variables["input"])
         else:
-            recursivereload(self.variables['input'][group], [group])
+            recursivereload(self.variables["input"][group], [group])
         # If there were any custom commands, put them back where they belong
         try:
-            self.variables['input']["setup"]["commands"] = commands
+            self.variables["input"]["setup"]["commands"] = commands
         except:
             pass
         # Update the dict containing the package containing each variable
-        for variable in self.variables['stored'].keys():
-            if variable not in self.variables['package']:
-                self.variables['package'][variable] = self.search.getpackage(
-                                                    variable, 
-                                                    verbose=False
-                                            )
+        for variable in self.variables["stored"].keys():
+            if variable not in self.variables["package"]:
+                self.variables["package"][variable] = self.search.getpackage(
+                    variable, verbose=False
+                )
 
     def load_inplace(self, fileobj=None, group=[]):
         """Creates dictionaries necessary for accessing HDF5 data
@@ -601,7 +624,7 @@ class Case:
         Keyword arguments
         -----------------
         fileobj : HDF5 File object (default = None)
-            
+
         Modifies
         --------
         Case.vars dictionary : adds variables as keys with paths in
@@ -612,8 +635,9 @@ class Case:
         None
         """
         from h5py import Group, File
+
         if fileobj is None:
-            with File(self.info['filename'], 'r') as f:
+            with File(self.info["filename"], "r") as f:
                 for subgroup, data in f.items():
                     self.load_inplace(data, group + [subgroup])
         elif isinstance(fileobj, File):
@@ -623,7 +647,7 @@ class Case:
             for subgroup, data in fileobj.items():
                 self.load_inplace(data, group + [subgroup])
         else:
-            self.variables['stored'][fileobj.name.split("/")[-1]] = fileobj.name
+            self.variables["stored"][fileobj.name.split("/")[-1]] = fileobj.name
 
     def mutex(self, silent=False, **kwargs):
         """Returns True if case assigned to current UEDGE session.
@@ -637,21 +661,24 @@ class Case:
         -------
         True if Case object own UEDGE memore, False otherwise
         """
-        if self.info['use_mutex'] == False:
+        if self.info["use_mutex"] == False:
             return True
-        if self.info['session_id'] == self.getue("session_id"):
+        if self.info["session_id"] == self.getue("session_id"):
             return True
         else:
             if silent is False:
                 print(
                     "Mutex error! Object run-ID is {}, UEDGE run-ID "
-                    "is {}. Aborting.".format(self.info['session_id'], self.getue("session_id"))
+                    "is {}. Aborting.".format(
+                        self.info["session_id"], self.getue("session_id")
+                    )
                 )
             return False
 
-    def restore_input(self, inputfname=None, savefile=None, 
-        populate=True, restoresave=True, **kwargs):
-        """ Restores a full case into memory and object.
+    def restore_input(
+        self, inputfname=None, savefile=None, populate=True, restoresave=True, **kwargs
+    ):
+        """Restores a full case into memory and object.
 
         Keyword arguments
         -----------------
@@ -678,18 +705,18 @@ class Case:
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
-        self.input.read(inputfname, savefile=savefile, restoresave=restoresave, 
-                **kwargs
+        self.input.read(
+            inputfname, savefile=savefile, restoresave=restoresave, **kwargs
         )
         if (restoresave is True) and (populate is True):
             self.populate(silent=True, **kwargs)
 
     def restore_save(self, savefile, **kwargs):
-        """ Procedure to read saved state and restore UEDGE variables.
+        """Procedure to read saved state and restore UEDGE variables.
 
         Arguments
         -----------------
-        savefile : str 
+        savefile : str
             Path to HDF5 file containing UEDGE state data
 
         Modifies
@@ -705,29 +732,30 @@ class Case:
 
     def add_spectrometer(self, specname=None, **kwargs):
         from uetools.UeDiagnostics import Spectrometer
+
         try:
             self.diagnostics
         except:
             self.diagnostics = {}
         if specname is None:
-            specname = 'spec{}'.format(len(self.diagnostics)+1)
+            specname = "spec{}".format(len(self.diagnostics) + 1)
         self.diagnostics[specname] = Spectrometer(self, **kwargs)
         return self.diagnostics[specname]
 
-
     def dashboard(self):
-        """ Opens a Dashboard for Self """
-        from uetools import StandaloneDashboard 
+        """Opens a Dashboard for Self"""
+        from uetools import StandaloneDashboard
         from PyQt5.QtWidgets import QApplication
         import sys
+
         app = QApplication([])
-        win = StandaloneDashboard(self)    
+        win = StandaloneDashboard(self)
         win.show()
         app.exec_()
 
-        
+
 class GetSetMemory:
-    """ Duck typing helper class for cases using UEDGE
+    """Duck typing helper class for cases using UEDGE
 
     Methods
     -------
@@ -738,17 +766,17 @@ class GetSetMemory:
     getue(variable, s=None, cp=True, **kwargs)
         returns a copy of variable from UEDGE memory. If cp=False,
         returns the pointer. If multi-species array, a species index can
-        be returned by setting s. 
+        be returned by setting s.
     setue(variable, value, **kwargs)
         sets variable to value in UEDGE memory.
     """
+
     def __init__(self, case):
-        """ Initializes the GetSetMemory class """
+        """Initializes the GetSetMemory class"""
         self.update = case.update
         self.variables = case.variables
         self.search = Lookup()
         self.mutex = case.mutex
-
 
     def get(self, variable, s=None, **kwargs):
         """Returns variable
@@ -784,7 +812,7 @@ class GetSetMemory:
         self.update()  # Update results from UEDGE if they have changed
         # Switch to asses where to access data from
         try:
-            retvar = self.variables['stored'][variable]
+            retvar = self.variables["stored"][variable]
         except:
             retvar = self.getue(variable)
         # Check the size of the array, and return index if multi-species array
@@ -813,7 +841,7 @@ class GetSetMemory:
         None
         """
         try:
-            package = self.variables['package'][variable]
+            package = self.variables["package"][variable]
         except:
             package = self.search.getpackage(variable, verbose=False)
         if self.mutex():
@@ -847,7 +875,7 @@ class GetSetMemory:
         from numpy import ndarray
 
         try:
-            package = self.variables['package'][variable]
+            package = self.variables["package"][variable]
         except:
             package = self.search.getpackage(variable, verbose=False)
 
@@ -865,13 +893,14 @@ class GetSetMemory:
                     retvar = retvar[:, :, s]
         return retvar
 
+
 class GetSetInplace:
-    """ Duck typing helper class for cases reading HDF5 files
+    """Duck typing helper class for cases reading HDF5 files
 
     Methods
     -------
     get(variable, s=None, **kwargs)
-        get variable from HDF5 local storage. If not available, prints 
+        get variable from HDF5 local storage. If not available, prints
         a warning.
     getue(variable, s=None, cp=True, **kwargs)
         raises an exception as not UEDGE memory is used/available
@@ -880,7 +909,7 @@ class GetSetInplace:
     """
 
     def __init__(self, case):
-        """ Initializes the GetSetInplace class """
+        """Initializes the GetSetInplace class"""
         self.info = case.info
         self.variables = case.variables
 
@@ -903,13 +932,13 @@ class GetSetInplace:
         """
         from numpy import ndarray
         from h5py import File
-        
+
         try:
-            with File(self.info['filename'], 'r') as f:
-                retvar = f[self.variables['stored'][variable]][()]
+            with File(self.info["filename"], "r") as f:
+                retvar = f[self.variables["stored"][variable]][()]
         except:
             if verbose:
-                print("{} not found in {}".format(variable, self.info['filename']))
+                print("{} not found in {}".format(variable, self.info["filename"]))
             return
 
         if isinstance(retvar, (ndarray, list)):
@@ -920,12 +949,8 @@ class GetSetInplace:
 
     def getue(self, *args, **kwargs):
         """Placeholder to avoid getting/setting when reading inplace."""
-        raise Exception("Cannot get UEDGE values when reading from "+\
-                            "HDF5 file")
+        raise Exception("Cannot get UEDGE values when reading from " + "HDF5 file")
 
     def setue(self, *args, **kwargs):
         """Placeholder to avoid getting/setting when reading inplace."""
-        raise Exception("Cannot set UEDGE values when reading from "+\
-                            "HDF5 file")
-
-
+        raise Exception("Cannot set UEDGE values when reading from " + "HDF5 file")
