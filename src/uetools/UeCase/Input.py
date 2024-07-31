@@ -35,6 +35,7 @@ class Input:
         self.tools = Tools()
         self.reload = case.reload
         self.tracker = case.tracker
+        self.populate = case.populate
         self.savefuncs = case.savefuncs
 
     def readhdf5(self, fname):
