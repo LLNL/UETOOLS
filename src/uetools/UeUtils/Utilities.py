@@ -8,7 +8,8 @@ class Utilities():
     def calc_lcon(self):
         """ Stores connection length in Case.lcon """
         from numpy import cumsum
-        try:
+        geom = self.get('geometry')[0].decode('UTF-8').strip() 
+        if geom in ['snull', 'uppersn']:
             #TODO: How to extend to dnulls????
             # Calc and store connection lengths
             lcon = cumsum(1/(self.get('rr')*self.get('gx')+1e-20), axis=0)
@@ -19,9 +20,11 @@ class Utilities():
                 cumsum(1/(self.get('rr')*self.get('gx')+1e-20)[\
                 self.get('ixpt2')[0]+1:,:self.get('iysptrx')[0]+1], axis=0
             )
-        except:
-            pass
-        return lcon
+            return lcon
+        else:
+            raise NotImplementedError("Connection lengt calculation for "+
+                "geometry {} not yet implemented".format(geom))
+            
 
 
         
