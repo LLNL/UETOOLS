@@ -19,6 +19,7 @@ class Tracker:
     """
 
     def __init__(self, case):
+        """Links Tracker obj to Case obj"""
         self.getue = case.getue
         self.variables = case.variables
         self.get_bottomkeys = Tools().get_bottomkeys
