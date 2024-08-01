@@ -1,7 +1,61 @@
 class Lookup:
+    """Class providing various search functions
+
+    Methods
+    -------
+    getpackage(var, verbose=True, **kwargs)
+        gets package var belongs to as str
+    getpackobj(var, verbose=True, **kwargs)
+        gets package var belongs to as Forthon Package obj
+    var(variable)
+        print documentation available for var
+    infostring(variable)
+        get all info of var as a raw string
+    aboutdict(variable)
+        get a parsed dict of into about var
+    aboutparameter(variable, parameter)
+        Return "parameter" attribute of var
+    package(variable)
+        Return "package" attribute of var
+    group(variable)
+        Return "group" attribute of var
+    attributes(variable)
+        Return "attributes" attribute of var
+    dimension(variable)
+        Return "dimension" attribute of var
+    type(variable)
+        Return "type" attribute of var
+    address(variable)
+        Return "address" attribute of var
+    pyaddress(variable)
+        Return "pyaddress" attribute of var
+    unit(variable)
+        Return "unit" attribute of var
+    comment(variable)
+        Return "comment" attribute of var
+    varname(string)
+        Return all variables containing string
+    comments(string)
+        Return all variable whose comment contain string
+
+    """
 
     def getpackage(self, var, verbose=True, **kwargs):
-        """Returns the package name of variable"""
+        """Returns the package name of variable
+
+        Arguments
+        ---------
+        var - string of variable name
+
+        Keyword arguments
+        -----------------
+        verbose : bool (default = True)
+            if true, wanrs verbosely if var found in multiple packages
+
+        Return
+        ------
+        String of package containing var
+        """
         try:
             from Forthon import package, packageobject
         except:
@@ -21,7 +75,21 @@ class Lookup:
         return ret[0]
 
     def getpackobj(self, var, verbose=True, **kwargs):
-        """Returns the package object of variable"""
+        """Returns the package object of variable
+
+        Arguments
+        ---------
+        var - string of variable name
+
+        Keyword arguments
+        -----------------
+        verbose : bool (default = True)
+            if true, wanrs verbosely if var found in multiple packages
+
+        Return
+        ------
+        Forthon.Package object of package containing var
+        """
         try:
             from Forthon import package, packageobject
         except:
@@ -88,9 +156,9 @@ class Lookup:
         for i in range(len(keys)):
             ret[keys[i]] = vals[i + 1].replace("  ", "")
         try:
-            ret['Attributes'] = ret['Attributes'].split()
+            ret["Attributes"] = ret["Attributes"].split()
         except:
-            raise 
+            raise
         return ret
 
     def aboutparameter(self, variable, parameter):
