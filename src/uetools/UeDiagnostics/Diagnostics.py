@@ -621,7 +621,7 @@ class Spectrometer:
         """
         from uetools.UePostproc.ADASclass import ADASSpecies
 
-        self.rates = ADASSpecies(path, species, ratetype, **kwargs)
+        self.adas = ADASSpecies(path, species, ratetype, **kwargs)
 
     def plot_spectrometer(self, ax=None, **kwargs):
         """Plots the spectometer chords on ax
@@ -677,7 +677,7 @@ class Spectrometer:
         2D array of floats corresponding to ph/s/m**3
         """
         if rates is None:
-            rates = self.rates
+            rates = self.adas
         species = rates.species.lower()
         return rates.calc_emission(
             self.grid.densities["e"][0],
@@ -730,17 +730,17 @@ class Spectrometer:
         self.emission = {}
         # Ensure a rate file is used
         if rates is None:
-            rates = self.rates
+            rates = self.adas
         # Get the species from the rates
         species = rates.species.lower()
         # Validate lambda input
         # If none, calculate all lines
         if lam is None:
-            lam = list(rates.lines[chargestate].keys())
+            lam = list(rates.rates[chargestate].keys())
         # If a single line, wrap it in a list
         elif isinstance(lam, (int, float)):
             # If lambda is not found, use the closest line
-            if lam not in rates.lines[chargestate]:
+            if lam not in rates.rates[chargestate]:
                 lam = rates.get_closest_line(lam, rates.linelist[chargestate])
             lam = [lam]
         # If list, use all lambdas in list
@@ -748,7 +748,7 @@ class Spectrometer:
             _lam = []
             for l in lam:
                 # Check that line is present, otherwise, use closest lambda
-                if l not in rates.lines[chargestate]:
+                if l not in rates.rates[chargestate]:
                     l = rates.get_closest_line(l, rates.linelist[chargestate])
                 _lam.append(l)
             lam = _lam
