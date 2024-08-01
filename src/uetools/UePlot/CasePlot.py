@@ -10,12 +10,11 @@ class Caseplot(Plot):
         self.get = case.get
         self.info = case.info
         self.tools = Tools()
-        self.snull = (self.get('geometry')[0].decode('UTF-8').strip() \
+        snull = (self.get('geometry')[0].decode('UTF-8').strip() \
             in ['uppersn', 'snull'])
-        self.dnull = not self.snull
-        self.usn = (self.get('geometry')[0].decode('UTF-8').strip() \
+        usn = (self.get('geometry')[0].decode('UTF-8').strip() \
                     == 'uppersn')
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, snull=snull, dnull=not snull, usn=usn, **kwargs)
     
     def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
         """Adds metadata to figure"""
