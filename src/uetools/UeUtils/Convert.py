@@ -10,7 +10,8 @@ class Convert:
         writes a standalone Python input file based on Case
     write_yaml(fname)
         writes a UETOOLS YAML input file based on Case
-    convert_py2yaml(fname)
+    py2yaml(fnamepy, fnameyaml, savename, casename=None, additional_vars
+            =["isupimpap", "nusp_imp", "nurlx", "numvarbwpad"])
         converts an arbitrary Python file to a UETOOLS YAML input file
     strip_numpy(struct, parent=[])
         recursively strips numpy formats from entries in dict
@@ -284,7 +285,7 @@ class Convert:
             f.write(filedump)
         # TODO: add capability to also write autodetected changes
 
-    def convert_py2yaml(
+    def py2yaml(
         self,
         fnamepy,
         fnameyaml,
@@ -301,7 +302,7 @@ class Convert:
            default values:
                 "from uetools import Case;c = Case(store_defaults=True)"
         3. Execute the external script to restore the solution
-        4. Call write_py2yaml
+        4. Call Case.convert.py2yaml
 
         Function
         --------

@@ -178,11 +178,9 @@ class ADASSpecies:
         for lam in lines:
             intensity = 0
             line = chglines[lam]
-            for reaction in line:
-                for _, rate in reaction.items():
-                    for r in rtype:
-                        if r in line:
-                            intensity += line[r](ne, te, n0, n1, nh, self.resolved)
+            for reaction in rtype: 
+                if reaction in line.keys():
+                    intensity += line[reaction](ne, te, n0, n1, nh, self.resolved)
             output[lam] = intensity
         return output
 
@@ -246,9 +244,6 @@ class ADASSpecies:
                         # Create a place for the rates in self.rates
                         if not chargestate in self.rates.keys():
                             self.rates[chargestate] = {}
-                        # TODO: This line gets overwritten, use append instead?
-                        if not lam in self.rates[chargestate].keys():
-                            self.rates[chargestate][lam] = []
                         rate = {}
                         # Store the different reactions for the line to a buffer
                         for rtype in ["excit", "recom", "chexc"]:
@@ -257,7 +252,7 @@ class ADASSpecies:
                             except:
                                 pass
                         # Append the rates to the struct
-                        self.rates[chargestate][lam].append(rate)
+                        self.rates[chargestate][lam] = rate
         # Compile lists of lines by chargestate
         self.linelist = {}
         for chargestate, lines in self.rates.items():

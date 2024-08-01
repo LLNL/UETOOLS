@@ -54,11 +54,10 @@ class AboutSetup:
         }
 
     def uedge_setup(self):
-        raise NotImplementedError()
         self.species_setup()
-        self.about_equations()
-        self.about_recycling()
-        self.about_sputtering()
+#        self.about_equations()
+#        self.about_recycling()
+#        self.about_sputtering()
 
     def recycling_snull(self):
         from sys import modules

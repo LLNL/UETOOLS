@@ -217,7 +217,7 @@ class GridPlot:
 
         Keyword arguments
         -----------------
-        ax : matplotlib.pyplot.Figure or Axis (default = None)
+        ax : matplotlib.pyplot.Figure or Axes (default = None)
             axis to plot on. If None, creates new figure
         surfaces : range (default = None)
             range of surfaces to plot. If none, plots all
@@ -339,7 +339,7 @@ class GridPlot:
         -----------------
         aeqdsk : str (default = None)
             Path to aeqdsk file. If None, does not read any aeqdsk
-        ax : matplotlib.pyplot.Figure or Axis (default = None)
+        ax : matplotlib.pyplot.Figure or Axes (default = None)
             axis to plot on. If None, creates new figure
         ncontour : int (default = 80)
             number of contours to plot for EFIT psis

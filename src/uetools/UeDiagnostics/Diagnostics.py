@@ -495,7 +495,6 @@ class Spectrometer:
         """
 
         # TODO: Add capability of specifiyng coords according to arrays
-        from .GridData import Grid
         from numpy import ndarray
 
         # Switch whether to use fan or pencil-beam
@@ -619,7 +618,7 @@ class Spectrometer:
         -------
         None
         """
-        from uetools.UePostproc.ADASclass import ADASSpecies
+        from uetools.UeUtils import ADASSpecies
 
         self.adas = ADASSpecies(path, species, ratetype, **kwargs)
 
@@ -775,8 +774,8 @@ class Spectrometer:
 
         Keyword arguments
         -----------------
-        ax : matplotlib.pyplot.Figure or Axis object (default = None)
-            Axis to plot onto. If None, creates new figure
+        ax : matplotlib.pyplot.Figure or Axes object (default = None)
+            Axes to plot onto. If None, creates new figure
         linestyle : str (default = '-')
             style of line plotted
         marker : str (default = 'o')
@@ -788,7 +787,7 @@ class Spectrometer:
             None, plots chords vs range(len(Spectrometer.chords))
 
         """
-        from matplotlib.pyplot import subplots, Figure, Axis
+        from matplotlib.pyplot import subplots, Figure, Axes
 
         if ax is None:
             f, ax = subplots()
@@ -830,8 +829,8 @@ class Spectrometer:
 
         Keyword arguments
         -----------------
-        ax : matplotlib.pyplot.Figure or Axis object (default = None)
-            Axis to plot onto. If None, creates new figure
+        ax : matplotlib.pyplot.Figure or Axes object (default = None)
+            Axes to plot onto. If None, creates new figure
         linestyle : str (default = '-')
             style of line plotted
         color : str (default = 'k')
@@ -860,7 +859,7 @@ class Spectrometer:
         ax=None,
         linestyle="-",
         marker="o",
-        color="k ",
+        color="k",
         rates=None,
         x=None,
         **kwargs,
@@ -877,8 +876,8 @@ class Spectrometer:
 
         Keyword arguments
         -----------------
-        ax : matplotlib.pyplot.Figure or Axis object (default = None)
-            Axis to plot onto. If None, creates new figure
+        ax : matplotlib.pyplot.Figure or Axes object (default = None)
+            Axes to plot onto. If None, creates new figure
         linestyle : str (default = '-')
             style of line plotted
         color : str (default = 'k')
@@ -1023,7 +1022,7 @@ class Grid:
 
     def plot_grid(self, ax=None):
         """Plots a polygrid of Patches on ax"""
-        from matplotlib.pyplot import subplots, Figure, Axis
+        from matplotlib.pyplot import subplots, Figure, Axes
 
         if ax is None:
             f, ax = subplots()

@@ -386,14 +386,13 @@ class Case:
         self.tracker = Tracker(self)
         self.plot = Caseplot(self)
         self.postproc = PostProcessors(self)
-        if not inplace:
-            self.savefuncs = Save(self)
-            self.save = self.savefuncs.save
-            self.solver = Solver(self)
-            self.populate = self.solver.populate
-            self.utils = Utilities(self)
-            self.convert = Convert(self)
-            self.exmain = self.solver.exmain
+        self.savefuncs = Save(self)
+        self.save = self.savefuncs.save
+        self.solver = Solver(self)
+        self.populate = self.solver.populate
+        self.utils = Utilities(self)
+        self.convert = Convert(self)
+        self.exmain = self.solver.exmain
         self.interpolate = Interpolate(self)
         #    self.radtransp = RadTransp(self)
         self.config = Config()
@@ -465,6 +464,7 @@ class Case:
                                 )
             self.continuation_solve = self.solver.continuation_solve
             self.converge = self.solver.converge
+            self.solver = Solver(self)
             
         self.plot = Caseplot(self)
 

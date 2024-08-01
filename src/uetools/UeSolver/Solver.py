@@ -343,6 +343,7 @@ class Solver(UeRun):
 
         self.continuation_solve(
             var,
+            savedir=savedir,
             commands=[
                 f"self.morphed_mesh('{newgrid}',"
                 + "self.getue('gridmorph'), standalone=False)",
