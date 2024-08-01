@@ -33,7 +33,7 @@ class Convert:
         self.info = case.info
         self.populate = case.populate
         self.record_changes = case.tracker.record_changes
-        self.get_bottomkeys = case.utils.get_bottomkeys
+        self.get_bottomkeys = case.tools.get_bottomkeys
         self.getpackage = Lookup().getpackage
 
     def write_py(self, fname):
