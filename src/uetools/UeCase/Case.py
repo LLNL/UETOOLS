@@ -71,61 +71,61 @@ class Case:
     Case.utils -- uetools.UeUtils.Utils object containing useful tools
             and utilities that _are_ based on UEDGE functionalities
 
-
     Attributes
     ----------
     info : dict
         Dictionary containing information of the Case setup referenced
         by internal and external routines:
-            - casename: str of the current case name (only used for
-                    identification)
-            - uetoolsversion: str of the version of UETOOLS
-            - uedge_ver: str of the version of UEDGE
-            - pyver: str of the version of Python
-            - user: str of the current user name
-            - hostname: str of the current machine hostname
-            - location: str of the absolute path of the CWD
-            - inplace: bool whether to read data from HDF5 file
-            - restored_from_hdf5: bool whether an HDF5 file is
-                    used as input file
-            - verbose: bool whether to output info to stdout
-            - savefile: str of absolute path to save file used
-            - filename: str of absolute path to input file read
-            - diffusivity_file: str of absolute path to HDF5 file
-                    containing 1D/2D radial diffusivity coefficients
-            - aphdir: str of absolute path to directory contaning
-                    hydrogenic rate files (read from ~/.uetoolsrc,
-                    Case-definition, or input file)
-            - apidir: str of absolute path to directory contaning
-                    impurity rate files (read from ~/.uetoolsrc,
-                    Case-definition, or input file)
-            - use_mutex: bool whether to apply mutex checks
-            - session_id: ID of the current Case object, must
-                    match that of UEDGE if using mutex
-            - exmain_evals: number of case evaluations performed
-                    in UEDGE, used to update local variables
+        - casename: str of the current case name (only used for
+        identification)
+        - uetoolsversion: str of the version of UETOOLS
+        - uedge_ver: str of the version of UEDGE
+        - pyver: str of the version of Python
+        - user: str of the current user name
+        - hostname: str of the current machine hostname
+        - location: str of the absolute path of the CWD
+        - inplace: bool whether to read data from HDF5 file
+        - restored_from_hdf5: bool whether an HDF5 file is
+        used as input file
+        - verbose: bool whether to output info to stdout
+        - savefile: str of absolute path to save file used
+        - filename: str of absolute path to input file read
+        - diffusivity_file: str of absolute path to HDF5 file
+        containing 1D/2D radial diffusivity coefficients
+        - aphdir: str of absolute path to directory contaning
+        hydrogenic rate files (read from ~/.uetoolsrc,
+        Case-definition, or input file)
+        - apidir: str of absolute path to directory contaning
+        impurity rate files (read from ~/.uetoolsrc,
+        Case-definition, or input file)
+        - use_mutex: bool whether to apply mutex checks
+        - session_id: ID of the current Case object, must
+        match that of UEDGE if using mutex
+        - exmain_evals: number of case evaluations performed
+        in UEDGE, used to update local variables
+
     variables : dict
-        Nesteed dictionary containing information on variables:
-            - stored: dict of variables stored to the case object, based
-                    on the variable YAML files. Necessary for having
-                    several interactive Case objects open and their data
-                    available at the same time
-            - input: nested dict of the input file. Entries based on
-                    variable YAML files and any read input files
-            - package: dictionary of the packages for each parameter
-            - hashes: nested dict containing hashes of the variable
-                    values at the last exmain-execution the Case object
-                    was assigned to UEDGE
-            - defaults: nested dict containing the default values/arrays
-                    of all variable assigned the input/maybeinput
-                    attributes. Only populated if Case initialized with
-                    the store_defaults option
-            - dims: dictionary of the dimensions (as list of strings)
-                    of all multi-dimensional UEDGE arrays
-            - unset: list of variables not set when reading input, used
-                    for troubleshooting. Should be empty if all is well
-            - omit: list of variables to omit when reading input files,
-                    as they have special logic applied
+        Nested dictionary containing information on variables:
+        - stored: dict of variables stored to the case object, based
+        on the variable YAML files. Necessary for having
+        several interactive Case objects open and their data
+        available at the same time
+        - input: nested dict of the input file. Entries based on
+        variable YAML files and any read input files
+        - package: dictionary of the packages for each parameter
+        - hashes: nested dict containing hashes of the variable
+        values at the last exmain-execution the Case object
+        was assigned to UEDGE
+        - defaults: nested dict containing the default values/arrays
+        of all variable assigned the input/maybeinput
+        attributes. Only populated if Case initialized with
+        the store_defaults option
+        - dims: dictionary of the dimensions (as list of strings)
+        of all multi-dimensional UEDGE arrays
+        - unset: list of variables not set when reading input, used
+        for troubleshooting. Should be empty if all is well
+        - omit: list of variables to omit when reading input files,
+        as they have special logic applied
 
     Methods
     -------

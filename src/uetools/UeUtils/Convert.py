@@ -299,8 +299,8 @@ class Convert:
         -----
         1. !!! CRITICAL !!! Open a new Python session (!!! CRITICAL !!!)
         2. Import and create an uninitialized Case object storing
-           default values:
-                "from uetools import Case;c = Case(store_defaults=True)"
+        default values:
+        "from uetools import Case;c = Case(store_defaults=True)"
         3. Execute the external script to restore the solution
         4. Call Case.convert.py2yaml
 
@@ -308,14 +308,14 @@ class Convert:
         --------
         - Tracks changes to all input values
         - Cross-references any changes to the Python input files,
-          keeping variables referenced
+        keeping variables referenced
 
         Note
         ----
         - Remember to include any and all files used to set up the case
-          (even those called internally) to get the complete input deck
+        (even those called internally) to get the complete input deck
         - If variables are missing, please reach out to the developers to
-          add them to future releases
+        add them to future releases
 
         Arguments
         ---------
@@ -329,7 +329,7 @@ class Convert:
         casename : str (default : None)
             casename of case. If None, uses the savename as casename
         additional_vars : list of str (default :
-                    ['isupimpap', 'nusp_imp', 'nurlx', 'numvarbwpad'])
+            ['isupimpap', 'nusp_imp', 'nurlx', 'numvarbwpad'])
             additional vars that need to be compared, as they have, not
             always been associated with the "input" or "maybeinput"
             attributes

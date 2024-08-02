@@ -14,7 +14,7 @@ class ChordLine:
     p0rz: shapely Point object of start point in (r,z) space
     p1rz: shapely Point object of end point in (r,z) space
     cells: nested dict containing optical path-length through cell
-        in (x,y,z) space, cells[ix][iy] = dL
+    in (x,y,z) space, cells[ix][iy] = dL
 
     Methods
     -------
@@ -22,8 +22,6 @@ class ChordLine:
         plots the (r,z) representation of the chord
     integrate_field(field)
         returns the LOS integral through field in (x,y,z) space
-
-
     """
 
     def __init__(self, p0, p1, grid, *args, res=500, **kwargs):
