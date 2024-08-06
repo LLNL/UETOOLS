@@ -17,9 +17,8 @@ class Cherab:
         Note: Cherab is not imported until the
         triangulation is required.
         """
-
-    self.case = case
-    self._triangulation = None
+        self.case = case
+        self._triangulation = None
 
     @property
     def triangulation(self):
@@ -28,8 +27,8 @@ class Cherab:
         (Re-)Compute if needed.
         """
 
-        rm = self.case.vars["rm"]
-        zm = self.case.vars["zm"]
+        rm = self.case.get("rm")
+        zm = self.case.get("zm")
 
         # Recalculate if the mesh has changed
         if (
@@ -56,7 +55,7 @@ class Cherab:
         """
         prad - Array of radiation emission [Wm^-3]
         """
-        return self.triangulate.with_data(prad).to_emitter(parent=parent, step=step)
+        return self.triangulation.with_data(prad).to_emitter(parent=parent, step=step)
 
     def d3d(self):
         """
