@@ -15,7 +15,7 @@ grid:
     geometry: "snull" #
     isnonog: 1  # Evaluates nonorthogonal fluxes on grid
     gengrid: 0  # Read grid from file
-    GridFileName: "gridue.hdf5" # Path to grid file
+    GridFileName: "nc20.hdf5" # Path to grid file
     isgriduehdf5: 1 # Switch whether to read HDF5 gridue file
 
 solver:
