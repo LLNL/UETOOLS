@@ -1,3 +1,4 @@
+import os
 from uetools.UeUtils import Tools
 
 try:
@@ -176,7 +177,7 @@ class Input:
                         if not self.info["restored_from_hdf5"]:
                             self.setue(
                                 "GridFileName",
-                                "/".join([self.info["location"], dictobj]),
+                                os.path.join(self.info["location"], dictobj),
                             )
                         return
                     # Circumvent the padding with nulls for strings
@@ -249,9 +250,7 @@ class Input:
                     elif group[-1] in ["casename", "commands", "chgstate_format"]:
                         self.info[group[-1]] = dictobj
                     else:
-                        self.info[group[-1]] = "/".join(
-                            [self.info["location"], dictobj]
-                        )
+                        self.info[group[-1]] = os.path.join(self.info["location"], dictobj)
             else:
                 for key, value in dictobj.items():
                     dictobj = setinputrecursive(value, group + [key])
@@ -314,14 +313,10 @@ class Input:
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(setupfile))
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], setupfile]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], setupfile)
             # Override with diff_file maually defined diff_file upon
             if diff_file is not None:
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], diff_file]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], diff_file)
             # Otherwise, try setting accoridng to input
             else:
                 # diff_file takes precedence
@@ -333,17 +328,13 @@ class Input:
                         if (self.info["radialdifffname"] is not None) and (
                             self.info["radialdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = "/".join(
-                                [self.info["location"], self.radialdifffname]
-                            )
+                            self.info["diffusivity_file"] = os.path.join(self.info["location"], self.radialdifffname)
                         del self.info["radialdifffname"]
                     if "userdifffname" in self.info:
                         if (self.info["userdifffname"] is not None) and (
                             self.info["userdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = "/".join(
-                                [self.info["location"], self.info["userdifffname"]]
-                            )
+                            self.info["diffusivity_file"] = os.path.join(self.info["location"], self.info["userdifffname"])
                         del self.info["userdifffname"]
             if (self.info["diffusivity_file"] is None) and (
                 self.getue("isbohmcalc") in [0, 2]
