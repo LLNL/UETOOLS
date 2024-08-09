@@ -174,7 +174,6 @@ class SolverStrategy:
 
         Arguments
         ---------
-
         start_settings: List[float]
             The strategy settings to start
         processes : int
@@ -186,12 +185,11 @@ class SolverStrategy:
         -------
 
         In a directory with an "input.yaml" file:
-
         import uetools
         uetools.UeCase.SolverStrategy.optimize(
-            uetools.UeCase.SolverStrategy.good_settings[0],
-            32,
-            "input.yaml"
+        uetools.UeCase.SolverStrategy.good_settings[0],
+        32,
+        "input.yaml"
         )
 
         """

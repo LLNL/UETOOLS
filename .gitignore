@@ -5,6 +5,7 @@
 *.h5
 .DS_Store
 uetools/ignore/
+requirements.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -61,6 +62,7 @@ cover/
 
 # Sphinx documentation
 docs/_build/
+docs/
 
 # PyBuilder
 .pybuilder/
