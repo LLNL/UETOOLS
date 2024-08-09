@@ -342,9 +342,12 @@ class Save:
                                 variable
                             ][()]
                 if self.info["verbose"]:
+                    prfile = savefname
+                    if len(prfile.split('/'))>3:
+                        prfile = ".../{}".format('/'.join(prfile.split('/')[-3:]))
                     print(
                         "UETOOLS-style save successfully restored "
-                        + "from {}".format(savefname)
+                        + "from {}".format(prfile)
                     )
             elif "bbb" in savefile.keys():
                 statevars = ["nis", "ngs", "tes", "tis", "ups", "phis"]
