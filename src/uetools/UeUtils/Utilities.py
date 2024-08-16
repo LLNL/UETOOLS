@@ -103,6 +103,7 @@ class Utilities:
         resolution=(500j, 800j),
         mask=False,
         fill=float("NaN"),
+        zshift = 0,
     ):
         """Interpolates date from UEDGE grid to uniform square
 
@@ -138,12 +139,15 @@ class Utilities:
         from numpy import floor, ceil, mgrid, array, nan, concatenate
         from shapely.geometry import Point
         from shapely.geometry.polygon import Polygon
+        from copy import deepcopy
 
         # Get R,Z coords
         rm = self.get("rm")
         zm = self.get("zm")
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "     uppersn":
             zm = self.disp - zm
+        zm = deepcopy(zm)
+        zm += zshift
         if mask:
             # Mask out external points
             x = []
@@ -160,7 +164,7 @@ class Utilities:
             for i in range(rm.shape[0] - 1, self.get("ixpt2")[0], -1):
                 x.append(rm[i, 0, 4])
                 y.append(zm[i, 0, 4])
-            for i in range(self.get(["ixpt1"])[0], -1, -1):
+            for i in range(self.get("ixpt1")[0], -1, -1):
                 x.append(rm[i, 0, 4])
                 y.append(zm[i, 0, 4])
             if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
