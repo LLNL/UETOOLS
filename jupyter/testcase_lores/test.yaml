@@ -1,0 +1,126 @@
+casename: testcase
+savefile: nc20.hdf5
+restart: 1
+species:
+  ngsp: 2
+  nhsp: 2
+  isimpon: 6
+  nzsp:
+    0: 6
+grid:
+  mhdgeo: 1
+  geometry: snull
+  isnonog: 1
+  gengrid: 0
+  GridFileName: gridue.hdf5
+  isgriduehdf5: 1
+solver:
+  svrpkg: nksol
+  premeth: ilut
+physics:
+  oldseec: 0
+boundaryconditions:
+  isnicore:
+    0: 1
+  ncore: 2.e19
+  iflcore: 0
+  tcoree: 250
+  tcorei: 250
+  tedge: 2
+  t_wall: 300
+  t_plat: 500
+atoms:
+  ziin:
+    1: 0
+  ineudif: 2
+  isupgon:
+    0: 1
+  isngon:
+    0: 0
+  cfnidh: 0.2
+rates:
+  istabon: 10
+carbon:
+  ngbackg:
+    1: 1.e9
+  ingb: 2
+  istgcon:
+    1: 1
+  tgas:
+    1: 1
+  rcxighg: 0
+  n0g:
+    1: 1.e16
+  isch_sput:
+    1: 7
+  isph_sput:
+    1: 3
+  csfaclb:
+    2: [2.191, 2.191, 2.191, 2.191, 2.191, 2.191]
+  csfacrb:
+    2: [2.191, 2.191, 2.191, 2.191, 2.191, 2.191]
+  minu:
+    2: [12, 12, 12, 12, 12, 12]
+  ziin:
+    2: [1, 2, 3, 4, 5, 6]
+  znuclin:
+    2: [6, 6, 6, 6, 6, 6]
+  n0:
+    2: []
+  fphysylb:
+    1:
+      0: 0.5
+  fphysyrb:
+    1:
+      0: 0.5
+  fchemylb:
+    1:
+      0: 0.1
+  fchemyrb:
+    1:
+      0: 0.1
+  nzbackg: 1.e9
+  inzb: 2
+  ismctab: 2
+  mcfilename: C_rates.strahl
+  isnicore:
+    7: 3
+  curcore:
+    7: 0
+  isnwcono:
+    2: [3, 3, 3, 3, 3, 3]
+  isnwconi:
+    2: [3, 3, 3, 3, 3, 3]
+  nwomin:
+    2: []
+  nwimin:
+    2: []
+diffusivities:
+  difni: [1]
+  kye: 1
+  kyi: 1
+  travis: [1]
+fluxlim:
+  flalfe: 0.21
+  flalfi: 0.21
+  flalfv: 0.5
+  flalfgx: 1
+  flalfgy: 1
+  flalfgxy: 1
+  flalftgx: 1
+  flalftgy: 1
+  lgmax: 0.1
+  lgtmax: 0.1
+  lgvmax: 0.1
+differencing:
+  methn: 33
+  methu: 33
+  methe: 33
+  methi: 33
+  methg: 66
+recycling:
+  isoldalbarea: 0
+  recycp: [0.95, 0.01]
+  recycw:
+    1: 0.0001
+  recycm: 0.1

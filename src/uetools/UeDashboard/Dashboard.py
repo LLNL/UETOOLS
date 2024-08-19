@@ -50,7 +50,7 @@ from PyQt5.QtWidgets import (
 # TODO: Add "Grid" plot, plotting a B&W grid only
 # TODO: Implement diagnostics GUI 
 # TODO: Store previously opened files in separate yaml under .uedgerc
-
+# TODO: Implement opening an additional window for secondary parameter
 
 class DatabaseDashboard(QWidget):
     """ Main Window """
@@ -82,7 +82,7 @@ class DatabaseDashboard(QWidget):
         self.slider.setMinimum(0)
         self.slider.setMaximum(1000)
         self.slider.setValue(0)
-        self.slider.sliderMoved.connect(\
+        self.slider.valueChanged.connect(\
                 self.update_case)
         
         self.buttons = QHBoxLayout()
@@ -125,22 +125,23 @@ class DatabaseDashboard(QWidget):
             self.updateLabel()
             self.dash.case = self.case
             self.dash.get = self.case.get
-            self.dash.caseplot.verts.set_verts(self.case.nodes)
+            self.dash.caseplot.verts.set_verts(self.case.plot.nodes)
             self.dash.caseplot.updatePlot()
             self.dash.updateVar()
             lines = {}
             for line in self.dash.caseplot.canvas.axes.lines:
                 lines[line.get_label()] = line.get_visible()
                 line.remove()
-            self.case.plotlcfs(ax=self.dash.caseplot.canvas.axes, flip=True)
+            self.case.plot.lcfs(ax=self.dash.caseplot.canvas.axes, flip=True)
             if not lines['lcfs']:
                 self.dash.caseplot.toggleSeparatrix()
-            self.case.plotplates(ax=self.dash.caseplot.canvas.axes, flip=True)
+            self.case.plot.plates(ax=self.dash.caseplot.canvas.axes, flip=True)
             if not lines['plate1']:
                 self.dash.caseplot.togglePlates()
-            self.case.plotvessel(ax=self.dash.caseplot.canvas.axes, flip=True)
+            self.case.plot.vessel(ax=self.dash.caseplot.canvas.axes, flip=True)
             if not lines['vessel']:
                 self.dash.caseplot.toggleVessel()
+            self.dash.caseplot.canvas.draw()
 
     def sort(self):
         dlg = DatabaseSort(self.db)
@@ -451,19 +452,19 @@ class CaseDashboard(QWidget):
     def __init__(self, case, parent=None):
         """Initializer."""
         super().__init__(parent)
-        self.file = case.filename
+        self.file = case.info['filename']
 
         self.centralWidget = QWidget(self)
         self.caseplot = HeatmapInteractiveFigure(case)
         # Cannibalize Case functions
-        self.inplace = case.inplace
-        self.casevars = case.vars
+        self.inplace = case.info['inplace']
+        self.casevars = case.variables['stored']
         self.get = case.get
-        self.nx = case.nx
-        self.ny = case.ny
-        self.ionarray = case.ionarray
-        self.gasarray = case.gasarray
-        self.casename = case.casename
+        self.nx = case.get('nx')
+        self.ny = case.get('ny')
+        self.ionarray = case.about.ionarray
+        self.gasarray = case.about.gasarray
+        self.casename = case.info['casename']
         self.ionspecies = 0
         self.gasspecies = 0
         self.species = ''
@@ -498,7 +499,7 @@ class CaseDashboard(QWidget):
                WIDGET CREATION
         ==========================="""
     def _createVarButtons(self):
-        from numpy import sum
+        from numpy import sum, ndarray
         self.buttons = {
             'layout': QGridLayout(),
             'title': QLabel(self.title("Plots")),
@@ -559,13 +560,18 @@ class CaseDashboard(QWidget):
         self.buttons['items']['dropdown'].addItem("", 0)
         # TODO: Check that can be plotted --> len(shape)
         for vartype in ['centered', 'staggered']:
-            if self.inplace:
-                for var, path in self.casevars.items():
-                    if (vartype in path) and (var not in varlist):
-                        getvar = self.get(var)
+            for var, path in self.casevars.items():
+                inpath = True
+                if self.inplace:
+                    inpath = (vartype in path)
+                if inpath and (var not in varlist):
+                    getvar = self.get(var)
+                    if isinstance(getvar, ndarray):
                         if (len(getvar.shape) <= 3) and \
                             (len(getvar.shape) > 1) and \
-                            (abs(getvar).max() > 0):
+                            (abs(getvar).max() > 0) and \
+                            (getvar.shape[-1] != 5) and \
+                            (getvar.shape[1] not in (1, 2)):
                             self.buttons['items']['dropdown'].addItem(var, i)
 
         cols[-1].addWidget(self.buttons['items']['dropdown'])
@@ -913,6 +919,8 @@ class CaseDashboard(QWidget):
 
     def plot_dropdown(self, text):
         # TODO: attempt auto-detecting shape
+        if text == "":
+            return
         self.raise_message(text)
         var = self.get(text)
         if len(var.shape) == 3:
@@ -1152,9 +1160,9 @@ class HeatmapInteractiveFigure(QWidget):
         self.canvas.setMinimumWidth(550)
         self.canvas.setMinimumHeight(700)
         self.case = case        
-        self.case.te2D(ax=self.canvas.axes)
-        self.case.set_speciesarrays()
-        self.verts = self.case.Qvertices
+        self.case.plot.te2D(ax=self.canvas.axes)
+        self.case.about.set_speciesarrays()
+        self.verts = self.case.plot.Qvertices
         
         self._createSlider()
         # TODO: moce to MplCanvas??
@@ -1177,7 +1185,7 @@ class HeatmapInteractiveFigure(QWidget):
         ax.set_anchor("C")
         ax.set_position([0.1, old_ax.y0, 0.75, 0.85])
 
-        self.casename = self.case.casename
+        self.casename = self.case.info['casename']
         self.gasspecies = 0
         self.ionspecies = 0
         self.cmap = 'magma'
@@ -1399,6 +1407,7 @@ class HeatmapInteractiveFigure(QWidget):
                 clim[0]=1e-100
             if (clim[1] <= 0) or (clim[1]<clim[0]):
                 clim[1]=1e100
+        self.updatePlot()
         self.verts.set_clim(clim)
         self.canvas.draw()
 
@@ -1426,7 +1435,12 @@ class HeatmapInteractiveFigure(QWidget):
 
 
         if self.log:
-            self.var.mask=(self.var<=0)
+            if self.abs:
+                self.var.mask = False
+            else:
+                self.var.mask=(self.var<=0)
+        else:
+            self.var.mask=False
         self.suptitle = self.suptitle.split("(")[0] \
             + (self.varscale != 1)*" (x{:.3g})".format(self.varscale)
         var = self.varscale*self.var
@@ -1437,8 +1451,8 @@ class HeatmapInteractiveFigure(QWidget):
         if self.abs:
             var = abs(var)
         # Record old values slider values
-        [llim, ulim] = deepcopy(self.verts.get_clim())
         self.verts.set_array(var[1:-1,1:-1].reshape(self.xy))
+        [llim, ulim] = deepcopy(self.verts.get_clim())
         clim = self.verts.get_clim()
         lims = self.get_lims()
         if ulim <= lims[0]:
@@ -1457,6 +1471,7 @@ class HeatmapInteractiveFigure(QWidget):
         # I HAVE NO CLUE WHY THE LOWER LIMIT DOES NOT REGISTER
         # AT THE FIRST CET_CLIM CALL, AND DONT ASK ME HOW LONG
         # IT TOOK TO FIGURE IT OUT!!!
+        self.verts.set_clim((llim, ulim))
         self.verts.set_clim((llim, ulim))
         self.verts.set_clim((llim, ulim))
         self.slider['items']['ulim'].setText(\
