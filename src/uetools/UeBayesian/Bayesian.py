@@ -200,7 +200,7 @@ class Bayesian():
         # Calculate initial sampling through quasi-Monte Carlo method
         if initial_sample > 0:
             if self.c.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
-            self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, **kwargs)
+            self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, random_state=random_state, **kwargs)
         else:
             if self.c.verbose: print('\n====== Begin reading calculated samples =====')
             self.read_existing_samples(save_dir=self.save_dir)
@@ -308,7 +308,7 @@ class Bayesian():
 
 
 
-    def calculate_initial_sampling(self, m=5, N_process=16, timeout=1000, **kwargs):
+    def calculate_initial_sampling(self, m=5, N_process=16, timeout=1000, random_state=0, **kwargs):
         """
         Search initial sampling asynchronously using quasi-Monte Carlo method (LPtau).
         After calculation finished, convergent result will be stored into optimizer.
@@ -321,12 +321,14 @@ class Bayesian():
             Number of multiprocess pool.
         timeout:
             Max wait time (s) for pool.
+        random_state:
+            Initial random seed. 
         **kwargs:
             Additional variables
         """
 
         # calculate initial sampling using LPtau
-        sampler = qmc.Sobol(d=len(self.param_bounds), seed=0)
+        sampler = qmc.Sobol(d=len(self.param_bounds), seed=random_state)
         sample = sampler.random_base2(m=m)
         param_grid = qmc.scale(sample, self.param_bounds[:,0], self.param_bounds[:,1])
 
@@ -348,13 +350,13 @@ class Bayesian():
             
             try:
                 params, target, constraint, sub_dir = job_status[job_id].get(timeout=1000)
-            except TimeoutError:
-                print('Time out for job_id = {}'.format(job_id))
+            except:
+                print('Error getting result for job_id = {}'.format(job_id))
                 target = np.nan
             
             # try to register if result is converge and not duplicated. 
             if not np.isnan(target):
-                try: 
+                try:                     
                     # save data to optimizer
                     self.optimizer.register(params=params, target=target, constraint_value=constraint)                
                     
@@ -401,25 +403,28 @@ class Bayesian():
             # if folder i is calculated and in the directory
             if '{}'.format(i) in dir_list:
                 sub_dir = '{}/{}'.format(save_dir, i)
-                with open('{}/bo_data.pickle'.format(sub_dir), 'rb') as handle:
-                    bo_data = pickle.load(handle)
-                    
-                params = bo_data['params']
-                target = bo_data['target']
-                constraint = bo_data['constraint']
-                sub_dir = bo_data['sub_dir']
                 
-                # try to register if result is converge and not duplicated. 
-                if not np.isnan(target):
-                    try: 
-                        # save data to optimizer
-                        self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                try:
+                    with open('{}/bo_data.pickle'.format(sub_dir), 'rb') as handle:
+                        bo_data = pickle.load(handle)
                         
-                        # save valid job locally
-                        self.bo_data[self.valid_jobs] = bo_data
-                        self.valid_jobs += 1
-                        
-                    except NotUniqueError: pass
+                    params = bo_data['params']
+                    target = bo_data['target']
+                    constraint = bo_data['constraint']
+                    sub_dir = bo_data['sub_dir']
+                    
+                    # try to register if result is converge and not duplicated. 
+                    if not np.isnan(target):
+                        try: 
+                            # save data to optimizer
+                            self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                            
+                            # save valid job locally
+                            self.bo_data[self.valid_jobs] = bo_data
+                            self.valid_jobs += 1
+                            
+                        except NotUniqueError: pass
+                except FileNotFoundError: pass
                 
         # print current best
         if self.c.verbose: self.print_current_best()
@@ -683,8 +688,8 @@ class Bayesian():
                 
                 try:
                     params, target, constraint, sub_dir = job_list[asyc_job_id].get(timeout=1000)
-                except TimeoutError:
-                    print('Time out for job_id = {}'.format(asyc_job_id))
+                except:
+                    print('Error getting result for job_id = {}'.format(asyc_job_id))
                     target = np.nan
                 
                 # try to register if result is converge and not duplicated. 
