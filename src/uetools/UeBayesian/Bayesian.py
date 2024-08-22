@@ -126,6 +126,7 @@ class Bayesian():
         
         self.c = case
         self.physics = physics
+        self.verbose = self.c.info['verbose']
         
         self.valid_jobs = 0 # number of calculations done during BO that converge.
         self.bo_data = {} # dinctionary saving basic information for all finished jobs during BO.
@@ -199,17 +200,17 @@ class Bayesian():
         
         # Calculate initial sampling through quasi-Monte Carlo method
         if initial_sample > 0:
-            if self.c.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
+            if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
             self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, random_state=random_state, **kwargs)
         else:
-            if self.c.verbose: print('\n====== Begin reading calculated samples =====')
+            if self.verbose: print('\n====== Begin reading calculated samples =====')
             self.read_existing_samples(save_dir=self.save_dir)
         
         # Define a list of acqusition functions based on initial results
         self.define_acq(acq_functions)
         
         # begin parallel Bayesian optimization
-        if self.c.verbose: print('\n===== Begin Bayesian optimization =====')
+        if self.verbose: print('\n===== Begin Bayesian optimization =====')
         self.batch_BO_searching(N=bo_steps, 
                                 step=constant_lier_steps, 
                                 N_process=N_processes, 
@@ -217,7 +218,7 @@ class Bayesian():
                                 **kwargs)
         
         # print the final result of Bayesian optimization
-        if self.c.verbose: print('\n===== Bayesian optimization conclusion =====\n')
+        if self.verbose: print('\n===== Bayesian optimization conclusion =====\n')
         return self.BO_conclusion()
         
     
@@ -368,7 +369,7 @@ class Bayesian():
                 except NotUniqueError: pass
                 
         # print current best
-        if self.c.verbose: self.print_current_best()
+        if self.verbose: self.print_current_best()
         
         # close the pool after calculation
         pool.close()
@@ -427,7 +428,7 @@ class Bayesian():
                 except FileNotFoundError: pass
                 
         # print current best
-        if self.c.verbose: self.print_current_best()
+        if self.verbose: self.print_current_best()
         
 
 
@@ -515,7 +516,7 @@ class Bayesian():
             
             # if multiple points are same, they will not be able to be registered. 
             except NotUniqueError:
-                if self.c.verbose: print('Unable to register due to duplicated points during multi_suggest.')
+                if self.verbose: print('Unable to register due to duplicated points during multi_suggest.')
 
         if return_optimizer:
             return suggest_points, tmp_optimizer
@@ -607,7 +608,7 @@ class Bayesian():
 
         if len(non_repeat_data.keys()) < N:
 
-            if self.c.verbose:
+            if self.verbose:
                 print('Warning: not enough non-repeated data, missing {} points. Add random points instead.'.format(N-len(non_repeat_data.keys())))
 
             # add random data 
@@ -655,7 +656,7 @@ class Bayesian():
         # async searching
         for i in range(N):
 
-            if self.c.verbose: print('\nBO step {} ====='.format(i+1))
+            if self.verbose: print('\nBO step {} ====='.format(i+1))
 
             # record the time in each step
             t1 = time.time()
@@ -706,13 +707,13 @@ class Bayesian():
                     except NotUniqueError: pass
                     
             # print current best
-            if self.c.verbose: self.print_current_best()
+            if self.verbose: self.print_current_best()
 
             # just to let optimizer fit data
             tmp = self.optimizer.suggest(self.acq_functions[0])
 
             # print the time used
-            if self.c.verbose:
+            if self.verbose:
                 print('\nTime used: {:.2f} mins'.format((time.time()-t1)/60.))
 
         # close the pool after calculation
