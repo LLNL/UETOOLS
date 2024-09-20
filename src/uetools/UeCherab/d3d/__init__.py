@@ -1,6 +1,7 @@
 # Definitions specific to the DIII-D device
 
 from . import wall
+from . import bolometer
 
 
 class D3D:
@@ -19,6 +20,7 @@ class D3D:
         self.wall = None
         self.emitter = None
         self._camera = None
+        self._bolometer = None
 
     def add_wall(self):
         """
@@ -62,3 +64,13 @@ class D3D:
             )
             self._camera.pixel_samples = 1
         return self._camera
+
+    @property
+    def bolometer(self):
+        """
+        Bolometer arrays.
+        """
+        if self._bolometer is None:
+            self._bolometer = bolometer.BolometerArrays(self.world)
+
+        return self._bolometer
