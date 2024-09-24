@@ -609,8 +609,11 @@ class Convert:
         # Array wit changes: complicated
         elif isinstance(value, ndarray):
             # Check whether the array has been dynamically changed/allocated
-            if (len(value) == 1) and isinstance(value[0], bytes_):
-                buff = value[0].decode("UTF-8").strip()
+            if isinstance(value[0], bytes_):
+                if len(value)==1:
+                    buff = value[0].decode("UTF-8").strip()
+                else:
+                    buff = [x.decode("UTF-8").strip for x in value]
             elif len(self.variables["defaults"][var]) != len(value):
                 buff = self.set2Dbuff(value, self.variables["defaults"][var])
             # Check whether the input is multi-dimensional (2D assumed max)

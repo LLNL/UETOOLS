@@ -906,6 +906,208 @@ class Spectrometer:
         return ax.get_figure()
 
 
+
+
+class D3DBolometers:
+    """ DIII-D bolometer arrays for projection and back-projection
+    
+    Based on routines by W.H. Meyer supplied Aug 14th 2024
+
+    Geometry response matrix and routines for DIII-D bolometer diagnostic.
+
+    The website for the diagnostic is at https://diii-d.gat.com/diii-d/Bolo
+
+    Only the first 48 channels implemented by the matrix are in use.
+    They represent two fans or 24 channels each. The first 24 are 
+    from an R+1 port. The channels from 0-23 sweep from
+    looking almost straight down to looking up into the ceiling.
+    Channels 24-47 are from a fan located in an R-1 port. The
+    channels sweep from looking down to the shelf and sweeping up to 
+    look at the ceiling.
+
+    Variable channel_names match the names to channel names used by DIII-D.
+    They are also the MDSPlus node names used to read the data. The data
+    is located in tree BOLOM and the path is .prad_01.power:<channel_name>.
+    Use function read_bolom to read mdsplus data.
+    """
+    def __init__(self, case, flip=True):
+        from  uetools.UeDiagnostics import __path__ as diagnosticspath
+        from h5py import File
+        from scipy.sparse import csr_matrix
+        # Get path to folder containing UeDiagnostics module
+        self.matrixdata = {}
+        with File('{}/d3d_bolometer_projection.hdf5'.format(
+                    diagnosticspath[0])) as f:
+            for var, data in f.items(): 
+                self.matrixdata[var] = data[()]
+        # Set up interpolation finction onto 65x65 EFIT grid
+        self.interpdata = lambda x, y: case.utils.squareinterp(
+                x,
+                r=(self.matrixdata['rmin'], self.matrixdata['rmax']),
+                z=(self.matrixdata['zmin'], self.matrixdata['zmax']),
+                resolution=(
+                        complex(0, self.matrixdata['grid_xpts']),
+                        complex(0, self.matrixdata['grid_ypts'])
+                ),
+                mask = True,
+                fill = 0.,
+                zshift=y
+        )
+        # Store the 1D array size
+        self.grid_pts = self.matrixdata['grid_xpts']*self.matrixdata['grid_ypts']
+        # Create a scipy sparse matrix for bolometer projection matrix data
+        self.bolomatrix = csr_matrix((
+                self.matrixdata['gmatrix'], 
+                (self.matrixdata['gpos'][:,0], self.matrixdata['gpos'][:,1])),
+                shape = (self.grid_pts, self.matrixdata['matrix_cols'])
+        )
+        # Create list of bolometer pointnames
+        self.channel_names_n = ['bol_u{:02d}_p'.format(x) for x in range(1,25)]+\
+                            ['bol_l{:02d}_p'.format(x) for x in range(1,25)]
+
+
+    def read_bolom(self, shot,time,server='atlas.gat.com'):
+        """
+        Read the time point from each of the channel nodes on the given
+        shot. Time is given in msecs.
+
+        MDSPlus tree: BOLOM
+        Location: .prad_01.power
+        Example MDSplus path: \BOLOM::top.prad_01.power.bol_u01_p
+
+        Channels are read in order bol_u01_p to bol_u24_p
+        and bol_l01_p to bol_l24_p where the "u" and "l" are
+        for upper and lower arrays. 
+
+        Server is defaulted but would require a direct connection. 
+        Remote access will require tunneling and a server value of 
+        something like 'localhost'. An ssh tunnel might be setup with 
+        something like: ssh ...... -L 8000:atlas.gat.com:8000 ......
+        """
+        chans = np.zeros(self.matrixdata['bolom_chans'])
+        try:
+            import MDSplus as mds
+            try:
+                server = mds.Connection(server)
+                try:
+                    tree = server.openTree('BOLOM',shot)
+                except:
+                    server.disconnect()
+                    print('Failed to open tree')
+                    return chans
+            except:
+                print("Failed to connect to server")
+                return chans
+        except:
+            print("Failed to import MDSplus")
+            return chans
+
+        for i in range(self.matrixdata['bolom_chans']):
+            try:
+                chans[i] = server.get('prad_01.power:{%s}[{%g}]'.format(self.channel_names[i],time))
+            except:
+                print('Failed to read channel {%d}: {%s}'.format(i,self.channel_names[i]))
+           
+        server.closeTree('BOLOM',shot)
+        server.disconnect()
+        return chans
+
+    def project_uedge(self, field, zshift=-1.6, plotinterp=False, **kwargs):
+        from numpy import nan_to_num
+        from matplotlib.pyplot import subplots
+        if plotinterp:
+            f, ax = subplots()
+            ax.pcolormesh(*[nan_to_num(x) for x in self.interpdata(field, zshift)])
+            ax.set_aspect('equal')
+        return self.project(nan_to_num(self.interpdata(field, zshift)[-1]), **kwargs)
+
+    def plot_project_uedge(self, field, ax=None, **kwargs):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        if ax is None:
+            f, ax = subplots()
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+            f = ax.get_figure()
+        elif isinstance(ax, Axes):
+            f = ax.get_figure()
+        else:
+            raise TypeError("ax type {} not compatibel".format(type(ax)))
+        ax.plot(self.project_uedge(field, **kwargs))
+
+    def project(self, field=None, **kwargs):
+        """
+        This is the main synthetic diagnotic routine. The input needs to
+        be a 65x65 array of radiated power values (W/m^3).  If A is the
+        diagnostic response matrix then this returns A*im.
+
+        Use flat=True to generate a flat field projection. This will
+        show how diagnostic geometry can effect the channelr-to-channel
+        signal variation.
+        """
+        from numpy import zeros, arange, ones
+        if field is None:
+            field = ones(self.grid_pts) 
+        else:
+            field = field.reshape(self.grid_pts)
+
+        return (self.bolomatrix.transpose() * field)[:self.matrixdata['bolom_chans']]
+
+    def backproject(self, signal=None, **kwargs):
+        """
+        This is the routine is a simple backprojection of the channel 
+        data onto a blank image(65x65). If A is the diagnostic response 
+        matrix then this return A_transpose*chans
+
+        Use flat=True to generate a flat signal backprojection. This 
+        will illuminate the chords in a 65x65 grid. It will show 
+        brightness variation due to channel geometry differences.
+        """
+        from numpy import ones, ndarray, linspace, zeros
+        if signal is None:
+            lchans = ones(self.matrixdata['matrix_cols'])
+            lchans[self.matrixdata['bolom_chans']:self.matrixdata['matrix_cols']] = 0
+        elif isinstance(signal, (list, ndarray)):
+            lchans = zeros(self.matrixdata['matrix_cols'])
+            lchans[:self.matrixdata['bolom_chans']] = signal[:self.matrixdata['bolom_chans']]
+        else:
+            raise TypeError("Signal type {} not recognized!".format(type(signal)))
+
+        return (self.bolomatrix * lchans).reshape(self.matrixdata['grid_xpts'], self.matrixdata['grid_ypts'])
+
+    def plot_backprojection(self, signal=None, ax=None, res=None, method='linear', **kwargs):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        from numpy import linspace, meshgrid
+        from scipy.interpolate import RegularGridInterpolator
+        if ax is None:
+            f, ax = subplots()
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+            f = ax.get_figure()
+        elif isinstance(ax, Axes):
+            f = ax.get_figure()
+        else:
+            raise TypeError("ax type {} not compatibel".format(type(ax)))
+        ox = linspace(self.matrixdata['rmin'], self.matrixdata['rmax'], 
+                self.matrixdata['grid_xpts'])
+        oy = linspace(self.matrixdata['zmin'], self.matrixdata['zmax'], 
+                self.matrixdata['grid_ypts'])
+        oz = self.backproject(signal, **kwargs)
+        if res is None:
+            ax.pcolormesh(ox, oy, oz, **kwargs)
+        else:
+            nx = linspace(self.matrixdata['rmin'], self.matrixdata['rmax'], res[0]) 
+            ny = linspace(self.matrixdata['zmin'], self.matrixdata['zmax'], res[1]) 
+            gx, gy = meshgrid(nx, ny, indexing='ij')
+            ax.pcolormesh(gx, gy, RegularGridInterpolator((oy, ox), oz, method=method)((gy, gx)), **kwargs)
+            
+        ax.set_aspect('equal')
+        return f
+            
+
+
+
+
+
 class Grid:
     """Geometric grid for diagnostics
 

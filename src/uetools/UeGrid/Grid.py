@@ -20,7 +20,7 @@ class Grid:
         """Links class to uetools.Case functions"""
         self.get = case.getue
         self.setue = case.setue
-        self.plot = GridPlot()
+        self.plot = GridPlot(case)
 
     def pick_aeqdskdata(self, geqdsk, ncontour=250, interpres=2000, **kwargs):
         """Tool for manually defining aeqdsk data
@@ -77,9 +77,7 @@ class Grid:
             (xi, yi),
         )
 
-        #        c = ax.pcolormesh(xi, yi, gradinterp, cmap='hot_r', vmax=0.1)#, vmin=-0.2, vmax=0.2)
-        # c = ax.pcolormesh(xi, yi, (gradinterp[0]**2+gradinterp[1]**2)**0.5, cmap='bwr', vmin=-0.2, vmax=0.2)
-        #        f.colorbar(c, ax=ax)
+        #c = ax.pcolormesh(xi, yi, gradinterp, cmap='hot_r', vmax=0.1)#, vmin=-0.2, vmax=0.2)
 
         print("Manually identify the following points in order")
         print("(Choose by clicking in the figure)")  # , undo by right-clicking)')
@@ -209,6 +207,10 @@ class GridPlot:
             linestyle='solid', sepcolor='k', linewidth=0.5)
         Plots the efit equilibrium
     """
+    def __init__(self, case):
+        self.get = case.get
+        self.setue = case.setue
+        self.reload = case.reload
 
     def flx(self, ax=None, surfaces=None):
         """Plots flux surfaces from UEDGE memory
@@ -382,6 +384,7 @@ class GridPlot:
             raise FileNotFoundError(
                 'EFIT geqdsk file "{}" not found.\nAborting...'.format(geqdsk)
             )
+        self.reload()
 
         if ax is None:
             f, ax = subplots(figsize=(7, 9))

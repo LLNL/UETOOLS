@@ -465,9 +465,9 @@ class Case:
                                 self.variables["defaults"][key] = deepcopy(
                                     self.getue(key)
                                 )
+            self.solver = Solver(self)
             self.continuation_solve = self.solver.continuation_solve
             self.converge = self.solver.converge
-            self.solver = Solver(self)
             
         self.plot = Caseplot(self)
 

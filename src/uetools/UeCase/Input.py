@@ -37,6 +37,8 @@ class Input:
         self.reload = case.reload
         self.tracker = case.tracker
         self.savefuncs = case.savefuncs
+        # Makes self.populate available in input files
+        self.populate = case.populate
 
     def readhdf5(self, fname):
         """Reads the UEDGE input deck from setup group of HDF5
@@ -309,11 +311,16 @@ class Input:
             if isinstance(self.info["savefile"], bytes):
                 self.info["savefile"] = self.info["savefile"].decode("UTF-8")
             if self.info["restored_from_hdf5"] is True:
+
+                prfile = setupfile
+                if len(prfile.split('/'))>3:
+                    prfile = ".../{}".format('/'.join(prfile.split('/')[-3:]))
                 print("=================================================")
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
-                print("  Grid read from {}".format(setupfile))
+                print("  Grid read from {}".format(prfile))
                 self.info["diffusivity_file"] = os.path.join(self.info["location"], setupfile)
+
             # Override with diff_file maually defined diff_file upon
             if diff_file is not None:
                 self.info["diffusivity_file"] = os.path.join(self.info["location"], diff_file)
@@ -340,15 +347,22 @@ class Input:
                 self.getue("isbohmcalc") in [0, 2]
             ):
                 self.info["diffusivity_file"] = self.info["savefile"]
+
+                prfile = self.info["diffusivity_file"]
+                if len(prfile.split('/'))>3:
+                    prfile = ".../{}".format('/'.join(prfile.split('/')[-3:]))
                 print(
                     "No diffusivity-file supplied: reading from "
-                    + 'save-file "{}"'.format(self.info["diffusivity_file"])
+                    + 'save-file "{}"'.format(prfile)
                 )
             # Set diffusivities based on file if model requires profiles
             if self.getue("isbohmcalc") == 0:
+                prfile = self.info["diffusivity_file"]
+                if len(prfile.split('/'))>3:
+                    prfile = ".../{}".format('/'.join(prfile.split('/')[-3:]))
                 print(
                     "  User-specified diffusivities read from HDF5 "
-                    + 'file "{}"'.format(self.info["diffusivity_file"])
+                    + 'file "{}"'.format(prfile)
                 )
                 self.userdiff(self.info["diffusivity_file"])
                 try:
