@@ -22,12 +22,25 @@ class D3D:
         self._camera = None
         self._bolometer = None
 
-    def add_wall(self):
+    def add_wall(self, name="wall1"):
         """
         Add a wall to the Cherab world
         """
-        self.wall = wall.axisymmetric_wall2()
+        from raysect.optical.material import AbsorbingSurface
+
+        # Dictionary of available walls
+        walls = {
+            "wall1": wall.axisymmetric_wall1,
+            "wall1_bol": wall.axisymmetric_wall1_bol,
+            "wall2": wall.axisymmetric_wall2,
+        }
+
+        if not (name in walls):
+            raise KeyError(f"Wall '{name}' not found. Available walls: {walls.keys()}")
+
+        self.wall = walls[name]()
         self.wall.parent = self.world
+        self.wall.material = AbsorbingSurface()
         return self
 
     def set_emission(self, prad):

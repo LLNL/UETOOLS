@@ -9,8 +9,48 @@ class AxisymmetricWall:
     def __init__(self, rlim, zlim):
         from cherab.tools.primitives import axisymmetric_mesh_from_polygon
 
+        self.rlim = rlim
+        self.zlim = zlim
+
         wall_polygon = np.stack((rlim, zlim), axis=1)
-        self.wall_mesh = axisymmetric_mesh_from_polygon(wall_polygon)
+        self.mesh = axisymmetric_mesh_from_polygon(wall_polygon)
+
+    @property
+    def parent(self):
+        return self.mesh.parent
+
+    @parent.setter
+    def parent(self, value):
+        self.mesh.parent = value
+
+    @property
+    def material(self):
+        return self.mesh.material
+
+    @material.setter
+    def material(self, value):
+        self.mesh.material = value
+
+    def plotRZ(self, ax=None, show=True):
+        """
+        Plot as a line in the R-Z plane
+
+        ax - Matplotlib axis [optional]. If not given then a new figure is created.
+        show - If true, calls matplotlib.pyplot.show()
+        """
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            fig, ax = plt.subplots()
+            ax.set_xlabel("Major radius [m]")
+            ax.set_ylabel("Height [m]")
+
+        ax.plot(self.rlim, self.zlim, "k", label="Wall")
+
+        if show:
+            plt.show()
+
+        return ax
 
 
 def axisymmetric_wall1():
@@ -129,6 +169,128 @@ def axisymmetric_wall1():
     return AxisymmetricWall(rlim, zlim)
 
 
+def axisymmetric_wall1_bol():
+    """
+    Create an axisymmetric wall with open geometry, flat floor top and bottom.
+
+    Modified to accomodate the bolometer arrays
+    """
+    rlim = np.array(
+        [
+            1.01680005,
+            1.01680005,
+            1.01680005,
+            1.01680005,
+            1.15090001,
+            1.70959997,
+            1.90550005,
+            2.14059997,
+            2.5,  # Inserted
+            # 2.20350003,
+            # 2.32929993,
+            2.39059997,
+            2.3756001,
+            2.3756001,
+            2.36169982,
+            2.33959985,
+            2.34979987,
+            2.35249996,
+            2.3527,
+            2.36029983,
+            2.3664999,
+            2.36689997,
+            2.36879992,
+            2.37079978,
+            2.36879992,
+            2.36689997,
+            2.3664999,
+            2.36029983,
+            2.3527,
+            2.35249996,
+            2.34979987,
+            2.33959985,
+            2.36169982,
+            2.3756001,
+            2.3756001,
+            2.39059997,
+            # 2.3289001,
+            # 2.20239997,
+            2.5,  # Inserted
+            2.13910007,
+            1.83669996,
+            1.82210004,
+            1.70000005,
+            1.56299996,
+            1.39999998,
+            1.27499998,
+            1.15390003,
+            1.01680005,
+            1.01680005,
+            1.01680005,
+            1.01680005,
+            1.01680005,
+        ]
+    )
+    zlim = np.array(
+        [
+            0.0,
+            0.39976001,
+            0.41475999,
+            1.21730006,
+            1.35140002,
+            1.35140002,
+            1.19299996,
+            1.00269997,
+            0.9,  # Inserted
+            # 0.85009998,
+            # 0.5449,
+            0.39219999,
+            0.39219999,
+            0.3655,
+            0.35839999,
+            0.3249,
+            0.2189,
+            0.20100001,
+            0.2,
+            0.15000001,
+            0.1097,
+            0.1,
+            0.05,
+            0.0,
+            -0.05,
+            -0.1,
+            -0.1097,
+            -0.15000001,
+            -0.2,
+            -0.20100001,
+            -0.2189,
+            -0.3249,
+            -0.35839999,
+            -0.3655,
+            -0.39219999,
+            -0.39219999,
+            # -0.54579997,
+            # -0.85290003,
+            -0.9,  # Inserted
+            -1.00639999,
+            -1.36590004,
+            -1.36590004,
+            -1.36590004,
+            -1.36590004,
+            -1.36590004,
+            -1.36590004,
+            -1.36590004,
+            -1.22880006,
+            -0.80000001,
+            -0.41475999,
+            -0.39976001,
+            0.0,
+        ]
+    )
+
+    return AxisymmetricWall(rlim, zlim)
+
+
 def axisymmetric_wall2():
     """
     This wall was extracted from a GEQDSK file for shot 163518
@@ -190,8 +352,9 @@ def axisymmetric_wall2():
             1.78499997,
             2.06999993,
             2.12800002,
-            2.24499989,
-            2.32299995,
+            # Modifying two points to accommodate bolometer arrays
+            2.48,  # 2.24499989,
+            2.48,  # 2.32299995,
             2.37700009,
             2.36249995,
             2.36443496,
@@ -202,6 +365,10 @@ def axisymmetric_wall2():
             2.36433411,
             2.36249995,
             2.37700009,
+            # Inserting two points
+            2.48,
+            2.48,
+            # End insert
             2.13400006,
             1.78600001,
             1.76800001,
@@ -281,8 +448,9 @@ def axisymmetric_wall2():
             1.07700002e00,
             1.03999996e00,
             9.92999971e-01,
-            7.08999991e-01,
-            5.18999994e-01,
+            # Modifying two
+            9.92999971e-01,  # 7.08999991e-01,
+            0.6,  # 5.18999994e-01,
             3.88999999e-01,
             4.00000006e-01,
             2.22000003e-01,
@@ -293,6 +461,10 @@ def axisymmetric_wall2():
             -2.22000003e-01,
             -4.00000006e-01,
             -3.88999999e-01,
+            # Inserting two
+            -0.6,
+            -9.72999990e-01,
+            # End insert
             -9.72999990e-01,
             -1.17400002e00,
             -1.21099997e00,

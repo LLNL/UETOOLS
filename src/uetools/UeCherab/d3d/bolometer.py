@@ -71,7 +71,7 @@ D3D_BOLOMETER_ARRAYS = {
     },
     "D": {
         # Box size [Width (cm), Height (cm), Depth (cm)]
-        "Box": [20, 2, 20],
+        "Box": [15, 2, 15],
         # Aperture size [Tor (cm), Pol (cm)]
         "Aper": [0.762, 0.762],
         # Radius of curvature of foils [cm]
@@ -80,19 +80,19 @@ D3D_BOLOMETER_ARRAYS = {
         "foil_width": 0.3476,
         "foil_length": 0.3476,
         # Locations are [X (cm), Y (cm), Z (cm), angle (degrees)]
-        "Aper Loc": [231.89438, -77.2541, 0.0, 192.29],
+        "Aper Loc": [231.89438, -77.2541, -2.1438, 192.29],
         "channels": {
-            "#25": [242.29314, -70.32244, 0.0, 213.69],
-            "#26": [242.697, -70.97014, 0.0, 210.19],
-            "#27": [243.06022, -71.6407, 0.0, 206.69],
-            "#28": [243.3828, -72.33412, 0.0, 203.18],
-            "#29": [243.6622, -73.04532, 0.0, 199.69],
-            "#30": [237.97006, -75.68946, 0.0, 194.44],
-            "#31": [238.11484, -76.44384, 0.0, 187.44],
-            "#32": [238.16818, -77.20838, 0.0, 180.44],
-            "#33": [238.12754, -77.97292, 0.0, 173.42],
-            "#34": [237.99292, -78.7273, 0.0, 166.42],
-            "#35": [237.7694, -79.45882, 0.0, 159.43],
+            "#25": [242.29314, -70.32244, -2.4841, 213.69],
+            "#26": [242.697, -70.97014, -2.4841, 210.19],
+            "#27": [243.06022, -71.6407, -2.4841, 206.69],
+            "#28": [243.3828, -72.33412, -2.4841, 203.18],
+            "#29": [243.6622, -73.04532, -2.4841, 199.69],
+            "#30": [237.97006, -75.68946, -2.4841, 194.44],
+            "#31": [238.11484, -76.44384, -2.4841, 187.44],
+            "#32": [238.16818, -77.20838, -2.4841, 180.44],
+            "#33": [238.12754, -77.97292, -2.4841, 173.42],
+            "#34": [237.99292, -78.7273, -2.4841, 166.42],
+            "#35": [237.7694, -79.45882, -2.4841, 159.43],
         },
     },
     "C": {
@@ -106,21 +106,21 @@ D3D_BOLOMETER_ARRAYS = {
         "foil_width": 0.3476,
         "foil_length": 0.3476,
         # Locations are [X (cm), Y (cm), Z (cm), angle (degrees)]
-        "Aper Loc": [234.93222, -66.88074, 0.0, 123.09],
+        "Aper Loc": [234.93222, -66.88074, 2.1438, 123.09],
         "channels": {
-            "#36": [240.4999, -69.37248, 0.0, 155.96],
-            "#37": [240.1697, -70.00748, 0.0, 149.23],
-            "#38": [239.76838, -70.5993, 0.0, 142.42],
-            "#39": [239.29848, -71.14032, 0.0, 135.78],
-            "#40": [243.55044, -77.32268, 0.0, 129.6],
-            "#41": [242.99164, -77.75956, 0.0, 126.6],
-            "#42": [242.41252, -78.16596, 0.0, 123.6],
-            "#43": [241.81054, -78.54188, 0.0, 120.6],
-            "#44": [241.19078, -78.88732, 0.0, 117.6],
-            "#45": [240.55578, -79.1972, 0.0, 114.6],
-            "#46": [239.903, -79.47406, 0.0, 111.6],
-            "#47": [239.23752, -79.7179, 0.0, 108.6],
-            "#48": [236.18698, -72.86752, 0.0, 101.91],
+            "#36": [240.4999, -69.37248, 2.4841, 155.96],
+            "#37": [240.1697, -70.00748, 2.4841, 149.23],
+            "#38": [239.76838, -70.5993, 2.4841, 142.42],
+            "#39": [239.29848, -71.14032, 2.4841, 135.78],
+            "#40": [243.55044, -77.32268, 2.4841, 129.6],
+            "#41": [242.99164, -77.75956, 2.4841, 126.6],
+            "#42": [242.41252, -78.16596, 2.4841, 123.6],
+            "#43": [241.81054, -78.54188, 2.4841, 120.6],
+            "#44": [241.19078, -78.88732, 2.4841, 117.6],
+            "#45": [240.55578, -79.1972, 2.4841, 114.6],
+            "#46": [239.903, -79.47406, 2.4841, 111.6],
+            "#47": [239.23752, -79.7179, 2.4841, 108.6],
+            "#48": [236.18698, -72.86752, 2.4841, 101.91],
         },
     },
 }
@@ -271,9 +271,12 @@ class BolometerArrays:
                 channels.append(channel)
         self._channels = channels
 
-    def plotLinesOfSight(self, ax=None, show=True):
+    def plotLinesOfSight(self, channels=None, ax=None, legend=False, show=True):
         """
         Plot lines of sight for all channels
+
+        channels - A list of channels to plot e.g ["#1", "#2"].
+                   If None then all channels are plotted
 
         ax - Matplotlib axis [optional]. If not given then a new figure is created.
         show - If true, calls matplotlib.pyplot.show()
@@ -298,28 +301,30 @@ class BolometerArrays:
         from raysect.primitive import Box
 
         floor = Box(
-            lower=Point3D(-10, -10, -1.25),
-            upper=Point3D(10, 10, -1.25),
+            lower=Point3D(-10, -10, -1.5),
+            upper=Point3D(10, 10, -1.5),
             parent=self.world,
             material=AbsorbingSurface(),
-            name="Z=-1.25 plane",
+            name="Z=-1.5 plane",
         )
         ceiling = Box(
-            lower=Point3D(-10, -10, 1.25),
-            upper=Point3D(10, 10, 1.25),
+            lower=Point3D(-10, -10, 1.5),
+            upper=Point3D(10, 10, 1.5),
             parent=self.world,
             material=AbsorbingSurface(),
-            name="Z=+1.25 plane",
+            name="Z=+1.5 plane",
         )
         left = Box(
             lower=Point3D(0.5, -10, -10),
             upper=Point3D(0.5, 10, 10),
             parent=self.world,
             material=AbsorbingSurface(),
-            name="Z=+1.25 plane",
+            name="X=+0.5 plane",
         )
 
         for foil in self.channels:
+            if (channels is not None) and (foil.name not in channels):
+                continue  # Skip this channel
             slit_centre = foil.slit.centre_point
             slit_centre_rz = _point3d_to_rz(slit_centre)
             ax.plot(slit_centre_rz[0], slit_centre_rz[1], "ko")
@@ -351,7 +356,8 @@ class BolometerArrays:
         ceiling.parent = None
         left.parent = None
 
-        ax.legend()
+        if legend:
+            ax.legend()
 
         if show:
             plt.show()
@@ -364,3 +370,22 @@ class BolometerArrays:
         List of bolometer channels (BolometerFoil objects) from all arrays
         """
         return self._channels
+
+    def power(self):
+        """
+        Returns three lists:
+        - Name of each channel (e.g. "#1")
+        - Power incident on detector [Watts]
+        - Error in power [Watts]
+        """
+        names = []
+        power = []
+        error = []
+        for foil in self.channels:
+            foil.pixel_samples = 100000
+            foil.units = "Power"
+            foil.observe()
+            names.append(foil.name)
+            power.append(foil.pipelines[0].value.mean)
+            error.append(foil.pipelines[0].value.error())
+        return names, power, error
