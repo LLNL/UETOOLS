@@ -3,6 +3,7 @@ from uetools.UeSolver import Solver
 from .Save import Save
 from .Config import Config
 from .Input import Input
+from uetools.UeCherab import Cherab
 from uetools.UeGrid import Grid
 from uetools.UeUtils import *
 from uetools.UePostproc.Postproc import PostProcessors
@@ -36,6 +37,7 @@ class Case:
     ------------------
     Case.about -- uetools.AboutSetup object, containing tools that
             help identify the current case setup
+    Case.cherab -- Coupling to the Cherab raytracing library
     Case.config -- uetools.Config object used to read and create
             personal ~/.uetoolsrc-files
     Case.getset -- uetools.Case.GetSetMemory or GetSetInplace object
@@ -398,6 +400,7 @@ class Case:
         self.config = Config()
         self.grid = Grid(self)
         self.about = AboutSetup(self)
+        self.cherab = Cherab(self)
         self.input = Input(self)
         # Set up paths from config file
         self.config.case(verbose=False)
