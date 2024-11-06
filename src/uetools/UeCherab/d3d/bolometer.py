@@ -5,6 +5,10 @@
 
 import numpy as np
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Definitions of the bolometer arrays, their apertures and channels
 #
 # This was extracted from ExistingBoloGeometry.xlsx
@@ -258,7 +262,18 @@ def create_array(array, world):
 
 
 class BolometerArrays:
-    def __init__(self, world):
+    def __init__(self, cherab, world):
+        """
+        # Parameters
+
+        cherab : uetools.UeCherab.Cherab
+            Interface betweem Cherab and a Case object
+
+        world : raysect.optical.World
+            The root node of the scene graph
+
+        """
+        self.cherab = cherab
         self.world = world
 
         self.arrays = {
@@ -389,3 +404,48 @@ class BolometerArrays:
             power.append(foil.pipelines[0].value.mean)
             error.append(foil.pipelines[0].value.error())
         return names, power, error
+
+    def sensitivity(self, ray_count: int = 10000):
+        """Calculate the sensitivity / geometry matrix of the bolometer
+        system.  This can be slow to calculate. The result is cached
+        and reused if the mesh triangulation is unchanged.
+
+        Note: Implementation makes assumption that triangulation
+              uses two triangles per UEDGE cell. Sums sensitivity
+              of the triangles.
+
+        # Parameters
+
+        ray_count : int
+            The number of rays to use for each foil
+
+        # Returns
+
+        A 2D NumPy array [nfoils, ncells] of sensitivities
+
+        """
+        # Get the mesh triangulation
+        triangulation = self.cherab.triangulation
+
+        # Get the triangulation as a set of voxels
+        voxels = triangulation.to_voxel_grid(parent=self.world)
+
+        matrix = []
+        for foil in self.channels:
+            logger.info(f"    Foil {foil}")
+            # Compute a row in the sensitivity matrix
+            triangle_sensitivity = foil.calculate_sensitivity(
+                voxels, ray_count=ray_count
+            )
+            ntriangles = triangle_sensitivity.size
+
+            if ntriangles % 2 != 0:
+                raise ValueError("Expected an even number of triangles")
+
+            # Sum pairs of triangles: Reshape then sum
+            cell_sensitivity = np.sum(
+                triangle_sensitivity.reshape((ntriangles // 2, 2)), axis=-1
+            )
+            matrix.append(cell_sensitivity)
+
+        return np.array(matrix)

@@ -3,6 +3,10 @@
 from .triangulate import Triangulate
 import numpy as np
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class Cherab:
     """# Interface to Cherab
@@ -73,7 +77,7 @@ class Cherab:
             or (not np.allclose(rm, self._triangulation.rm))
             or (not np.allclose(zm, self._triangulation.zm))
         ):
-            print("Triangulating the UEDGE grid")
+            logger.info("Triangulating the UEDGE grid")
             self._triangulation = Triangulate(rm, zm)
         return self._triangulation
 

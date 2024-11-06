@@ -294,6 +294,8 @@ def axisymmetric_wall1_bol():
 def axisymmetric_wall2():
     """
     This wall was extracted from a GEQDSK file for shot 163518
+
+    Modified to accomodate bolometer arrays
     """
     rlim = np.array(
         [
