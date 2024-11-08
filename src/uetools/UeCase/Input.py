@@ -1,3 +1,4 @@
+import os
 from uetools.UeUtils import Tools
 
 try:
@@ -178,7 +179,7 @@ class Input:
                         if not self.info["restored_from_hdf5"]:
                             self.setue(
                                 "GridFileName",
-                                "/".join([self.info["location"], dictobj]),
+                                os.path.join(self.info["location"], dictobj),
                             )
                         return
                     # Circumvent the padding with nulls for strings
@@ -324,14 +325,11 @@ class Input:
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(prfile))
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], setupfile]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], setupfile)
+
             # Override with diff_file maually defined diff_file upon
             if diff_file is not None:
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], diff_file]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], diff_file)
             # Otherwise, try setting accoridng to input
             else:
                 # diff_file takes precedence
