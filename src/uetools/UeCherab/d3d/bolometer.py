@@ -5,10 +5,6 @@
 
 import numpy as np
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 # Definitions of the bolometer arrays, their apertures and channels
 #
 # This was extracted from ExistingBoloGeometry.xlsx
@@ -421,31 +417,11 @@ class BolometerArrays:
 
         # Returns
 
-        A 2D NumPy array [nfoils, ncells] of sensitivities
+        A BolometerSensitivity object
 
         """
-        # Get the mesh triangulation
-        triangulation = self.cherab.triangulation
+        from ..bolometer_sensitivity import BolometerSensitivity
 
-        # Get the triangulation as a set of voxels
-        voxels = triangulation.to_voxel_grid(parent=self.world)
-
-        matrix = []
-        for foil in self.channels:
-            logger.info(f"    Foil {foil}")
-            # Compute a row in the sensitivity matrix
-            triangle_sensitivity = foil.calculate_sensitivity(
-                voxels, ray_count=ray_count
-            )
-            ntriangles = triangle_sensitivity.size
-
-            if ntriangles % 2 != 0:
-                raise ValueError("Expected an even number of triangles")
-
-            # Sum pairs of triangles: Reshape then sum
-            cell_sensitivity = np.sum(
-                triangle_sensitivity.reshape((ntriangles // 2, 2)), axis=-1
-            )
-            matrix.append(cell_sensitivity)
-
-        return np.array(matrix)
+        return BolometerSensitivity(
+            self.cherab, self.world, self.channels, ray_count=ray_count
+        )
