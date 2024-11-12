@@ -171,3 +171,38 @@ class Triangulate:
         return TriangularData(
             self.vertices, self.triangles, np.repeat(data2d.flatten(), 2)
         )
+
+    def to_voxel_grid(self, parent=None):
+        """
+        Returns a Cherab ToroidalVoxelGrid
+        https://www.cherab.info/tools/tomography.html#cherab.tools.inversions.voxels.ToroidalVoxelGrid
+
+        This can be used to calculate diagnostic geometry matrices.
+
+        # Examples
+
+        Triangulate the UEDGE mesh and turn it into voxels
+        >>> voxels = c.cherab.triangulation.to_voxel_grid()
+
+        Plot the voxels in the R-Z plane
+        >>> voxels.plot()
+
+        >>> experiment = c.cherab.d3d(zshift = 1.6).add_wall('wall1_bol')
+
+        Put the voxels in the same world as the bolometers
+        >>> voxels.parent = experiment.world
+
+        for foil in experiment.bolometer.channels:
+            print(f"{foil} : {np.amax(foil.calculate_sensitivity(voxels))}")
+
+        """
+
+        from cherab.tools.inversions.voxels import ToroidalVoxelGrid
+
+        # Get arrays rs[ntriangle, 3] and zs[ntriangle, 3]
+        rs = self.vertices[self.triangles, 0]
+        zs = self.vertices[self.triangles, 1]
+
+        # [ntriangles, 3, 2] array of coordinates
+        voxel_data = np.stack((rs, zs), axis=-1)
+        return ToroidalVoxelGrid(voxel_data, parent=parent)

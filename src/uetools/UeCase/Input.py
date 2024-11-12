@@ -172,7 +172,7 @@ class Input:
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
                 if group[-1] not in self.variables["omit"] + ["chgstate_format"]:
-                    # NOTE: Not sure what to do with chgstate_format, fauls for some strange reason...
+                    # NOTE: Not sure what to do with chgstate_format, fails for some strange reason...
                     # NOTE: Should not be an input, just skip for the time being
                     # Avoid overwriting grid path when restoring from HDF5
                     if group[-1] == "GridFileName":
@@ -242,7 +242,10 @@ class Input:
                     elif dictobj is None:
                         print("WARNING Unset specifier in input:", group[-1])
                     else:
-                        self.setue(group[-1], dictobj)
+                        try:
+                            self.setue(group[-1], dictobj)
+                        except KeyError as e:
+                            print(f"WARNING Could not set '{group[-1]}' to '{dictobj}'. Reason: {e}")
 
                 else:  # Set calls to restore diffusivities
                     if (group[-1] == "savefile") and (
@@ -256,9 +259,11 @@ class Input:
                     else:
                         if isinstance(dictobj, (bytes, bytearray)):
                             dictobj = dictobj.decode("UTF-8")
-                        self.info[group[-1]] = "/".join(
-                            [self.info["location"], dictobj]
-                        )
+                        try:
+                            self.info[group[-1]] = os.path.join(self.info["location"], dictobj)
+                        except TypeError:
+                            # dictobj may be e.g. bool that can't be joined with path
+                            self.info[group[-1]] = self.info["location"]
             else:
                 for key, value in dictobj.items():
                     dictobj = setinputrecursive(value, group + [key])

@@ -596,12 +596,15 @@ class Case:
                     # Such behavior goes here
                     pass
                 elif isinstance(dictobj, (int, float, int64, float64)):
-                    self.variables["stored"][group[-1]] = self.getue(group[-1])
+                    try:
+                        self.variables["stored"][group[-1]] = self.getue(group[-1])
+                    except Exception as e:
+                        print(f"WARNING: Could not get value of '{group[-1]}'. Reason: {e}")
                 elif isinstance(dictobj, (bytes, str)):
                     try:
                         self.variables["stored"][group[-1]] = self.getue(group[-1])
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"WARNING: Could not get value of '{group[-1]}'. Reason: {e}")
                 else:
                     self.variables["unset"].append([group, dictobj])
             else:

@@ -258,7 +258,18 @@ def create_array(array, world):
 
 
 class BolometerArrays:
-    def __init__(self, world):
+    def __init__(self, cherab, world):
+        """
+        # Parameters
+
+        cherab : uetools.UeCherab.Cherab
+            Interface betweem Cherab and a Case object
+
+        world : raysect.optical.World
+            The root node of the scene graph
+
+        """
+        self.cherab = cherab
         self.world = world
 
         self.arrays = {
@@ -389,3 +400,28 @@ class BolometerArrays:
             power.append(foil.pipelines[0].value.mean)
             error.append(foil.pipelines[0].value.error())
         return names, power, error
+
+    def sensitivity(self, ray_count: int = 10000):
+        """Calculate the sensitivity / geometry matrix of the bolometer
+        system.  This can be slow to calculate. The result is cached
+        and reused if the mesh triangulation is unchanged.
+
+        Note: Implementation makes assumption that triangulation
+              uses two triangles per UEDGE cell. Sums sensitivity
+              of the triangles.
+
+        # Parameters
+
+        ray_count : int
+            The number of rays to use for each foil
+
+        # Returns
+
+        A BolometerSensitivity object
+
+        """
+        from ..bolometer_sensitivity import BolometerSensitivity
+
+        return BolometerSensitivity(
+            self.cherab, self.world, self.channels, ray_count=ray_count
+        )

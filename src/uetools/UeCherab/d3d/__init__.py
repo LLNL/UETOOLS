@@ -22,23 +22,25 @@ class D3D:
         self._camera = None
         self._bolometer = None
 
-    def add_wall(self, name="wall1"):
+    # Dictionary of available walls
+    walls = {
+        "wall1": wall.axisymmetric_wall1,
+        "wall1_bol": wall.axisymmetric_wall1_bol,
+        "wall2": wall.axisymmetric_wall2,
+    }
+
+    def add_wall(self, name="wall1_bol"):
         """
         Add a wall to the Cherab world
         """
         from raysect.optical.material import AbsorbingSurface
 
-        # Dictionary of available walls
-        walls = {
-            "wall1": wall.axisymmetric_wall1,
-            "wall1_bol": wall.axisymmetric_wall1_bol,
-            "wall2": wall.axisymmetric_wall2,
-        }
+        if not (name in self.walls):
+            raise KeyError(
+                f"Wall '{name}' not found. Available walls: {self.walls.keys()}"
+            )
 
-        if not (name in walls):
-            raise KeyError(f"Wall '{name}' not found. Available walls: {walls.keys()}")
-
-        self.wall = walls[name]()
+        self.wall = self.walls[name]()
         self.wall.parent = self.world
         self.wall.material = AbsorbingSurface()
         return self
@@ -84,6 +86,6 @@ class D3D:
         Bolometer arrays.
         """
         if self._bolometer is None:
-            self._bolometer = bolometer.BolometerArrays(self.world)
+            self._bolometer = bolometer.BolometerArrays(self.cherab, self.world)
 
         return self._bolometer
