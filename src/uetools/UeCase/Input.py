@@ -254,7 +254,11 @@ class Input:
                         pass
                     elif group[-1] in ["casename", "commands", "chgstate_format"]:
                         self.info[group[-1]] = dictobj
+                    elif group[-1] in ["lynix", "lyphix", "lytex", "lytix"]:
+                        pass
                     else:
+                        if isinstance(dictobj, (bytes, bytearray)):
+                            dictobj = dictobj.decode("UTF-8")
                         try:
                             self.info[group[-1]] = os.path.join(self.info["location"], dictobj)
                         except TypeError:
@@ -342,13 +346,15 @@ class Input:
                         if (self.info["radialdifffname"] is not None) and (
                             self.info["radialdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = os.path.join(self.info["location"], self.radialdifffname)
+                            self.info["diffusivity_file"] = \
+                                    self.info['radialdifffname']
                         del self.info["radialdifffname"]
                     if "userdifffname" in self.info:
                         if (self.info["userdifffname"] is not None) and (
                             self.info["userdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = os.path.join(self.info["location"], self.info["userdifffname"])
+                            self.info["diffusivity_file"] = \
+                                    self.info["userdifffname"]
                         del self.info["userdifffname"]
             if (self.info["diffusivity_file"] is None) and (
                 self.getue("isbohmcalc") in [0, 2]
@@ -437,7 +443,7 @@ class Input:
         -------
         None
         """
-        from h5py import File
+        from h5py import File, is_hdf5
         from os.path import exists
 
         # TODO: replace with save-group function call?
@@ -448,10 +454,10 @@ class Input:
             raise Exception("Case doesn't own UEDGE memory")
 
         if not exists(fname):
-            fname = self.info["filename"]
-            if not exists(self.info["filename"]):
-                raise Exception("Diffusivity file not found!")
-
+            if is_hdf5(self.info["filename"]):
+                fname = self.info["filename"]
+            else:
+                raise Exception(f"Diffusivity file '{fname}' not found!")
         with File(fname) as file:
             for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
                 self.setue(variable, file[f"diffusivities/bbb/{variable}"][()])

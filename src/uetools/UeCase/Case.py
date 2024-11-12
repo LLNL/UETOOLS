@@ -268,6 +268,10 @@ class Case:
                 "casename",
                 "commands",
                 "savefile",
+                "lynix",
+                "lyphix",
+                "lytex",
+                "lytix",
             ],
         }
         # Assert input file exists before proceeding
@@ -564,7 +568,10 @@ class Case:
             """Recursively traverses dictionary and stores UEDGE data to self"""
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
-                if isinstance(dictobj, (list, ndarray)):
+                if group[-1] in self.variables["omit"]:
+                    # Check if variable is to be omitted and pass those
+                    pass
+                elif isinstance(dictobj, (list, ndarray)):
                     # We have a list: either list of variables to store or
                     # list defning the variable array
                     if self.search.getpackage(group[-1], verbose=False) != None:
@@ -602,7 +609,8 @@ class Case:
                     self.variables["unset"].append([group, dictobj])
             else:
                 for key, value in dictobj.items():
-                    recursivereload(value, group + [key])
+#                        print(key, value)
+                        recursivereload(value, group + [key])
 
         # Pop out any custom commands, as these cannot be reloaded (not vars)
         try:
