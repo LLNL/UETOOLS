@@ -41,7 +41,7 @@ def array_to_param(x):
 
 
 
-def plot_async_2D(param_bounds, optimizer, acq_function, next_points=None, title='', save_folder=None, show_fig=True):
+def plot_async_2D(param_bounds, optimizer, acq_function, next_points=None, title='', save_folder=None, show_fig=True, **kwargs):
     """
     Plot the GP mean estimation and one of the acquisition functions.
     White dots: observed data

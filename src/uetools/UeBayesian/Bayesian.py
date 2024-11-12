@@ -128,7 +128,9 @@ class Bayesian():
         self.physics = physics
         self.verbose = self.c.info['verbose']
         
-        self.valid_jobs = 0 # number of calculations done during BO that converge.
+        self.current_job_target = [] # number of calculation that converged
+        self.total_job_target = [] # number of calculation that converged
+        self.valid_jobs = 0 # number of calculations done during BO that converge and not repeated.
         self.bo_data = {} # dinctionary saving basic information for all finished jobs during BO.
         
 
@@ -140,6 +142,7 @@ class Bayesian():
         constraint=None,
         gp_kernel=None,
         initial_sample=5,
+        N_initial_process=16,
         N_processes=16,
         acq_functions={},
         bo_steps=10,
@@ -147,6 +150,7 @@ class Bayesian():
         bo_plot_status=True,
         save_dir='./bayes_opt',
         random_state=0,
+        timeout=600.,
         **kwargs
         ):
         
@@ -164,6 +168,8 @@ class Bayesian():
         initial_sample:
             Number of initial samples used in quasi-Monte Carlo method. The actual sample points is 2^(initial_sample).
             If initial_sample == 0, the algorithm will try to read from existing calculations.
+        N_initial_process:
+            Number of processes in multiprocess pool for initial sampling.
         N_processes:
             Number of processes in multiprocess pool.
         acq_functions:
@@ -181,6 +187,8 @@ class Bayesian():
         **kwargs:
             Additional keywords.
         """
+        
+        t1 = time.time()
         
         self.param_bounds = param_bounds
         self.save_dir = save_dir
@@ -201,7 +209,11 @@ class Bayesian():
         # Calculate initial sampling through quasi-Monte Carlo method
         if initial_sample > 0:
             if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
-            self.calculate_initial_sampling(m=initial_sample, N_process=N_processes, random_state=random_state, **kwargs)
+            self.calculate_initial_sampling(m=initial_sample, 
+                                            N_process=N_initial_process, 
+                                            random_state=random_state, 
+                                            timeout=timeout, 
+                                            **kwargs)
         else:
             if self.verbose: print('\n====== Begin reading calculated samples =====')
             self.read_existing_samples(save_dir=self.save_dir)
@@ -214,11 +226,15 @@ class Bayesian():
         self.batch_BO_searching(N=bo_steps, 
                                 step=constant_lier_steps, 
                                 N_process=N_processes, 
-                                plot_status=bo_plot_status, 
+                                plot_status=bo_plot_status,
+                                timeout=timeout,
                                 **kwargs)
         
         # print the final result of Bayesian optimization
-        if self.verbose: print('\n===== Bayesian optimization conclusion =====\n')
+        print('\n===== Bayesian optimization conclusion =====\n')
+        total_time = (time.time() - t1) / 60.
+        print('\nTotal BO time =  {:.2f} mins = {:.2f} hours'.format(total_time, total_time/60.))
+        
         return self.BO_conclusion()
         
     
@@ -256,7 +272,10 @@ class Bayesian():
         self.physics.set_params(params, **kwargs)
         
         # calculate UEDGE equilibrium and return the convergence
-        convergence = self.physics.find_equilibrium(uetools_case=self.c, save_dir=sub_dir, **kwargs)
+        try:
+            convergence = self.physics.find_equilibrium(uetools_case=self.c, save_dir=sub_dir, **kwargs)
+        except:
+            convergence = False
         
         # calculate loss function by comparing UEDGE and observed profiles
         if convergence:
@@ -275,7 +294,12 @@ class Bayesian():
         
         # save the data for Bayesian optimzation 
         if save_bo_data:
-            bo_data = {'params':params, 'target':target, 'constraint':constraint, 'sub_dir':sub_dir}
+            bo_data = {
+                'params':params, 
+                'target':target, 
+                'constraint':constraint, 
+                'sub_dir':'{}'.format(len(dir_list))
+                }
             with open('{}/bo_data.pickle'.format(sub_dir), 'wb') as handle:
                 pickle.dump(bo_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
             
@@ -309,7 +333,7 @@ class Bayesian():
 
 
 
-    def calculate_initial_sampling(self, m=5, N_process=16, timeout=1000, random_state=0, **kwargs):
+    def calculate_initial_sampling(self, m=5, N_process=16, timeout=600., random_state=0, **kwargs):
         """
         Search initial sampling asynchronously using quasi-Monte Carlo method (LPtau).
         After calculation finished, convergent result will be stored into optimizer.
@@ -350,13 +374,16 @@ class Bayesian():
         for job_id in np.arange(len(param_grid)):
             
             try:
-                params, target, constraint, sub_dir = job_status[job_id].get(timeout=1000)
+                params, target, constraint, sub_dir = job_status[job_id].get(timeout=timeout)
             except:
                 print('Error getting result for job_id = {}'.format(job_id))
                 target = np.nan
+                
+            self.current_job_target.append(target)
             
             # try to register if result is converge and not duplicated. 
             if not np.isnan(target):
+                
                 try:                     
                     # save data to optimizer
                     self.optimizer.register(params=params, target=target, constraint_value=constraint)                
@@ -369,10 +396,12 @@ class Bayesian():
                 except NotUniqueError: pass
                 
         # print current best
-        if self.verbose: self.print_current_best()
+        self.total_job_target.extend(self.current_job_target)
+        if self.verbose: self.print_current_status()
         
         # close the pool after calculation
         pool.close()
+        self.current_job_target = []
 
 
 
@@ -414,8 +443,11 @@ class Bayesian():
                     constraint = bo_data['constraint']
                     sub_dir = bo_data['sub_dir']
                     
+                    self.current_job_target.append(target)
+                    
                     # try to register if result is converge and not duplicated. 
                     if not np.isnan(target):
+                        
                         try: 
                             # save data to optimizer
                             self.optimizer.register(params=params, target=target, constraint_value=constraint)                
@@ -428,7 +460,9 @@ class Bayesian():
                 except FileNotFoundError: pass
                 
         # print current best
-        if self.verbose: self.print_current_best()
+        self.total_job_target.extend(self.current_job_target)
+        if self.verbose: self.print_current_status()
+        self.current_job_target = []
         
 
 
@@ -457,9 +491,9 @@ class Bayesian():
 
             # Upper Confidence Bound (UCB)
             acq_functions[4] = UtilityFunction(kind="ucb", kappa=1.)
-            acq_functions[5] = UtilityFunction(kind="ucb", kappa=2.)
-            acq_functions[6] = UtilityFunction(kind="ucb", kappa=4.)
-            acq_functions[7] = UtilityFunction(kind="ucb", kappa=16.)
+            acq_functions[5] = UtilityFunction(kind="ucb", kappa=4.)
+            # acq_functions[6] = UtilityFunction(kind="ucb", kappa=4.)
+            # acq_functions[7] = UtilityFunction(kind="ucb", kappa=16.)
         
         self.acq_functions = acq_functions
         self.next_point = self.optimizer.suggest(self.acq_functions[0])    
@@ -623,7 +657,7 @@ class Bayesian():
 
 
 
-    def batch_BO_searching(self, N=20, step=4, N_process=16, plot_status=True, **kwargs):
+    def batch_BO_searching(self, N=20, step=4, N_process=16, plot_status=True, timeout=600., **kwargs):
         """
         Proceed to Bayesian Optimization for #N steps. In every step, run #step number of points for each 
         acquisition function and collected #N_process of non-repeated points. All #N_process points are
@@ -645,13 +679,11 @@ class Bayesian():
             generated at each step.
         plot_status:
             Whether to plot the currect status of BO. Only work for 2-D searching.
+        timeout:
+            Abort if UEDGE does not converge within time.
         **kwargs:
             Additional arguments
         """
-
-        # start a multiprocessing pool
-        with io.capture_output() as captured:
-            pool = QuietPool(processes = N_process)
 
         # async searching
         for i in range(N):
@@ -665,6 +697,12 @@ class Bayesian():
             job_list = {}
             total_suggeested = self.async_suggest(step=step)
             next_points = self.find_non_repeat(total_suggeested, N=N_process, d_min=0.05)
+            
+            t2 = time.time()
+            # print the time used
+            if self.verbose:
+                print('\nTime for suggestion: {:.2f} mins'.format((t2-t1)/60.))
+            
 
             # plot status only for 2-D inference
             if plot_status and (self.optimizer.space.bounds.shape[0]==2):
@@ -675,6 +713,10 @@ class Bayesian():
                               title='Step = {}'.format(i+1),
                               save_folder=self.save_dir,
                               **kwargs)
+                
+            # start a multiprocessing pool
+            with io.capture_output() as captured:
+                pool = QuietPool(processes = N_process)
 
             # submit all jobs
             for asyc_job_id in range(len(next_points)):
@@ -688,13 +730,16 @@ class Bayesian():
             for asyc_job_id in range(len(next_points)):
                 
                 try:
-                    params, target, constraint, sub_dir = job_list[asyc_job_id].get(timeout=1000)
+                    params, target, constraint, sub_dir = job_list[asyc_job_id].get(timeout=timeout)
                 except:
                     print('Error getting result for job_id = {}'.format(asyc_job_id))
                     target = np.nan
+                    
+                self.current_job_target.append(target)
                 
                 # try to register if result is converge and not duplicated. 
                 if not np.isnan(target):
+                    
                     try: 
                         # save data to optimizer
                         self.optimizer.register(params=params, target=target, constraint_value=constraint)                
@@ -707,22 +752,24 @@ class Bayesian():
                     except NotUniqueError: pass
                     
             # print current best
-            if self.verbose: self.print_current_best()
+            self.total_job_target.extend(self.current_job_target)
+            if self.verbose: self.print_current_status()
 
             # just to let optimizer fit data
             tmp = self.optimizer.suggest(self.acq_functions[0])
 
             # print the time used
             if self.verbose:
-                print('\nTime used: {:.2f} mins'.format((time.time()-t1)/60.))
+                print('\nTime for UEDGE: {:.2f} mins'.format((time.time()-t2)/60.))
 
-        # close the pool after calculation
-        pool.close()
+            # close the pool after calculation
+            pool.close()
+            self.current_job_target = []
 
 
 
 
-    def print_current_best(self):
+    def print_current_status(self):
         """ 
         Print current best fit that has the smallest loss
         """
@@ -730,7 +777,29 @@ class Bayesian():
         print('\nCurrent best:')
         current_best = self.optimizer._space.max()
         for key in current_best.keys(): 
-            print('{}: {}'.format(key, current_best[key]))
+            print('    {}: {}'.format(key, current_best[key]))
+        
+        # Convergence analysis
+        print('\nConvergence analysis:')
+        
+        total_job = len(self.current_job_target)
+        unconverged_job = np.isnan(np.array(self.current_job_target)).sum()
+        converged_job = total_job-unconverged_job
+        print('    Current: {:.1f} % jobs ({}/{}) converged.'.format(100.*converged_job/total_job, converged_job, total_job))
+        
+        total_job = len(self.total_job_target)
+        unconverged_job = np.isnan(np.array(self.total_job_target)).sum()
+        converged_job = total_job-unconverged_job
+        print('    Total: {:.1f} % jobs ({}/{}) converged.'.format(100.*converged_job/total_job, converged_job, total_job))
+        
+        # GP kernel
+        print('\nCurrent GP kernel:')
+        try:
+            print('    {}'.format(self.optimizer._gp.kernel_))
+        except:
+            self.optimizer.suggest(UtilityFunction(kind="ei", xi=0.))
+            print('    {}'.format(self.optimizer._gp.kernel_))
+            
 
 
 

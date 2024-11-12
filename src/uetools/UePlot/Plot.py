@@ -496,7 +496,7 @@ class Plot:
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
         ax.set_aspect(aspect)
-        if (z is not None) or (colorbar is True):
+        if (z is not None) and (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")
 
