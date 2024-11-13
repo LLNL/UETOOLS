@@ -974,29 +974,65 @@ class Plot:
         zm = self.get("zm")
         nx = self.get("nx")
         ny = self.get("ny")
-        ixpt1 = self.get("ixpt1")[0]
-        ixpt2 = self.get("ixpt2")[0]
-        iysptrx = self.get("iysptrx")
+        ixlb = self.get("ixlb")
+        ixrb = self.get("ixrb")
+        ixpt1 = self.get("ixpt1")
+        ixpt2 = self.get("ixpt2")
+        iysptrx1 = self.get("iysptrx1")
+        iysptrx2 = self.get("iysptrx2")
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             if flip is True:
                 zm = -zm + self.disp
 
         # Create polygons for masking
         outerx = []
-        outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
-        outerx = outerx + list(rm[0, :, 1])
-        outerx = outerx + list(rm[:, -1, 3])
-        outerx = outerx + list(rm[:, ::-1][-1, :, 4])
-        outerx = outerx + list(rm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
         outery = []
-        outery = outery + list(zm[::-1][-self.get("ixpt1")[0] :, 0, 2])
-        outery = outery + list(zm[0, :, 1])
-        outery = outery + list(zm[:, -1, 3])
-        outery = outery + list(zm[:, ::-1][-1, :, 4])
-        outery = outery + list(zm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+        innerx = []
+        innery = []
+        if self.snull:
+            outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+            outerx = outerx + list(rm[0, :, 1])
+            outerx = outerx + list(rm[:, -1, 3])
+            outerx = outerx + list(rm[:, ::-1][-1, :, 4])
+            outerx = outerx + list(rm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
 
-        innerx = rm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
-        innery = zm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+            outery = outery + list(zm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+            outery = outery + list(zm[0, :, 1])
+            outery = outery + list(zm[:, -1, 3])
+            outery = outery + list(zm[:, ::-1][-1, :, 4])
+            outery = outery + list(zm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+
+            innerx = innerx + list(rm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1])
+            innery = innery + list(zm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1])
+        else:
+            outerx = outerx + list(rm[::-1][-ixpt1[0]-1:, 0, 2])
+            outerx = outerx + list(rm[0, :, 1])
+            outerx = outerx + list(rm[:ixrb[0]+1, -1, 3])
+            outerx = outerx + list(rm[:, ::-1][ixrb[0]+1, :, 4])
+            outerx = outerx + list(rm[ixpt2[0]+1:ixrb[0]+1, 0, 1][::-1])
+
+            outerx = outerx + list(rm[ixlb[1]+1:ixpt1[1]+1, 0, 1][::-1])
+            outerx = outerx + list(rm[ixlb[1],:, 1])
+            outerx = outerx + list(rm[ixlb[1]:, -1, 3])
+            outerx = outerx + list(rm[-1, :, 4][::-1])
+            outerx = outerx + list(rm[ixpt2[1]+1:, 0, 1][::-1])
+
+            outery = outery + list(zm[::-1][-ixpt1[0]-1:, 0, 2])
+            outery = outery + list(zm[0, :, 1])
+            outery = outery + list(zm[:ixrb[0]+1, -1, 3])
+            outery = outery + list(zm[:, ::-1][ixrb[0]+1, :, 4])
+            outery = outery + list(zm[ixpt2[0]+1:ixrb[0]+1, 0, 1][::-1])
+
+            outery = outery + list(zm[ixlb[1]+1:ixpt1[1]+1, 0, 1][::-1])
+            outery = outery + list(zm[ixlb[1],:, 1])
+            outery = outery + list(zm[ixlb[1]:, -1, 3])
+            outery = outery + list(zm[-1, :, 4][::-1])
+            outery = outery + list(zm[ixpt2[1]+1:, 0, 1][::-1])
+
+            innerx = innerx + list(rm[ixpt1[0] + 1 : ixpt2[0] + 1, 0, 1])
+            innerx = innerx + list(rm[ixpt1[1] + 1 : ixpt2[1] + 1, 0, 1])
+            innery = innery + list(zm[ixpt1[0] + 1 : ixpt2[0] + 1, 0, 1])
+            innery = innery + list(zm[ixpt1[1] + 1 : ixpt2[1] + 1, 0, 1])
 
         outer = Polygon(
             array([outerx, outery]).transpose(),
@@ -1011,25 +1047,29 @@ class Plot:
             edgecolor="none",
         )
 
+
         gx, gy = mgrid[
             rm.min() : rm.max() : resolution[0], zm.min() : zm.max() : resolution[1]
         ]
 
+        
         if interplcfs == 1:
             # Fix for LCFS - no interpolation knows about the LCFS
-            xtrax = 0.5*(rm[ixpt2, iysptrx, 4] + rm[ixpt2, iysptrx, 2])
-            xtray = 0.5*(zm[ixpt2, iysptrx, 4] + zm[ixpt2, iysptrx, 2])
-            d0 = (  (rm[ixpt2, iysptrx, 0] - xtrax)**2 + 
-                    (zm[ixpt2, iysptrx, 0] - xtray)**2)**0.5
-            d1 = (  (rm[ixpt1, iysptrx, 0] - xtrax)**2 + 
-                    (zm[ixpt1, iysptrx, 0] - xtray)**2)**0.5
-            varp1 = var[ixpt1, iysptrx]
-            xtraz = (d0*var[ixpt2, iysptrx] + d1*varp1)/(d0 + d1)
-            orig = (concatenate((rm[:, :, 0].ravel(), array((xtrax,)))),
-                    concatenate((zm[:, :, 0].ravel(), array((xtray,)))))
-            fullvar = concatenate((var.ravel(), array((xtraz,))))
+            for i in range(len(ixpt1)):
+                xtrax = 0.5*(rm[ixpt2[i], iysptrx2[i], 4] + rm[ixpt2[i], iysptrx2[i], 2])
+                xtray = 0.5*(zm[ixpt2[i], iysptrx2[i], 4] + zm[ixpt2[i], iysptrx2[i], 2])
+                d0 = (  (rm[ixpt2[i], iysptrx2[i], 0] - xtrax)**2 + 
+                        (zm[ixpt2[i], iysptrx2[i], 0] - xtray)**2)**0.5
+                d1 = (  (rm[ixpt1[i], iysptrx1[i], 0] - xtrax)**2 + 
+                        (zm[ixpt1[i], iysptrx1[i], 0] - xtray)**2)**0.5
+                varp1 = var[ixpt1[i], iysptrx1[i]]
+                xtraz = (d0*var[ixpt2[i], iysptrx2[i]] + d1*varp1)/(d0 + d1)
+                orig = (concatenate((rm[:, :, 0].ravel(), array((xtrax,)))),
+                        concatenate((zm[:, :, 0].ravel(), array((xtray,)))))
+                fullvar = concatenate((var.ravel(), array((xtraz,))))
 
         elif interplcfs == 2:
+            raise NotImplementedError("Option interplcfs=2 not implemented/verified")
             # Fix for LCFS - no interpolation knows about the LCFS
             xtrax, xtray, xtraz = [], [], []
             for i in range(ixpt1+1, ixpt2+1):

@@ -1,3 +1,4 @@
+import os
 from uetools.UeUtils import Tools
 
 try:
@@ -171,14 +172,14 @@ class Input:
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
                 if group[-1] not in self.variables["omit"] + ["chgstate_format"]:
-                    # NOTE: Not sure what to do with chgstate_format, fauls for some strange reason...
+                    # NOTE: Not sure what to do with chgstate_format, fails for some strange reason...
                     # NOTE: Should not be an input, just skip for the time being
                     # Avoid overwriting grid path when restoring from HDF5
                     if group[-1] == "GridFileName":
                         if not self.info["restored_from_hdf5"]:
                             self.setue(
                                 "GridFileName",
-                                "/".join([self.info["location"], dictobj]),
+                                os.path.join(self.info["location"], dictobj),
                             )
                         return
                     # Circumvent the padding with nulls for strings
@@ -241,7 +242,10 @@ class Input:
                     elif dictobj is None:
                         print("WARNING Unset specifier in input:", group[-1])
                     else:
-                        self.setue(group[-1], dictobj)
+                        try:
+                            self.setue(group[-1], dictobj)
+                        except KeyError as e:
+                            print(f"WARNING Could not set '{group[-1]}' to '{dictobj}'. Reason: {e}")
 
                 else:  # Set calls to restore diffusivities
                     if (group[-1] == "savefile") and (
@@ -250,10 +254,16 @@ class Input:
                         pass
                     elif group[-1] in ["casename", "commands", "chgstate_format"]:
                         self.info[group[-1]] = dictobj
+                    elif group[-1] in ["lynix", "lyphix", "lytex", "lytix"]:
+                        pass
                     else:
-                        self.info[group[-1]] = "/".join(
-                            [self.info["location"], dictobj]
-                        )
+                        if isinstance(dictobj, (bytes, bytearray)):
+                            dictobj = dictobj.decode("UTF-8")
+                        try:
+                            self.info[group[-1]] = os.path.join(self.info["location"], dictobj)
+                        except TypeError:
+                            # dictobj may be e.g. bool that can't be joined with path
+                            self.info[group[-1]] = self.info["location"]
             else:
                 for key, value in dictobj.items():
                     dictobj = setinputrecursive(value, group + [key])
@@ -320,14 +330,11 @@ class Input:
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(prfile))
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], setupfile]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], setupfile)
+
             # Override with diff_file maually defined diff_file upon
             if diff_file is not None:
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], diff_file]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], diff_file)
             # Otherwise, try setting accoridng to input
             else:
                 # diff_file takes precedence
@@ -339,17 +346,15 @@ class Input:
                         if (self.info["radialdifffname"] is not None) and (
                             self.info["radialdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = "/".join(
-                                [self.info["location"], self.radialdifffname]
-                            )
+                            self.info["diffusivity_file"] = \
+                                    self.info['radialdifffname']
                         del self.info["radialdifffname"]
                     if "userdifffname" in self.info:
                         if (self.info["userdifffname"] is not None) and (
                             self.info["userdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = "/".join(
-                                [self.info["location"], self.info["userdifffname"]]
-                            )
+                            self.info["diffusivity_file"] = \
+                                    self.info["userdifffname"]
                         del self.info["userdifffname"]
             if (self.info["diffusivity_file"] is None) and (
                 self.getue("isbohmcalc") in [0, 2]
@@ -438,7 +443,7 @@ class Input:
         -------
         None
         """
-        from h5py import File
+        from h5py import File, is_hdf5
         from os.path import exists
 
         # TODO: replace with save-group function call?
@@ -449,10 +454,10 @@ class Input:
             raise Exception("Case doesn't own UEDGE memory")
 
         if not exists(fname):
-            fname = self.info["filename"]
-            if not exists(self.info["filename"]):
-                raise Exception("Diffusivity file not found!")
-
+            if is_hdf5(self.info["filename"]):
+                fname = self.info["filename"]
+            else:
+                raise Exception(f"Diffusivity file '{fname}' not found!")
         with File(fname) as file:
             for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
                 self.setue(variable, file[f"diffusivities/bbb/{variable}"][()])

@@ -1,11 +1,13 @@
 *.swp
 *~
 *.hdf
-*.hdf5
 *.h5
 .DS_Store
 uetools/ignore/
 requirements.txt
+jupyter/**/progress*.hdf5
+jupyter/**/SUCCESS*.hdf5
+jupyter/**/ncore_down*.hdf5
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
