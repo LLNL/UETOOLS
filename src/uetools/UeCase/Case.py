@@ -272,6 +272,8 @@ class Case:
                 "lyphix",
                 "lytex",
                 "lytix",
+                "tvapllim",
+                "tvaprlim",
             ],
         }
         # Assert input file exists before proceeding
