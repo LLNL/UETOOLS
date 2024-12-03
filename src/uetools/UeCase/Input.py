@@ -58,17 +58,26 @@ class Input:
         from h5py import File, Group
         from os.path import exists
 
-        def recursive_readhdf5(ret, setup, group=[]):
+        def recursive_readhdf5(ret, setup, group=[], root=None):
             if len(group) > 0:
-                for subgroup in group:
-                    try:
-                        ret = ret[subgroup]
-                    except:
-                        ret[subgroup] = {}
-                        ret = ret[subgroup]
+                lastgroup=group[0]
+                # Conditional to avoid unnecessary nesting
+                if ((len(group) > 1) and \
+                    (group[-1] == group[-2]) \
+                ):
+                    group.pop(-1)
+                else:
+                    for subgroup in group:
+                        # Conditional to avoid unnecessary nesting
+                        if subgroup not in root.keys():
+                            try:
+                                ret = ret[subgroup]
+                            except:
+                                ret[subgroup] = {}
+                                ret = ret[subgroup]
             for name, content in setup.items():
                 if isinstance(content, Group):
-                    recursive_readhdf5(ret, content, group + [name])
+                    recursive_readhdf5(ret, content, group + [name], root)
                 else:
                     ret[name] = content[()]
 
@@ -77,7 +86,7 @@ class Input:
             raise OSError('File "{}" not found!'.format(fname))
         else:
             with File(fname, "r") as f:
-                recursive_readhdf5(ret, f["setup"])
+                recursive_readhdf5(ret, f["setup"], root=ret)
         self.info["savefile"] = fname
         return ret
 
@@ -134,10 +143,12 @@ class Input:
         from h5py import is_hdf5
         from os.path import abspath
         from Forthon import packageobject
+        from os.path import exists
 
         # Extract user-supplied casename and diff_file
         casename = deepcopy(self.info["casename"])
         diff_file = deepcopy(self.info["diffusivity_file"])
+        self.casename_set = False
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
@@ -253,8 +264,22 @@ class Input:
                     ):
                         pass
                     elif group[-1] in ["casename", "commands", "chgstate_format"]:
+                        if group[-1]=="casename":
+                            self.casename_set = True
                         self.info[group[-1]] = dictobj
-                    elif group[-1] in ["lynix", "lyphix", "lytex", "lytix"]:
+                    elif group[-1] in [
+                            "userdifffname", 
+                            "radialdifffname",
+                            "diff_file",
+                            "savefile",
+                    ]:
+                        if isinstance(dictobj, (bytes, bytearray)):
+                            dictobj = dictobj.decode("UTF-8")
+                        if dictobj is not False:
+                            self.info[group[-1]] = "/".join(
+                                [self.info["location"], dictobj]
+                        )
+                    elif group[-1] in self.variables["omit"]:# ["lynix", "lyphix", "lytex", "lytix"]:
                         pass
                     else:
                         if isinstance(dictobj, (bytes, bytearray)):
@@ -397,7 +422,7 @@ class Input:
                         f"WARNING: failed to read radial diffusivities "
                         + "from {}: {}".format(self.info["diffusivity_file"], e)
                     )
-        if casename is not None:
+        if self.casename_set is False:
             self.info["casename"] = casename
         if savefile is not None:
             self.info["savefile"] = savefile
@@ -407,9 +432,18 @@ class Input:
             self.setue("apidir", self.info["apidir"])
         if restoresave is True:
             if (self.info["savefile"] is None) and (self.get("restart") == 1):
-                raise ValueError("No save-file supplied!")
-            elif self.get("restart") == 1:
+                if self.info["casename"] is not None:
+                    for suffix in ["h5","hdf5"]:
+                        savefile = ".".join([self.info["casename"], suffix])
+                        if exists(savefile):
+                            self.info["savefile"] = savefile
+                if self.info["savefile"] is None:
+                    raise ValueError("No save-file supplied!")
+            if exists(self.info["savefile"]):
                 self.savefuncs.load_state(self.info["savefile"], **kwargs)
+            else:
+                raise ValueError("Could not open save-file '{}'".format(\
+                    self.info["savefile"]))
         if uedge_is_installed and not self.info["inplace"]:
             self.tracker.get_uevars()
         # NOTE: Get the hashes before running any commands. This way,
