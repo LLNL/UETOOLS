@@ -12,7 +12,7 @@ class Grid:
 
     Methods
     -------
-    pick_aequdskdata(geqdsk, ncontour=250, interpres=2000, **kwargs)
+    pick_aeqdskdata(geqdsk, ncontour=250, interpres=2000, **kwargs)
         Lets the user define the magnetic axes and X-point locations
     """
 
@@ -22,7 +22,8 @@ class Grid:
         self.setue = case.setue
         self.plot = GridPlot(case)
 
-    def pick_aeqdskdata(self, geqdsk, ncontour=250, interpres=2000, **kwargs):
+    def pick_aeqdskdata(self, geqdsk, ncontour=250, interpres=2000, 
+        colormesh=False, **kwargs):
         """Tool for manually defining aeqdsk data
 
         Passes **kwargs to self.plot.efit
@@ -38,6 +39,8 @@ class Grid:
         interpres : int (default = 2000)
             resolution of interpolation used to identify magnetic
             axis and X-points
+        colormesh : bool (default = False)
+            switch whether to overlay equilibrium on colored mesh
 
         Return
         ------
@@ -77,7 +80,8 @@ class Grid:
             (xi, yi),
         )
 
-        #c = ax.pcolormesh(xi, yi, gradinterp, cmap='hot_r', vmax=0.1)#, vmin=-0.2, vmax=0.2)
+        if colormesh is True:
+            c = ax.pcolormesh(xi, yi, gradinterp, cmap='hot_r', vmax=0.1)#, vmin=-0.2, vmax=0.2)
 
         print("Manually identify the following points in order")
         print("(Choose by clicking in the figure)")  # , undo by right-clicking)')
