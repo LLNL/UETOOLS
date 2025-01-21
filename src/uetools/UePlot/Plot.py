@@ -298,19 +298,40 @@ class Plot:
                 
             elif self.dnull in ["lower", "balanced"]:
                 for xy in ['r', 'z']:
+                    # OUTER SEPARATRIX
+                    self.sep['osepo'][xy]  = locals()[f"{xy}m"][
+                        ixlb[1]:ixpt2[1]+1, iysptrx2[0]+1, 2
+                    ]
+                    self.sep['osepi'][xy]  = locals()[f"{xy}m"][
+                        ixpt1[0]+1:ixrb[0]+2, iysptrx2[0]+1, 1
+                    ]
+                    isepi = locals()[f"{xy}m"][
+                        ixpt1[0]+1:ixpt2[0]+1, iysptrx1[0]+1, 1
+                    ]
+                    self.sep['isepi'][xy] = append(isepi, locals()[f"{xy}m"][
+                        ixpt2[0], iysptrx1[0]+1, 2]
+                    )
+                    isepo = locals()[f"{xy}m"][\
+                            ixpt1[1]+1:ixpt2[1]+1, iysptrx1[0]+1, 1
+                    ]
+                    self.sep['isepo'][xy] = append(isepo, locals()[f"{xy}m"][\
+                            ixpt2[1], iysptrx1[0]+1, 2]
+                    )
+
+
                     self.sep['ilegu'][xy] = locals()[f"{xy}m"][\
-                            ixpt2[0]+1:ixrb[0]+2, iysptrx1[0]+1, 1
+                            :ixrb[0]+2, iysptrx2[0]+1, 1
                     ]
                     self.sep['olegu'][xy] = \
                         locals()[f"{xy}m"][
-                            ixlb[1]:ixpt1[1]+1, iysptrx1[0]+1, 2
+                            ixpt2[1]:, iysptrx2[0]+1, 2
                     ]
                     self.sep['olegl'][xy] = locals()[f"{xy}m"][\
-                            ixpt2[1]+1:ixrb[1]+2, iysptrx2[0]+1, 1
+                            ixpt2[1]:, iysptrx1[0]+1, 2
                     ]
                     self.sep['ilegl'][xy] = \
                         locals()[f"{xy}m"][
-                            ixlb[0]:ixpt1[0]+1, iysptrx2[0]+1, 2
+                            :ixpt1[0]+1, iysptrx1[0]+1, 2
                     ]
     
             if self.dnull=="balanced":
