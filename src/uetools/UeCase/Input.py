@@ -1,3 +1,4 @@
+import os
 from uetools.UeUtils import Tools
 
 try:
@@ -57,17 +58,26 @@ class Input:
         from h5py import File, Group
         from os.path import exists
 
-        def recursive_readhdf5(ret, setup, group=[]):
+        def recursive_readhdf5(ret, setup, group=[], root=None):
             if len(group) > 0:
-                for subgroup in group:
-                    try:
-                        ret = ret[subgroup]
-                    except:
-                        ret[subgroup] = {}
-                        ret = ret[subgroup]
+                lastgroup=group[0]
+                # Conditional to avoid unnecessary nesting
+                if ((len(group) > 1) and \
+                    (group[-1] == group[-2]) \
+                ):
+                    group.pop(-1)
+                else:
+                    for subgroup in group:
+                        # Conditional to avoid unnecessary nesting
+                        if subgroup not in root.keys():
+                            try:
+                                ret = ret[subgroup]
+                            except:
+                                ret[subgroup] = {}
+                                ret = ret[subgroup]
             for name, content in setup.items():
                 if isinstance(content, Group):
-                    recursive_readhdf5(ret, content, group + [name])
+                    recursive_readhdf5(ret, content, group + [name], root)
                 else:
                     ret[name] = content[()]
 
@@ -76,7 +86,7 @@ class Input:
             raise OSError('File "{}" not found!'.format(fname))
         else:
             with File(fname, "r") as f:
-                recursive_readhdf5(ret, f["setup"])
+                recursive_readhdf5(ret, f["setup"], root=ret)
         self.info["savefile"] = fname
         return ret
 
@@ -133,10 +143,12 @@ class Input:
         from h5py import is_hdf5
         from os.path import abspath
         from Forthon import packageobject
+        from os.path import exists
 
         # Extract user-supplied casename and diff_file
         casename = deepcopy(self.info["casename"])
         diff_file = deepcopy(self.info["diffusivity_file"])
+        self.casename_set = False
         if self.mutex() is False:
             raise Exception("Case doesn't own UEDGE memory")
 
@@ -171,14 +183,14 @@ class Input:
             if not isinstance(dictobj, dict):
                 # Skip UeCase-unique parameters
                 if group[-1] not in self.variables["omit"] + ["chgstate_format"]:
-                    # NOTE: Not sure what to do with chgstate_format, fauls for some strange reason...
+                    # NOTE: Not sure what to do with chgstate_format, fails for some strange reason...
                     # NOTE: Should not be an input, just skip for the time being
                     # Avoid overwriting grid path when restoring from HDF5
                     if group[-1] == "GridFileName":
                         if not self.info["restored_from_hdf5"]:
                             self.setue(
                                 "GridFileName",
-                                "/".join([self.info["location"], dictobj]),
+                                os.path.join(self.info["location"], dictobj),
                             )
                         return
                     # Circumvent the padding with nulls for strings
@@ -241,7 +253,10 @@ class Input:
                     elif dictobj is None:
                         print("WARNING Unset specifier in input:", group[-1])
                     else:
-                        self.setue(group[-1], dictobj)
+                        try:
+                            self.setue(group[-1], dictobj)
+                        except KeyError as e:
+                            print(f"WARNING Could not set '{group[-1]}' to '{dictobj}'. Reason: {e}")
 
                 else:  # Set calls to restore diffusivities
                     if (group[-1] == "savefile") and (
@@ -249,11 +264,31 @@ class Input:
                     ):
                         pass
                     elif group[-1] in ["casename", "commands", "chgstate_format"]:
+                        if group[-1]=="casename":
+                            self.casename_set = True
                         self.info[group[-1]] = dictobj
-                    else:
-                        self.info[group[-1]] = "/".join(
-                            [self.info["location"], dictobj]
+                    elif group[-1] in [
+                            "userdifffname", 
+                            "radialdifffname",
+                            "diff_file",
+                            "savefile",
+                    ]:
+                        if isinstance(dictobj, (bytes, bytearray)):
+                            dictobj = dictobj.decode("UTF-8")
+                        if dictobj is not False:
+                            self.info[group[-1]] = "/".join(
+                                [self.info["location"], dictobj]
                         )
+                    elif group[-1] in self.variables["omit"]:# ["lynix", "lyphix", "lytex", "lytix"]:
+                        pass
+                    else:
+                        if isinstance(dictobj, (bytes, bytearray)):
+                            dictobj = dictobj.decode("UTF-8")
+                        try:
+                            self.info[group[-1]] = os.path.join(self.info["location"], dictobj)
+                        except TypeError:
+                            # dictobj may be e.g. bool that can't be joined with path
+                            self.info[group[-1]] = self.info["location"]
             else:
                 for key, value in dictobj.items():
                     dictobj = setinputrecursive(value, group + [key])
@@ -320,14 +355,11 @@ class Input:
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(prfile))
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], setupfile]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], setupfile)
+
             # Override with diff_file maually defined diff_file upon
             if diff_file is not None:
-                self.info["diffusivity_file"] = "/".join(
-                    [self.info["location"], diff_file]
-                )
+                self.info["diffusivity_file"] = os.path.join(self.info["location"], diff_file)
             # Otherwise, try setting accoridng to input
             else:
                 # diff_file takes precedence
@@ -339,17 +371,15 @@ class Input:
                         if (self.info["radialdifffname"] is not None) and (
                             self.info["radialdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = "/".join(
-                                [self.info["location"], self.radialdifffname]
-                            )
+                            self.info["diffusivity_file"] = \
+                                    self.info['radialdifffname']
                         del self.info["radialdifffname"]
                     if "userdifffname" in self.info:
                         if (self.info["userdifffname"] is not None) and (
                             self.info["userdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = "/".join(
-                                [self.info["location"], self.info["userdifffname"]]
-                            )
+                            self.info["diffusivity_file"] = \
+                                    self.info["userdifffname"]
                         del self.info["userdifffname"]
             if (self.info["diffusivity_file"] is None) and (
                 self.getue("isbohmcalc") in [0, 2]
@@ -392,7 +422,7 @@ class Input:
                         f"WARNING: failed to read radial diffusivities "
                         + "from {}: {}".format(self.info["diffusivity_file"], e)
                     )
-        if casename is not None:
+        if self.casename_set is False:
             self.info["casename"] = casename
         if savefile is not None:
             self.info["savefile"] = savefile
@@ -402,9 +432,18 @@ class Input:
             self.setue("apidir", self.info["apidir"])
         if restoresave is True:
             if (self.info["savefile"] is None) and (self.get("restart") == 1):
-                raise ValueError("No save-file supplied!")
-            elif self.get("restart") == 1:
+                if self.info["casename"] is not None:
+                    for suffix in ["h5","hdf5"]:
+                        savefile = ".".join([self.info["casename"], suffix])
+                        if exists(savefile):
+                            self.info["savefile"] = savefile
+                if self.info["savefile"] is None:
+                    raise ValueError("No save-file supplied!")
+            if exists(self.info["savefile"]):
                 self.savefuncs.load_state(self.info["savefile"], **kwargs)
+            else:
+                raise ValueError("Could not open save-file '{}'".format(\
+                    self.info["savefile"]))
         if uedge_is_installed and not self.info["inplace"]:
             self.tracker.get_uevars()
         # NOTE: Get the hashes before running any commands. This way,
@@ -438,7 +477,7 @@ class Input:
         -------
         None
         """
-        from h5py import File
+        from h5py import File, is_hdf5
         from os.path import exists
 
         # TODO: replace with save-group function call?
@@ -449,10 +488,10 @@ class Input:
             raise Exception("Case doesn't own UEDGE memory")
 
         if not exists(fname):
-            fname = self.info["filename"]
-            if not exists(self.info["filename"]):
-                raise Exception("Diffusivity file not found!")
-
+            if is_hdf5(self.info["filename"]):
+                fname = self.info["filename"]
+            else:
+                raise Exception(f"Diffusivity file '{fname}' not found!")
         with File(fname) as file:
             for variable in ["dif_use", "kye_use", "kyi_use", "tray_use"]:
                 self.setue(variable, file[f"diffusivities/bbb/{variable}"][()])

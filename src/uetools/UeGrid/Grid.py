@@ -12,7 +12,7 @@ class Grid:
 
     Methods
     -------
-    pick_aequdskdata(geqdsk, ncontour=250, interpres=2000, **kwargs)
+    pick_aeqdskdata(geqdsk, ncontour=250, interpres=2000, **kwargs)
         Lets the user define the magnetic axes and X-point locations
     """
 
@@ -22,7 +22,8 @@ class Grid:
         self.setue = case.setue
         self.plot = GridPlot(case)
 
-    def pick_aeqdskdata(self, geqdsk, ncontour=250, interpres=2000, **kwargs):
+    def pick_aeqdskdata(self, geqdsk, ncontour=250, interpres=2000, 
+        colormesh=False, **kwargs):
         """Tool for manually defining aeqdsk data
 
         Passes **kwargs to self.plot.efit
@@ -38,6 +39,8 @@ class Grid:
         interpres : int (default = 2000)
             resolution of interpolation used to identify magnetic
             axis and X-points
+        colormesh : bool (default = False)
+            switch whether to overlay equilibrium on colored mesh
 
         Return
         ------
@@ -77,7 +80,8 @@ class Grid:
             (xi, yi),
         )
 
-        #c = ax.pcolormesh(xi, yi, gradinterp, cmap='hot_r', vmax=0.1)#, vmin=-0.2, vmax=0.2)
+        if colormesh is True:
+            c = ax.pcolormesh(xi, yi, gradinterp, cmap='hot_r', vmax=0.1)#, vmin=-0.2, vmax=0.2)
 
         print("Manually identify the following points in order")
         print("(Choose by clicking in the figure)")  # , undo by right-clicking)')
@@ -192,6 +196,7 @@ class Grid:
                                 o.remove()
                         f.canvas.draw()
 
+        print(psimin)
         # TODO: Set UEDGE variables based on detected variable
         # ( rseps, zseps, rseps, zseps2,) rvsin, rvsout, zvsin, zvsout
 
@@ -260,9 +265,9 @@ class GridPlot:
                 rng = range(0, rng.stop)
         # Plot vessel if present in EQDSK files
         if self.get("nlim") > 0:
-            ax.plot(self.get("xlim"), self.get("ylim"), "k-", linewidth=3)
+            ax.plot(self.get("xlim"), self.get("ylim")+self.get('zshift'), "k-", linewidth=3)
             ax.plot(
-                self.get("xlim"), self.get("ylim"), "-", linewidth=1.5, color="yellow"
+                self.get("xlim"), self.get("ylim")+self.get('zshift'), "-", linewidth=1.5, color="yellow"
             )
         # Plot target plates, if specified
         try:
@@ -330,6 +335,7 @@ class GridPlot:
         linestyle="solid",
         sepcolor="k",
         linewidth=0.5,
+        labels=False,
     ):
         """Function to plot EFIT contours
 
@@ -405,7 +411,7 @@ class GridPlot:
         # Interpolate on EFIT grid to find X-points
         interp = interp2d(x, y, fold)
 
-        ax.contour(
+        CS = ax.contour(
             x,
             y,
             fold,
@@ -414,6 +420,8 @@ class GridPlot:
             linewidths=linewidth,
             linestyles=linestyle,
         )
+        if labels:
+            ax.clabel(CS, CS.levels, inline=1, fontsize=10)
 
         rseps2 = self.get("rseps2")
         zseps2 = self.get("zseps2")

@@ -34,7 +34,7 @@ class AboutSetup:
 
     def elements(self):
         return {
-            1: {1: "H", 2: "D", 3: "T"},
+            1: {1: "H", 2: "D", 2.5: "DT", 3: "T"},
             2: {3: "He3", 4: "He4"},
             3: {6: "Li6", 7: "Li7"},
             4: {7: "Be7", 8: "Be8", 9: "Be9", 10: "Be10"},

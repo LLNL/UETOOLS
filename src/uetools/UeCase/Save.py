@@ -167,13 +167,16 @@ class Save:
                 #                        self.var(savefile, group, var, self.getue(var))
                 #                    return
                 else:
-                    try:
-                        value = self.getue(variable)
-                    except:
-                        for var in saveobj:
+                    if variable in self.variables['omit']:
+                        return
+                    else:
+                        try:
+                            value = self.getue(variable)
+                        except:
                             for var in saveobj:
-                                self.var(savefile, group, var, self.getue(var))
-                            return
+                                for var in saveobj:
+                                    self.var(savefile, group, var, self.getue(var))
+                                return
                 self.var(savefile, group, variable, value)
             # Store requested data
             elif isinstance(saveobj, list):
