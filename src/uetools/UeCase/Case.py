@@ -11,10 +11,13 @@ import uetools
 
 try:
     from uedge import bbb, com, aph, api, svr
-
     uedge_is_installed = True
 except:
     uedge_is_installed = False
+try:
+    from uedge import ppp
+except:
+    pass
 try:
     from uedge import __version__
 except:
