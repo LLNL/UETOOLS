@@ -48,9 +48,12 @@ def plot_async_2D(param_bounds, optimizer, acq_function, next_points=None, title
     Pink dots: data to be observe in this step
     Red dots: data that does not satisfy the constraint
     """
+    
+    x0_lim = param_bounds[0]
+    x1_lim = param_bounds[1]
 
-    x = np.linspace(param_bounds[0,0], param_bounds[0,1], 200)
-    y = np.linspace(param_bounds[1,0], param_bounds[1,1], 200)
+    x = np.linspace(x0_lim[0], x0_lim[1], 200)
+    y = np.linspace(x1_lim[0], x1_lim[1], 200)
     xy = np.array([[x_i, y_j] for y_j in y for x_i in x])
     X, Y = np.meshgrid(x, y)
 
@@ -71,7 +74,9 @@ def plot_async_2D(param_bounds, optimizer, acq_function, next_points=None, title
 
     # Estimate acq
     ax1 = plt.subplot(grid[0,1])
-    acq_est = acq_function.utility(xy, optimizer._gp, optimizer.space._target_max()).reshape(X.shape)
+    gp_mean, gp_std = optimizer._gp.predict(xy, return_std=True)
+    acq_function.y_max = optimizer.space.target.max()
+    acq_est = acq_function.base_acq(gp_mean, gp_std).reshape(X.shape)
     plt.contourf(X, Y, acq_est, levels=20)
     plt.title('Acquisition #0')
     plt.colorbar()

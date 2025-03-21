@@ -523,7 +523,8 @@ class Plot:
                     self.checkusn(coords['z'], flip), 
                     color=color,
                     linewidth=linewidth,
-                    label="lcfs"
+                    label="lcfs",
+                    **kwargs
                 )
         return
 

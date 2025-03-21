@@ -9,9 +9,9 @@ sklearn.gaussian_process:
     https://github.com/scikit-learn/scikit-learn
 
 bayes_opt: 
-    A Bayesian optimization package capable to fitting GP, calculating acquisition function,
-    and is compatible with inequality constrain. This package provide slightly more freedom for 
-    user to define their GP, kernel, and acquisition functions. 
+    A Bayesian optimization package capable to fitting GP, calculating acquisition function. 
+    This package provide slightly more freedom for user to define their GP, kernel, and 
+    acquisition functions. 
     https://github.com/bayesian-optimization/BayesianOptimization
 
     Notice: bayes_opt package tries to maximize target, but we need to minimize loss function. 
@@ -19,30 +19,25 @@ bayes_opt:
 """
 
 import pickle, os, copy, time
-import matplotlib.pyplot as plt
 import numpy as np
 
 from uedge import *
 from scipy.stats import qmc
 from IPython.utils import io
-from typing import Callable
 
 from bayes_opt import BayesianOptimization
+from bayes_opt.acquisition import ExpectedImprovement, UpperConfidenceBound, ProbabilityOfImprovement, ConstantLiar
 from bayes_opt.util import NotUniqueError
-from bayes_opt import UtilityFunction
-from scipy.optimize import NonlinearConstraint
-from multiprocessing import Pool, TimeoutError
-
 
 from sklearn.gaussian_process.kernels import Matern
+from sklearn.gaussian_process import GaussianProcessRegressor
+from bayes_opt import TargetSpace
 
 from .BayesUtility import *
 from .BayesDemo import *
 
 
 class Bayesian():
-    
-    
     
     def __init__(self, case: Case, physics=PhysicsOperationDemo):
         """ 
@@ -52,6 +47,7 @@ class Bayesian():
         ----------
         case: uetools.Case
             The interface between Bayesian object and Case object. It allows Bayesian to handle all UEDGE calculation.
+            
         physics:
             A user-defined class setting the creteria of Bayesian optimization, which should includes the following
             required methods:
@@ -61,19 +57,20 @@ class Bayesian():
                 
                 Arguments:
                 ----------
-                params: np.array(N,) -- Required
-                    Each parameter BO provide is an np.array with N elements. Generally, they represents some
-                    transport coefficients that needs to be defined on UEDGE grids. 
+                params: dict -- Required
+                    Each parameter BO provide is a dict with N elements. Generally, they represents some
+                    transport coefficients that needs to be defined on UEDGE grids. The key words should be
+                    {'x0':1., 'x1':1., ...}
                 **kwargs:
                     Other user defined parameters.
                 
                 
-            find_equilibrium(uetools_case, save_dir, **kwargs):
+            find_equilibrium(case, save_dir, **kwargs):
                 Defines the method to calculate an equilibrium.
                 
                 Arguments:
                 ----------
-                uetools_case: uetools.Case -- Required
+                case: uetools.Case -- Required
                     A uetools Case container to be converged.
                 save_dir: String -- Required
                     The location where HDF5 files are saved. The default is the current location.
@@ -98,16 +95,6 @@ class Bayesian():
                 Return:
                 -------
                 loss: float -- Required
-                
-                
-            find_constraint(**kwargs): -- Optional
-                Define constraint of the system if needed. This will force the algorithm 
-                to do a constrained optimization.
-                
-                Argumetns:
-                ----------
-                **kwargs: 
-                    Other user defined parameters.
                     
                     
             probability_function(**kwargs): -- Optional
@@ -124,6 +111,7 @@ class Bayesian():
                 probability: float -- Required
         """
         
+        self.get = case.get # Links the subclass to the case
         self.c = case
         self.physics = physics
         self.verbose = self.c.info['verbose']
@@ -133,24 +121,29 @@ class Bayesian():
         self.valid_jobs = 0 # number of calculations done during BO that converge and not repeated.
         self.bo_data = {} # dinctionary saving basic information for all finished jobs during BO.
         
+        np.set_printoptions(precision=3)
+        
 
 
 
     def bayes_opt(
         self,
-        param_bounds=np.array([[0.,2.],[0.,2.]]),
-        constraint=None,
+        param_bounds={'x0': (0., 2.), 'x1': (0., 2.)},
         gp_kernel=None,
         initial_sample=5,
         N_initial_process=16,
         N_processes=16,
         acq_functions={},
         bo_steps=10,
-        constant_lier_steps=5,
-        bo_plot_status=True,
+        constant_lier_steps=4,
+        constant_lier_strategy='max',
+        bo_plot_status=False,
         save_dir='./bayes_opt',
         random_state=0,
         timeout=600.,
+        d_min_start=1.e-3,
+        d_min_decay=3, 
+        d_min_lim=1.e-3,
         **kwargs
         ):
         
@@ -159,10 +152,8 @@ class Bayesian():
 
         Arguments:
         ----------
-        param_bounds: array (N,2)
+        param_bounds: dict
             Lower and upper bounds for N value of parameters.
-        constraint: scipy.optimize.NonlinearConstraint
-            The constrains needed in the system. If no constraint is needed, constraint = None.
         gp_kernel:
             Kernels used in Gaussian regression model.
         initial_sample:
@@ -178,19 +169,29 @@ class Bayesian():
             The number of steps to be calculate in BO process.
         constant_lier_steps:
             The number of data points predicted in each acquisition function using the 'constant lier' approximation.
+        constant_lier_strategy:
+            The strategy in the constant lier approximation
         bo_plot_status:
             Whether plot currect status in each step of BO. Only work for 2-D case. 
         save_dir:
             The directory to save HDF5 for all calculations
         random_state:
             Seed of random number
+        timeout:
+            Max time to run for each async job
+        d_min_start:
+            d_min controls the minimum distance between batch samples. d_min_start is the initial distance
+        d_min_decay:
+            After a certain steps, decrease d_min by 2.
+        d_min_lim:
+            The minimum d_min allowed.
         **kwargs:
             Additional keywords.
         """
         
         t1 = time.time()
         
-        self.param_bounds = param_bounds
+        self.param_bounds = param_to_array(param_bounds)
         self.save_dir = save_dir
         
         # create folder if not exist
@@ -198,8 +199,7 @@ class Bayesian():
         
         # define Bayesian Optimization object
         self.optimizer = BayesianOptimization(f=None, 
-                                              constraint=constraint,
-                                              pbounds=array_to_param(param_bounds),
+                                              pbounds=param_bounds,
                                               verbose=0, 
                                               random_state=random_state)
         
@@ -208,30 +208,34 @@ class Bayesian():
         
         # Calculate initial sampling through quasi-Monte Carlo method
         if initial_sample > 0:
-            if self.verbose: print('\n====== Begin initial sampling through quasi-Monte Carlo method =====')
+            if self.verbose: print('\n============ Begin initial sampling through quasi-Monte Carlo method ===========\n')
             self.calculate_initial_sampling(m=initial_sample, 
                                             N_process=N_initial_process, 
                                             random_state=random_state, 
-                                            timeout=timeout, 
+                                            timeout=timeout+600, 
                                             **kwargs)
         else:
-            if self.verbose: print('\n====== Begin reading calculated samples =====')
+            if self.verbose: print('\n============ Begin reading calculated samples ===========')
             self.read_existing_samples(save_dir=self.save_dir)
         
         # Define a list of acqusition functions based on initial results
         self.define_acq(acq_functions)
         
         # begin parallel Bayesian optimization
-        if self.verbose: print('\n===== Begin Bayesian optimization =====')
+        if self.verbose: print('\n=========== Begin Bayesian optimization ===========')
         self.batch_BO_searching(N=bo_steps, 
-                                step=constant_lier_steps, 
+                                constant_lier_steps=constant_lier_steps,
+                                constant_lier_strategy=constant_lier_strategy,
                                 N_process=N_processes, 
                                 plot_status=bo_plot_status,
                                 timeout=timeout,
+                                d_min_start=d_min_start,
+                                d_min_decay=d_min_decay, 
+                                d_min_lim=d_min_lim,
                                 **kwargs)
         
         # print the final result of Bayesian optimization
-        print('\n===== Bayesian optimization conclusion =====\n')
+        print('\n=========== Bayesian optimization conclusion ===========\n')
         total_time = (time.time() - t1) / 60.
         print('\nTotal BO time =  {:.2f} mins = {:.2f} hours'.format(total_time, total_time/60.))
         
@@ -242,13 +246,13 @@ class Bayesian():
     
     def bo_objective(
         self,
-        params=np.array([1.,1.]), 
+        params={'x0':1., 'x1':1.}, 
         save_case=True,
         save_bo_data=True,
         **kwargs
         ):
         """ 
-        The function to be called in parallel during Bayesian optimization. 
+        The function to be called in parallel during batched Bayesian optimization. 
         
         Arguments:
         params:
@@ -273,7 +277,7 @@ class Bayesian():
         
         # calculate UEDGE equilibrium and return the convergence
         try:
-            convergence = self.physics.find_equilibrium(uetools_case=self.c, save_dir=sub_dir, **kwargs)
+            convergence = self.physics.find_equilibrium(case=self.c, save_dir=sub_dir, **kwargs)
         except:
             convergence = False
         
@@ -282,12 +286,6 @@ class Bayesian():
             target = - self.physics.loss_function(**kwargs)
         else:
             target = np.nan
-        
-        # optional: calculate the constraint if needed
-        if self.optimizer.is_constrained:
-            constraint = self.physics.find_constraint(**kwargs)
-        else:
-            constraint = None
             
         # save the current case
         if save_case: self.c.save('{}/final.hdf5'.format(sub_dir))
@@ -297,14 +295,13 @@ class Bayesian():
             bo_data = {
                 'params':params, 
                 'target':target, 
-                'constraint':constraint, 
                 'sub_dir':'{}'.format(len(dir_list))
                 }
             with open('{}/bo_data.pickle'.format(sub_dir), 'wb') as handle:
                 pickle.dump(bo_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
             
-        # return params, target, constraint, and the location of the save file
-        return params, target, constraint, sub_dir
+        # return params, target, and the location of the save file
+        return params, target, sub_dir
         
     
     
@@ -324,11 +321,6 @@ class Bayesian():
 
         # set kernel for GP
         self.optimizer.set_gp_params(kernel=kernel)
-
-        # set kernel for GP to estimate constraint
-        if self.optimizer.is_constrained:
-            for i in range(len(self.optimizer.constraint._model)):
-                self.optimizer.constraint._model[i].set_params(kernel=kernel)
 
 
 
@@ -351,6 +343,9 @@ class Bayesian():
         **kwargs:
             Additional variables
         """
+        
+        # record the time in each step
+        t1 = time.time()
 
         # calculate initial sampling using LPtau
         sampler = qmc.Sobol(d=len(self.param_bounds), seed=random_state)
@@ -366,7 +361,7 @@ class Bayesian():
         for job_id in np.arange(len(param_grid)):
             time.sleep(0.5)
             job_status[job_id] = pool.apply_async(func=self.bo_objective, 
-                                                  kwds={'params': param_grid[job_id], 
+                                                  kwds={'params': array_to_param(param_grid[job_id]), 
                                                         **kwargs}, 
                                                   error_callback=print)
 
@@ -374,9 +369,9 @@ class Bayesian():
         for job_id in np.arange(len(param_grid)):
             
             try:
-                params, target, constraint, sub_dir = job_status[job_id].get(timeout=timeout)
+                params, target, sub_dir = job_status[job_id].get(timeout=timeout)
             except:
-                print('Error getting result for job_id = {}'.format(job_id))
+                print('Error (time out) getting result for job_id = {}, params = {}'.format(job_id, param_grid[job_id]))
                 target = np.nan
                 
             self.current_job_target.append(target)
@@ -386,11 +381,12 @@ class Bayesian():
                 
                 try:                     
                     # save data to optimizer
-                    self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                    self.optimizer.register(params=params, target=target)                
                     
                     # save valid job locally
-                    self.bo_data[self.valid_jobs] = {'params':params, 'target':target, 
-                                                     'constraint':constraint, 'sub_dir':sub_dir}
+                    self.bo_data[self.valid_jobs] = {'params':params, 
+                                                     'target':target, 
+                                                     'sub_dir':sub_dir}
                     self.valid_jobs += 1
                     
                 except NotUniqueError: pass
@@ -399,8 +395,12 @@ class Bayesian():
         self.total_job_target.extend(self.current_job_target)
         if self.verbose: self.print_current_status()
         
+        t2 = time.time()
+        if self.verbose: print('\nTime for initial sampling = {:.2f} mins.'.format((t2-t1)/60.))
+        
         # close the pool after calculation
         pool.close()
+        pool.join()
         self.current_job_target = []
 
 
@@ -440,7 +440,6 @@ class Bayesian():
                         
                     params = bo_data['params']
                     target = bo_data['target']
-                    constraint = bo_data['constraint']
                     sub_dir = bo_data['sub_dir']
                     
                     self.current_job_target.append(target)
@@ -450,7 +449,7 @@ class Bayesian():
                         
                         try: 
                             # save data to optimizer
-                            self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                            self.optimizer.register(params=params, target=target)                
                             
                             # save valid job locally
                             self.bo_data[self.valid_jobs] = bo_data
@@ -475,92 +474,28 @@ class Bayesian():
         Arguments:
         ----------
         acq_functions: dict
-            Dictionary whose elements are bayes_opt.UtilityFunction object.
+            Dictionary whose elements belongs to bayes_opt.acquisition
         """
 
         # Define acqusition functions if no input
         if len(acq_functions.keys()) == 0:
 
-            E_max = np.abs(self.optimizer._space.target).max()
-
-            # Expected improvement (EI)
-            acq_functions[0] = UtilityFunction(kind="ei", xi=0.)
-            acq_functions[1] = UtilityFunction(kind="ei", xi=-0.2*E_max)
-            acq_functions[2] = UtilityFunction(kind="ei", xi=0.1*E_max)
-            acq_functions[3] = UtilityFunction(kind="ei", xi=0.2*E_max)
-
-            # Upper Confidence Bound (UCB)
-            acq_functions[4] = UtilityFunction(kind="ucb", kappa=1.)
-            acq_functions[5] = UtilityFunction(kind="ucb", kappa=4.)
-            # acq_functions[6] = UtilityFunction(kind="ucb", kappa=4.)
-            # acq_functions[7] = UtilityFunction(kind="ucb", kappa=16.)
+            E_mean = np.abs(self.optimizer._space.target).mean()
+            
+            acq_functions[0] = ExpectedImprovement(xi=0.)
+            acq_functions[1] = ProbabilityOfImprovement(xi=0.)
+            acq_functions[2] = UpperConfidenceBound()
+            acq_functions[3] = ExpectedImprovement(xi=0.02*E_mean)
+            acq_functions[4] = ExpectedImprovement(xi=1.*E_mean)
+            acq_functions[5] = UpperConfidenceBound(kappa=5.)
         
         self.acq_functions = acq_functions
-        self.next_point = self.optimizer.suggest(self.acq_functions[0])    
+        self.next_point = self.optimizer.suggest()    
     
-    
-    
-    
-    def multi_suggest(self, acq_function, step=4, return_optimizer=False):
-        """
-        For a given obervation data and acquisition function, predict #step points to be evaluate 
-        based on the "constant liar" approximation (https://doi.org/10.1007/978-3-642-10701-6_6).
-
-        Traditionaly, Bayesian optimization fit N observed point with GP. With given acquisition function,
-        it predict the next point to evaluate. The constant liar simply assume the N+1 point will return 
-        the value exactly the same as GP predict, then use the acquisition function to predict the N+2 point 
-        to evaluate. Same procedure can be repeated multiple times.
-
-        Since the "constant liar" approximation is a sequential job, it can not be parallized.
-
-        Arguments:
-        ----------
-        acq_function: bayes_opt.UtilityFunction
-            Acquisition functions used in this calculation. 
-        step:
-            The number of points predicted from the "constant liar" approximation.
-        return_optimizer:
-            Whether return the optimizer (bayes_opt.BayesianOptimization) after finish.
-        """
-
-        suggest_points = {}
-        tmp_optimizer = copy.deepcopy(self.optimizer)
-
-        # calculate #asyc_step steps for each acquisition functions
-        for i in range(step):
-
-            # get prediction for next step
-            suggest_points[i] = tmp_optimizer.suggest(acq_function)
-            x = param_to_array(suggest_points[i]).reshape(1,-1)
-
-            # assume the result is exactly what GP could predict
-            approx_target = tmp_optimizer._gp.predict(x)[0]
-
-            # if we have constrain, also predict the value of constrains
-            if tmp_optimizer.is_constrained:
-                approx_constraint = tmp_optimizer.constraint.approx(x)[0]
-            else:
-                approx_constraint = None
-
-            # register approximated values
-            try:
-                tmp_optimizer.register(params = suggest_points[i], 
-                            target = approx_target, 
-                            constraint_value = approx_constraint)
-            
-            # if multiple points are same, they will not be able to be registered. 
-            except NotUniqueError:
-                if self.verbose: print('Unable to register due to duplicated points during multi_suggest.')
-
-        if return_optimizer:
-            return suggest_points, tmp_optimizer
-        else:
-            return suggest_points
 
 
 
-
-    def async_suggest(self, step=4):
+    def async_suggest(self, step=4, strategy='max'):
         """
         Calculate the suggested points for multiple acquisition functions asynchronously.
 
@@ -568,6 +503,9 @@ class Bayesian():
         ----------
         step:
             The number of points predicted from the "constant liar" approximation. 
+        strategy: 
+            The strategy of constant lier approximation. See documents in bayes_opt.acquisition.ConstantLiar.
+            
         """
 
         # start a multiprocessing pool
@@ -579,9 +517,12 @@ class Bayesian():
         acq_suggest = {}
 
         for i in range(len(self.acq_functions)):
-            acq_suggest_jobs[i] = pool.apply_async(self.multi_suggest, 
-                                                   args=(self.acq_functions[i], step), 
-                                                   error_callback=print)
+            acq_suggest_jobs[i] = pool.apply_async(multi_suggest, 
+                                                    args=(self.optimizer, 
+                                                          self.acq_functions[i],
+                                                          step,
+                                                          strategy), 
+                                                    error_callback=print)
             
         # collect results
         for i in range(len(self.acq_functions)):
@@ -592,13 +533,14 @@ class Bayesian():
 
         # close the pool
         pool.close()
+        pool.join()
 
         return acq_suggest
 
 
 
 
-    def find_non_repeat(self, data, N=16, d_min=0.05):
+    def find_non_repeat(self, data, N=16, d_min=0.05, print_sample_detail=True):
         """
         Give a collection of data, find #N non-repeated data points where the distance of each points 
         are larger than d_min.
@@ -618,12 +560,17 @@ class Bayesian():
         random_replenish:
             When the number of non-repeated points is less than N, whether to use random sample points
             to fill in the slots.
+        print_sample_detail:
+            Show the sample belongs to which acq as (#acq, #aync_step).
         """
 
         non_repeat_data = {}
         non_repeat_data[0] = data[0]
+        
+        data_used = [0]
+        async_step = int(len(data)/len(self.acq_functions))
 
-        for i in range(len(data.keys())-1):
+        for i in range(1, len(data.keys())):
 
             # collect non-repeat data until enough data is collected
             if len(non_repeat_data.keys()) < N:
@@ -639,6 +586,16 @@ class Bayesian():
 
                 if not repeated:
                     non_repeat_data[len(non_repeat_data.keys())] = data[i]
+                    data_used.append(i)
+            
+        # show which sample from whcih acq        
+        if print_sample_detail:
+            print('\nCurrent samples with d_min = {:.2f}:'.format(d_min))
+            for i in range(len(data_used)): 
+                print('Acq #{}, async_step #{}, val = ('.format(int(data_used[i]/async_step), data_used[i]%async_step), end='')
+                for key in non_repeat_data[i].keys(): print('{: 7.3f},'.format(non_repeat_data[i][key]), end='')
+                print(');')
+            
 
         if len(non_repeat_data.keys()) < N:
 
@@ -657,7 +614,17 @@ class Bayesian():
 
 
 
-    def batch_BO_searching(self, N=20, step=4, N_process=16, plot_status=True, timeout=600., **kwargs):
+    def batch_BO_searching(self, 
+                           N=20, 
+                           constant_lier_steps=4,
+                           constant_lier_strategy='max',
+                           N_process=16, 
+                           plot_status=True, 
+                           timeout=600.,
+                           d_min_start=1.e-3,
+                           d_min_decay=3, 
+                           d_min_lim=1.e-3,
+                           **kwargs):
         """
         Proceed to Bayesian Optimization for #N steps. In every step, run #step number of points for each 
         acquisition function and collected #N_process of non-repeated points. All #N_process points are
@@ -671,9 +638,11 @@ class Bayesian():
         ----------
         N:
             Total number of steps in Bayesian optimization.
-        step:
+        constant_lier_steps:
             Number of points generated from each acquisition function using the the "constant liar" 
             approximation.
+        constant_lier_strategy:
+            Strategy of constant lier approximation. Can use a float number, or 'min', 'max', 'mean'.
         N_process:
             Number of processes in multiprocessing pool. Same number of non-repeated points should be
             generated at each step.
@@ -681,27 +650,40 @@ class Bayesian():
             Whether to plot the currect status of BO. Only work for 2-D searching.
         timeout:
             Abort if UEDGE does not converge within time.
+        d_min_start:
+            d_min controls the minimum distance between batch samples. d_min_start is the initial distance
+        d_min_decay:
+            After a certain steps, decrease d_min by 2.
+        d_min_lim:
+            The minimum d_min allowed.
         **kwargs:
             Additional arguments
         """
+        
+        # distence between difference samples decreases as BO precess
+        d_min = d_min_start
 
         # async searching
         for i in range(N):
 
-            if self.verbose: print('\nBO step {} ====='.format(i+1))
+            if self.verbose: print('\n\n========== BO step {} =========='.format(i+1))
 
             # record the time in each step
             t1 = time.time()
+            
+            # reduce d_min if set
+            if (i>0) and (i%d_min_decay==0): d_min /= 2.
+            if d_min < d_min_lim: d_min = d_min_lim
 
             # dict to save the job data and record the job id
             job_list = {}
-            total_suggeested = self.async_suggest(step=step)
-            next_points = self.find_non_repeat(total_suggeested, N=N_process, d_min=0.05)
+            total_suggeested = self.async_suggest(step=constant_lier_steps, strategy=constant_lier_strategy)
+            next_points = self.find_non_repeat(total_suggeested, N=N_process, d_min=d_min)
             
             t2 = time.time()
             # print the time used
             if self.verbose:
-                print('\nTime for suggestion: {:.2f} mins'.format((t2-t1)/60.))
+                print('\nTime for suggestion: {:.2f} seconds\n'.format(t2-t1))
             
 
             # plot status only for 2-D inference
@@ -722,18 +704,24 @@ class Bayesian():
             for asyc_job_id in range(len(next_points)):
                 time.sleep(0.5)
                 job_list[asyc_job_id] = pool.apply_async(self.bo_objective, 
-                                                         kwds={'params': param_to_array(next_points[asyc_job_id]), 
+                                                         kwds={'params': next_points[asyc_job_id],
                                                                **kwargs},
                                                          error_callback=print)
 
             # wait for all jobs and register data
+            time_left = timeout
             for asyc_job_id in range(len(next_points)):
                 
+                t1 = time.time()
+                
                 try:
-                    params, target, constraint, sub_dir = job_list[asyc_job_id].get(timeout=timeout)
+                    params, target, sub_dir = job_list[asyc_job_id].get(timeout=time_left)
                 except:
-                    print('Error getting result for job_id = {}'.format(asyc_job_id))
+                    print('Error (time out) getting result for job_id = {}, params = {}'.format(asyc_job_id, param_to_array(next_points[asyc_job_id])))
                     target = np.nan
+                    
+                time_left -= time.time() - t1
+                if time_left <= 0.: time_left = 5.
                     
                 self.current_job_target.append(target)
                 
@@ -742,11 +730,12 @@ class Bayesian():
                     
                     try: 
                         # save data to optimizer
-                        self.optimizer.register(params=params, target=target, constraint_value=constraint)                
+                        self.optimizer.register(params=params, target=target)                
                         
                         # save valid job locally
-                        self.bo_data[self.valid_jobs] = {'params':params, 'target':target, 
-                                                        'constraint':constraint, 'sub_dir':sub_dir}
+                        self.bo_data[self.valid_jobs] = {'params':params, 
+                                                         'target':target, 
+                                                        'sub_dir':sub_dir}
                         self.valid_jobs += 1
                         
                     except NotUniqueError: pass
@@ -756,14 +745,15 @@ class Bayesian():
             if self.verbose: self.print_current_status()
 
             # just to let optimizer fit data
-            tmp = self.optimizer.suggest(self.acq_functions[0])
+            tmp = self.optimizer.suggest()
 
             # print the time used
             if self.verbose:
-                print('\nTime for UEDGE: {:.2f} mins'.format((time.time()-t2)/60.))
+                print('\nUEDGE time: {:.2f} mins'.format((time.time()-t2)/60.))
 
             # close the pool after calculation
             pool.close()
+            pool.join()
             self.current_job_target = []
 
 
@@ -797,7 +787,7 @@ class Bayesian():
         try:
             print('    {}'.format(self.optimizer._gp.kernel_))
         except:
-            self.optimizer.suggest(UtilityFunction(kind="ei", xi=0.))
+            self.optimizer.suggest()
             print('    {}'.format(self.optimizer._gp.kernel_))
             
 
@@ -840,18 +830,8 @@ class Bayesian():
         
         if getattr(self.physics, 'probability_function', None) is not None:
             
-            if self.optimizer.is_constrained:
-                
-                # get data that within constraint
-                ind = np.where(np.array([r['allowed'] for r in self.optimizer.res])==True)[0]
-                valid_params = self.optimizer._space.params[ind,:]
-                valid_loss = - self.optimizer._space.target[ind]
-                
-            else:
-                
-                # when no constraint, use all data
-                valid_params = self.optimizer._space.params
-                valid_loss = - self.optimizer._space.target
+            valid_params = self.optimizer._space.params
+            valid_loss = - self.optimizer._space.target
                 
             # calculate probability
             P = self.physics.probability_function(valid_loss).reshape(-1,1)
@@ -861,3 +841,48 @@ class Bayesian():
             params_uncertainty = np.sqrt( np.sum( (valid_params-params_max)**2. * P, axis=0) / np.sum(P) )
             
             return params_uncertainty
+
+
+    
+    
+    
+    
+def multi_suggest(optimizer: BayesianOptimization, acq_function, step=4, strategy='max'):
+    """ 
+    Generate multiple suggestion points in one step for paralleled evaluation. Multiple points are generated
+    using the bayes_opt.acquisition.ConstantLiar function based based on the "constant liar" approximation 
+    (https://doi.org/10.1007/978-3-642-10701-6_6).
+    
+    Arguments:
+    ----------
+    optimizer: 
+        The BayesianOptimization objective that contains all information
+    acq_function:
+        Acquisition function used in multi suggestion
+    step:
+    step:
+        The number of points predicted from the "constant liar" approximation.
+    """
+    
+    suggest_points = {}
+    gp = copy.deepcopy(optimizer._gp)
+    space = copy.deepcopy(optimizer.space)
+    CL_acq = ConstantLiar(base_acquisition=acq_function, strategy=strategy)
+    
+    total_suggestion_time = 0.
+
+    # calculate #asyc_step steps for each acquisition functions
+    for i in range(step):
+        
+        t1 = time.time()
+
+        # get prediction for next step
+        suggest_points[i] = array_to_param(CL_acq.suggest(gp=gp, target_space=space))
+            
+        one_step_time = time.time() - t1
+        total_suggestion_time += one_step_time
+        print('step = {}, time = {:.2f} s'.format(i, one_step_time))
+        
+    print('Total suggestion time = {:.2f} s.'.format(total_suggestion_time))
+
+    return suggest_points
