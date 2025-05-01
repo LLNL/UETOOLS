@@ -6,6 +6,7 @@ from .Input import Input
 from uetools.UeCherab import Cherab
 from uetools.UeGrid import Grid
 from uetools.UeUtils import *
+from uetools.UeDEGAS import DEGAS2Coupling
 from uetools.UePostproc.Postproc import PostProcessors
 import uetools
 
@@ -275,6 +276,8 @@ class Case:
                 "lyphix",
                 "lytex",
                 "lytix",
+                "lyniix",
+                "isnwconoix",
                 "tvapllim",
                 "tvaprlim",
             ],
@@ -405,6 +408,7 @@ class Case:
         self.convert = Convert(self)
         self.exmain = self.solver.exmain
         self.interpolate = Interpolate(self)
+        self.coupling = DEGAS2Coupling(self)
         #    self.radtransp = RadTransp(self)
         self.config = Config()
         self.grid = Grid(self)
