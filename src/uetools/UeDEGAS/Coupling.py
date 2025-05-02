@@ -76,6 +76,9 @@ class DEGAS2Coupling:
     def run_triangle(self, fname, regiondict, triaoptions = "-pqDne", maxarea=None, **kwargs):
         """ Creates Triangle input and runs Triangle under triangle_out
 
+        Triangle source code available from:
+        http://www.cs.cmu.edu/~quake/triangle.html
+
         Variables
         ---------
         fname - str of file name for files written
