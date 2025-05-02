@@ -201,7 +201,8 @@ class Bayesian():
         self.optimizer = BayesianOptimization(f=None, 
                                               pbounds=param_bounds,
                                               verbose=0, 
-                                              random_state=random_state)
+                                              random_state=random_state,
+                                              allow_duplicate_points=True)
         
         # Set kernels
         self.set_gp_kernel(gp_kernel)
@@ -271,6 +272,9 @@ class Bayesian():
         
         try: os.makedirs(sub_dir)
         except: pass
+        
+        # initialize save file
+        self.c.restore_save(self.c.info['savefile'])
         
         # set parameter
         self.physics.set_params(params, **kwargs)
@@ -359,20 +363,26 @@ class Bayesian():
         # start sampling
         job_status = {}
         for job_id in np.arange(len(param_grid)):
-            time.sleep(0.5)
+            time.sleep(1.)
             job_status[job_id] = pool.apply_async(func=self.bo_objective, 
                                                   kwds={'params': array_to_param(param_grid[job_id]), 
                                                         **kwargs}, 
                                                   error_callback=print)
 
         # wait for all jobs and register data
+        time_left = timeout
         for job_id in np.arange(len(param_grid)):
             
+            t_async = time.time()
+            
             try:
-                params, target, sub_dir = job_status[job_id].get(timeout=timeout)
+                params, target, sub_dir = job_status[job_id].get(timeout=time_left)
             except:
                 print('Error (time out) getting result for job_id = {}, params = {}'.format(job_id, param_grid[job_id]))
                 target = np.nan
+                
+            time_left -= time.time() - t_async
+            if time_left <= 0.: time_left = 5.
                 
             self.current_job_target.append(target)
             
@@ -400,7 +410,7 @@ class Bayesian():
         
         # close the pool after calculation
         pool.close()
-        pool.join()
+        pool.terminate()
         self.current_job_target = []
 
 
@@ -483,11 +493,10 @@ class Bayesian():
             E_mean = np.abs(self.optimizer._space.target).mean()
             
             acq_functions[0] = ExpectedImprovement(xi=0.)
-            acq_functions[1] = ProbabilityOfImprovement(xi=0.)
-            acq_functions[2] = UpperConfidenceBound()
+            acq_functions[1] = UpperConfidenceBound()
+            acq_functions[2] = ProbabilityOfImprovement(xi=0.)
             acq_functions[3] = ExpectedImprovement(xi=0.02*E_mean)
             acq_functions[4] = ExpectedImprovement(xi=1.*E_mean)
-            acq_functions[5] = UpperConfidenceBound(kappa=5.)
         
         self.acq_functions = acq_functions
         self.next_point = self.optimizer.suggest()    
@@ -505,42 +514,59 @@ class Bayesian():
             The number of points predicted from the "constant liar" approximation. 
         strategy: 
             The strategy of constant lier approximation. See documents in bayes_opt.acquisition.ConstantLiar.
+            Possible input:
+            'min', 'max', 'mean': set one single strategy
+            ['min', 'max', ...]: set multiple strategies
             
         """
+        
+        if isinstance(strategy, str):
+            strategy = [strategy]
+            
+        N_acq = len(self.acq_functions)
+        N_strat = len(strategy)
 
         # start a multiprocessing pool
         with io.capture_output() as captured:
-            pool = QuietPool(processes = len(self.acq_functions))
+            pool = QuietPool(processes = N_acq * N_strat)
 
         # async suggesting
         acq_suggest_jobs = {}
         acq_suggest = {}
 
-        for i in range(len(self.acq_functions)):
-            acq_suggest_jobs[i] = pool.apply_async(multi_suggest, 
-                                                    args=(self.optimizer, 
-                                                          self.acq_functions[i],
-                                                          step,
-                                                          strategy), 
-                                                    error_callback=print)
+        for i in range(N_acq):
+            for j in range(N_strat):
+                                
+                acq_suggest_jobs[i*N_strat + j] = pool.apply_async(multi_suggest, 
+                                                                 args=(self.optimizer, 
+                                                                       self.acq_functions[i],
+                                                                       step,
+                                                                       strategy[j]), 
+                                                                 error_callback=print)
             
         # collect results
-        for i in range(len(self.acq_functions)):
-            tmp_suggests = acq_suggest_jobs[i].get()
-
-            for j in range(step):
-                acq_suggest[i*step + j] = tmp_suggests[j]
+        for i in range(N_acq):
+            for j in range(N_strat):
+                
+                try:
+                    tmp_suggests = acq_suggest_jobs[i*N_strat+j].get(timeout=300)
+                    
+                    for k in range(step):
+                        acq_suggest[(i*N_strat+j)*step + k] = tmp_suggests[k]
+                
+                except:
+                    print('Error getting async suggestion #{}'.format(i*N_strat+j))
 
         # close the pool
         pool.close()
-        pool.join()
+        pool.terminate()
 
         return acq_suggest
 
 
 
 
-    def find_non_repeat(self, data, N=16, d_min=0.05, print_sample_detail=True):
+    def find_non_repeat(self, data, N=16, d_min=0.05, strategy='max', print_sample_detail=True):
         """
         Give a collection of data, find #N non-repeated data points where the distance of each points 
         are larger than d_min.
@@ -560,15 +586,23 @@ class Bayesian():
         random_replenish:
             When the number of non-repeated points is less than N, whether to use random sample points
             to fill in the slots.
+        strategy: 
+            The strategy of constant lier approximation
         print_sample_detail:
             Show the sample belongs to which acq as (#acq, #aync_step).
         """
+        
+        if isinstance(strategy, str):
+            strategy = [strategy]
+            
+        N_acq = len(self.acq_functions)
+        N_strat = len(strategy)
 
         non_repeat_data = {}
         non_repeat_data[0] = data[0]
         
         data_used = [0]
-        async_step = int(len(data)/len(self.acq_functions))
+        async_step = int(len(data)/(N_acq*N_strat))
 
         for i in range(1, len(data.keys())):
 
@@ -590,9 +624,15 @@ class Bayesian():
             
         # show which sample from whcih acq        
         if print_sample_detail:
-            print('\nCurrent samples with d_min = {:.2f}:'.format(d_min))
+            print('\nSampling with minimum distance = {:.2f}:'.format(d_min))
             for i in range(len(data_used)): 
-                print('Acq #{}, async_step #{}, val = ('.format(int(data_used[i]/async_step), data_used[i]%async_step), end='')
+                
+                step_number = int(data_used[i]%async_step)
+                strategy_number = int(((data_used[i] - step_number)/async_step)%N_strat)
+                acq_number = int(((data_used[i] - step_number)/async_step - strategy_number)/N_strat)
+                
+                print('Acq #{}, CL_step #{}, CL_strategy = {}, val = ('.format(acq_number, step_number, strategy[strategy_number]), end='')
+                
                 for key in non_repeat_data[i].keys(): print('{: 7.3f},'.format(non_repeat_data[i][key]), end='')
                 print(');')
             
@@ -624,6 +664,7 @@ class Bayesian():
                            d_min_start=1.e-3,
                            d_min_decay=3, 
                            d_min_lim=1.e-3,
+                           non_converge_replacement='mean',
                            **kwargs):
         """
         Proceed to Bayesian Optimization for #N steps. In every step, run #step number of points for each 
@@ -656,6 +697,9 @@ class Bayesian():
             After a certain steps, decrease d_min by 2.
         d_min_lim:
             The minimum d_min allowed.
+        non_converge_replacement:
+            If the code does not converge, replace the target with some value.
+            'mean' / 'min' / 'max': mean / min / max of previous targets
         **kwargs:
             Additional arguments
         """
@@ -678,12 +722,12 @@ class Bayesian():
             # dict to save the job data and record the job id
             job_list = {}
             total_suggeested = self.async_suggest(step=constant_lier_steps, strategy=constant_lier_strategy)
-            next_points = self.find_non_repeat(total_suggeested, N=N_process, d_min=d_min)
+            next_points = self.find_non_repeat(total_suggeested, N=N_process, strategy=constant_lier_strategy, d_min=d_min)
             
             t2 = time.time()
             # print the time used
             if self.verbose:
-                print('\nTime for suggestion: {:.2f} seconds\n'.format(t2-t1))
+                print('\nTime for suggestion: {:.1f} seconds\n'.format(t2-t1))
             
 
             # plot status only for 2-D inference
@@ -702,7 +746,7 @@ class Bayesian():
 
             # submit all jobs
             for asyc_job_id in range(len(next_points)):
-                time.sleep(0.5)
+                time.sleep(1.)
                 job_list[asyc_job_id] = pool.apply_async(self.bo_objective, 
                                                          kwds={'params': next_points[asyc_job_id],
                                                                **kwargs},
@@ -719,6 +763,7 @@ class Bayesian():
                 except:
                     print('Error (time out) getting result for job_id = {}, params = {}'.format(asyc_job_id, param_to_array(next_points[asyc_job_id])))
                     target = np.nan
+                    params = next_points[asyc_job_id]
                     
                 time_left -= time.time() - t1
                 if time_left <= 0.: time_left = 5.
@@ -727,18 +772,24 @@ class Bayesian():
                 
                 # try to register if result is converge and not duplicated. 
                 if not np.isnan(target):
+                    _target = target
+                # If not converged, replance the target with something else
+                elif non_converge_replacement == 'mean':
+                    _target = self.optimizer.space.target.mean()
                     
-                    try: 
-                        # save data to optimizer
-                        self.optimizer.register(params=params, target=target)                
-                        
-                        # save valid job locally
-                        self.bo_data[self.valid_jobs] = {'params':params, 
-                                                         'target':target, 
-                                                        'sub_dir':sub_dir}
-                        self.valid_jobs += 1
-                        
-                    except NotUniqueError: pass
+                try: 
+                    # save data to optimizer
+                    self.optimizer.register(params=params, target=_target)                
+                    
+                    # save valid job locally
+                    self.bo_data[self.valid_jobs] = {'params':params, 
+                                                     'target':target, 
+                                                     'sub_dir':sub_dir}
+                    self.valid_jobs += 1
+                    
+                except NotUniqueError: pass
+                    
+                
                     
             # print current best
             self.total_job_target.extend(self.current_job_target)
@@ -753,7 +804,7 @@ class Bayesian():
 
             # close the pool after calculation
             pool.close()
-            pool.join()
+            pool.terminate()
             self.current_job_target = []
 
 
@@ -877,12 +928,12 @@ def multi_suggest(optimizer: BayesianOptimization, acq_function, step=4, strateg
         t1 = time.time()
 
         # get prediction for next step
-        suggest_points[i] = array_to_param(CL_acq.suggest(gp=gp, target_space=space))
+        suggest_points[i] = array_to_param(CL_acq.suggest(gp=gp, target_space=space, n_random=100000))
             
         one_step_time = time.time() - t1
         total_suggestion_time += one_step_time
         print('step = {}, time = {:.2f} s'.format(i, one_step_time))
         
-    print('Total suggestion time = {:.2f} s.'.format(total_suggestion_time))
+    print('Total suggestion time = {:.1f} s.'.format(total_suggestion_time))
 
     return suggest_points
