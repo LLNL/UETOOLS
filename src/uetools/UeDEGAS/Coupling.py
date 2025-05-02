@@ -276,9 +276,18 @@ class DEGAS2Coupling:
             vessel_orig = LinearRing( zip(self.get('xlim'), self.get('ylim')))
         else:
             vessel_orig = LinearRing( limiter )
-        vessel_orig_plot = vessel_orig
         if usn:
-            vessel_orig_plot = LinearRing( zip(self.get('xlim'), (-1)**usn*self.get('ylim')+disp*usn))
+            limiter = array(list(zip(
+                vessel_orig.coords.xy[0],
+                vessel_orig.coords.xy[1]
+            )))
+            vessel_orig_plot = LinearRing( zip(
+                limiter[:,0],
+                (-1)**usn*limiter[:,1] + disp*usn
+            ))
+        else:
+            vessel_orig_plot = vessel_orig
+                
         # Get the nodes for the north and south plasma boundaries
         northpoints = array(list(zip(
                 self.get('rm')[:-1,-1,2],
