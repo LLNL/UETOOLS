@@ -228,7 +228,7 @@ class DEGAS2Coupling:
         
 
     def define_snull_vacuum_region(self, gridname="tria",   
-        maxlength = 0.05, plot=True, **kwargs):
+        maxlength = 0.05, plot=True, limiter=None, **kwargs):
         """ Creates arrays enclosing the main-SOL and PF vacuum regions
         
         Calls Triangle if executable found in PATH or TRIA_PATH. Else,
@@ -244,6 +244,10 @@ class DEGAS2Coupling:
             automated vacuum region detection
         plot - optional (default: True)
             switch whether to plot results or not
+        limiter - optional (default: None)
+            Nx2 array of points ordered clockwise (snull) or 
+            counterclockwise (usn) to contain the nodes
+            specifying the vessel geometry.
         **kwargs - passed to run_triangle
     
         Returns
@@ -268,7 +272,10 @@ class DEGAS2Coupling:
         usn = self.get('geometry')[0].decode('UTF-8').strip() == 'uppersn'
 
         # Specify the vessel geometry: introduce copy for plotting purposes only
-        vessel_orig = LinearRing( zip(self.get('xlim'), self.get('ylim')))
+        if limiter is None:
+            vessel_orig = LinearRing( zip(self.get('xlim'), self.get('ylim')))
+        else:
+            vessel_orig = LinearRing( limiter )
         vessel_orig_plot = vessel_orig
         if usn:
             vessel_orig_plot = LinearRing( zip(self.get('xlim'), (-1)**usn*self.get('ylim')+disp*usn))
