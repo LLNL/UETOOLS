@@ -13,10 +13,10 @@ grid:
     isnonog: 0  # Evaluates nonorthogonal fluxes on grid
     newgeo: 1 # 1 = calculate new grid
     gengrid: 0  # =0 Read grid from file; =1 generate grid
-    GridFileName: 'grid' # Path to grid file
+    GridFileName: 'grid.hdf5' # Path to grid file
     isgriduehdf5: 1 # Switch whether to read HDF5 gridue file
 
-    savefile: 'initial_profile'
+    savefile: 'initial_profile.hdf5'
 
 # ==================== From set_numerics ====================
 # Finite-difference algorithms (upwind, central diff, etc.)
