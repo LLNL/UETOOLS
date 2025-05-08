@@ -3,17 +3,22 @@ from uetools.UeSolver import Solver
 from .Save import Save
 from .Config import Config
 from .Input import Input
+from uetools.UeCherab import Cherab
 from uetools.UeGrid import Grid
 from uetools.UeUtils import *
+from uetools.UeDEGAS import DEGAS2Coupling
 from uetools.UePostproc.Postproc import PostProcessors
 import uetools
 
 try:
     from uedge import bbb, com, aph, api, svr
-
     uedge_is_installed = True
 except:
     uedge_is_installed = False
+try:
+    from uedge import ppp
+except:
+    pass
 try:
     from uedge import __version__
 except:
@@ -36,6 +41,7 @@ class Case:
     ------------------
     Case.about -- uetools.AboutSetup object, containing tools that
             help identify the current case setup
+    Case.cherab -- Coupling to the Cherab raytracing library
     Case.config -- uetools.Config object used to read and create
             personal ~/.uetoolsrc-files
     Case.getset -- uetools.Case.GetSetMemory or GetSetInplace object
@@ -266,6 +272,14 @@ class Case:
                 "casename",
                 "commands",
                 "savefile",
+                "lynix",
+                "lyphix",
+                "lytex",
+                "lytix",
+                "lyniix",
+                "isnwconoix",
+                "tvapllim",
+                "tvaprlim",
             ],
         }
         # Assert input file exists before proceeding
@@ -394,10 +408,12 @@ class Case:
         self.convert = Convert(self)
         self.exmain = self.solver.exmain
         self.interpolate = Interpolate(self)
+        self.coupling = DEGAS2Coupling(self)
         #    self.radtransp = RadTransp(self)
         self.config = Config()
         self.grid = Grid(self)
         self.about = AboutSetup(self)
+        self.cherab = Cherab(self)
         self.input = Input(self)
         # Set up paths from config file
         self.config.case(verbose=False)
@@ -561,7 +577,10 @@ class Case:
             """Recursively traverses dictionary and stores UEDGE data to self"""
             if not isinstance(dictobj, dict):
                 # Reached bottom of nested dictionaries: determine format
-                if isinstance(dictobj, (list, ndarray)):
+                if group[-1] in self.variables["omit"]:
+                    # Check if variable is to be omitted and pass those
+                    pass
+                elif isinstance(dictobj, (list, ndarray)):
                     # We have a list: either list of variables to store or
                     # list defning the variable array
                     if self.search.getpackage(group[-1], verbose=False) != None:
@@ -586,17 +605,21 @@ class Case:
                     # Such behavior goes here
                     pass
                 elif isinstance(dictobj, (int, float, int64, float64)):
-                    self.variables["stored"][group[-1]] = self.getue(group[-1])
+                    try:
+                        self.variables["stored"][group[-1]] = self.getue(group[-1])
+                    except Exception as e:
+                        print(f"WARNING: Could not get value of '{group[-1]}'. Reason: {e}")
                 elif isinstance(dictobj, (bytes, str)):
                     try:
                         self.variables["stored"][group[-1]] = self.getue(group[-1])
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"WARNING: Could not get value of '{group[-1]}'. Reason: {e}")
                 else:
                     self.variables["unset"].append([group, dictobj])
             else:
                 for key, value in dictobj.items():
-                    recursivereload(value, group + [key])
+#                        print(key, value)
+                        recursivereload(value, group + [key])
 
         # Pop out any custom commands, as these cannot be reloaded (not vars)
         try:

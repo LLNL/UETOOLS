@@ -43,7 +43,7 @@ class Utilities:
             lcon[self.get("ixpt2")[0] + 1 :, : self.get("iysptrx") + 1] = cumsum(
                 1
                 / (self.get("rr") * self.get("gx") + 1e-20)[
-                    self.get("ixpt2")[0] + 1 :, : self.get("iysptrx")[0] + 1
+                    self.get("ixpt2")[0] + 1 :, : self.get("iysptrx") + 1
                 ],
                 axis=0,
             )

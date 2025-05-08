@@ -122,7 +122,7 @@ class Lookup:
         try:
             return self.getpackobj(variable, False).listvar(variable)
         except:
-            return False
+            raise NameError(f"Variable '{variable}' not found")
 
     def aboutdict(self, variable):
         """Creates dictionary contining information about variable
@@ -165,39 +165,39 @@ class Lookup:
         "Returns the string of variable corresponding to parameter " ""
         return self.aboutdict(variable)[parameter]
 
-    def package(self, variable):
+    def get_package(self, variable):
         "Returns the Package string of variable " ""
         return self.aboutparameter(variable, "Package")
 
-    def group(self, variable):
+    def get_group(self, variable):
         "Returns the Group string of variable " ""
         return self.aboutparameter(variable, "Group")
 
-    def attributes(self, variable):
+    def get_attributes(self, variable):
         "Returns the Attributes string of variable " ""
         return self.aboutparameter(variable, "Attributes")
 
-    def dimension(self, variable):
+    def get_dimension(self, variable):
         "Returns the Dimension string of variable " ""
         return self.aboutparameter(variable, "Dimension")
 
-    def type(self, variable):
+    def get_type(self, variable):
         "Returns the Type string of variable " ""
         return self.aboutparameter(variable, "Type")
 
-    def address(self, variable):
+    def get_address(self, variable):
         "Returns the Address string of variable " ""
         return self.aboutparameter(variable, "Address")
 
-    def pyaddress(self, variable):
+    def get_pyaddress(self, variable):
         "Returns the Pyaddress string of variable " ""
         return self.aboutparameter(variable, "Pyaddress")
 
-    def unit(self, variable):
+    def get_unit(self, variable):
         "Returns the Unit string of variable " ""
         return self.aboutparameter(variable, "Unit")
 
-    def comment(self, variable):
+    def get_comment(self, variable):
         "Returns the Comment string of variable " ""
         return self.aboutparameter(variable, "Comment")
 
