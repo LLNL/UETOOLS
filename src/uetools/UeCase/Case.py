@@ -11,6 +11,7 @@ from uetools.UeDEGAS import VacuumTransport_coupling, DEGAS2runner
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeBayesian import Bayesian
 import numpy as np
+from uetools.UeVacuum import VacuumRegion
 import uetools
 
 try:
@@ -425,6 +426,7 @@ class Case:
         self.about = AboutSetup(self)
         self.cherab = Cherab(self)
         self.input = Input(self)
+        self.vacuum = VacuumRegion(self)
         # Set up paths from config file
         self.config.case(verbose=False)
         for key, value in self.config.configs.items():
