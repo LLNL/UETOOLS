@@ -8,6 +8,7 @@ from uetools.UeGrid import Grid
 from uetools.UeUtils import *
 from uetools.UeDEGAS import DEGAS2Coupling
 from uetools.UePostproc.Postproc import PostProcessors
+from uetools.UeVacuum import VacuumRegion
 import uetools
 
 try:
@@ -415,6 +416,7 @@ class Case:
         self.about = AboutSetup(self)
         self.cherab = Cherab(self)
         self.input = Input(self)
+        self.vacuum = VacuumRegion(self)
         # Set up paths from config file
         self.config.case(verbose=False)
         for key, value in self.config.configs.items():
