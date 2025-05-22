@@ -7,6 +7,8 @@ class VacuumRegion:
 
 class Surface:
     def __init__(self, start, end):
+        from shapely import Point, LineString, plotting
+        from matplotlib.pyplot import subplots
         # Start and end should be shapely point objects?
         self.start = start
         self.end = end
@@ -42,9 +44,6 @@ class Surface:
         normalEnd = Point(normalEndX, normalEndY) # End point of normal
         normal = LineString([normalStart, normalEnd])
         
-
-        from shapely import Point, LineString, plotting
-        from matplotlib.pyplot import subplots
         # Plotting the segment and the normal
         fig, ax = subplots()
         plotting.plot_line(segment, ax, color='red', linewidth=2)
