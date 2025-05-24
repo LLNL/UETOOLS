@@ -67,12 +67,18 @@ class Surface:
         from matplotlib.pyplot import subplots
         import math
 
-        radius = 1
+        radius = 1.0
+        self.center = self.normal.interpolate(r_offset)
+        self.circle = self.center.buffer(radius, 5000)
+        centerDist = math.sqrt((self.center.x - self.midpoint.x)**2 + (self.center.y - self.midpoint.y)**2) # check that the offset is correct
+        print("Distance from center to midpoint: ", centerDist)
+        return
+
         # 1 unitize normal vector
         # 2 multiply normal points by r_offset
         # 3 add midpoint + multiplied points for location of center of circle
 
-        #1
+        ''' #1
         normFactor = math.sqrt((self.normalEndX-self.normalStartX)**2+(self.normalEndY-self.normalStartY)**2)
         unitNormX = (self.normalEndX-self.normalStartX) / normFactor
         unitNormY = (self.normalEndY-self.normalStartY) / normFactor
@@ -84,23 +90,35 @@ class Surface:
         centerY = self.midpoint.y + unitNormY
 
         self.center = Point(centerX, centerY)
-        self.circle = self.center.buffer(radius)
+        self.circle = self.center.buffer(radius, 5000)
 
         centerDist = math.sqrt((centerX - self.midpoint.x)**2 + (centerY - self.midpoint.y)**2) # check that the offset is correct
-        print("Distance from center to midpoint: ", centerDist)
-
-        return
+        print("Distance from center to midpoint: ", centerDist) '''
     
     def fullPlot(self):
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
 
         fig, ax = subplots()
+        ax.set_aspect('equal')
         plotting.plot_line(self.segment, ax, color='red', linewidth=2)
         plotting.plot_line(self.normal, ax, color='blue', linewidth=2)
         plotting.plot_line(self.center, ax, color='green')
         plotting.plot_polygon(self.circle, ax, add_points=False, color='green', facecolor=None, linewidth=1)
         return
+
+    def intersectionArea(self):
+        from shapely import Point, LineString, plotting
+        import math
+        # find area that overlaps between circle and triangle 
+        # areaOverlap / circleArea = flux on surface
+
+        circleArea = self.circle.area
+        minAngle = 0
+        maxAngle = math.pi
+
+        return
+
 
 
 
