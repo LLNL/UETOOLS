@@ -98,3 +98,4 @@ dmypy.json
 .pytype/
 *.swo
 /dashboard_test
+src/uetools/testScript.py
