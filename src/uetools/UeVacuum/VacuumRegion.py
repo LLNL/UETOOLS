@@ -23,6 +23,7 @@ class Surface:
 
         # Midpoint of surface
         self.midpoint = self.segment.centroid
+      
 
         # Construct normal vector
             # slope of normal vector = -slope of line segment
@@ -149,8 +150,5 @@ class Surface:
         print("Circle Area: ", circleArea)
         print("Fractional Area: ", fractionalArea)
         return
-
-
-
 
     
