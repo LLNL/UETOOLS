@@ -101,3 +101,4 @@ dmypy.json
 # data from Bayesian optimization
 bayes_opt/
 src/uetools/testScript.py
+src/testScript.py
