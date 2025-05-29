@@ -3,12 +3,10 @@ class VacuumRegion:
         return 
 
     def testFunction(self):
-        s = Surface((2, 1), (1, 4))
-        s.distributionCircle(0)
-        s2 = Surface((5, 6), (7, 3))
-        s.intersectionArea(s2)
+        s = Surface((5, 1), (5, 8))
+        s.distributionCircle(1)
         s.distributionPlot()
-        s.fullPlot()
+        #s.fullPlot()
 
 class Surface:
 
@@ -18,17 +16,18 @@ class Surface:
         import math
 
         """Reference Variables/Important:
-        self.start, self.end, self.midpoint, self.normalStart, self.normalEnd
+        self.start, self.end, self.segment, self.midpoint, self.normalStart, self.normalEnd
         """
 
         # Start and end should be shapely point objects?
         self.start = Point(start[0], start[1])
         self.end = Point(end[0], end[1])
-        self.segment = LineString([start, end])
+        self.segment = LineString([start, end]) # segment representing the surface
+
+        self.surfaceLength = math.sqrt((self.end.x - self.start.x)**2 + (self.end.y - self.start.y)**2)
 
         # Midpoint of surface
         self.midpoint = self.segment.centroid
-      
 
         # Construct normal vector
             # slope of normal vector = -slope of line segment
@@ -38,7 +37,7 @@ class Surface:
                 # if end.Y > start.Y --> positive x direction
                 # if end.X < start.X --> positive y direction
         
-        self.normalEndX = self.midpoint.x # ending x coordinate for normal (temporary)
+        self.normalEndX = self.midpoint.x # ending x coordinate for normal (don't use for reference, only to determine which direction the normal vector should point in the normal helper method)
         self.normalEndY = self.midpoint.y # ending y coordinate for normal
 
         # in order to get the correct slope for the normal vector
@@ -81,6 +80,12 @@ class Surface:
         radius = 1.0
         self.dCircleCenter = self.normal.interpolate(r_offset) # the center of the circle along the normal line
 
+        # for labeling the plots
+        if r_offset == 0:
+            self.distType = "Uniform Distribution"
+        if r_offset == 1:
+            self.distType = "Cosine Distribution"
+
         numPoints = 500
         circlePoints = []
         # at pi, none of the x values for the circle will have been repeated, so we can add the point and then sort based on x values, descending order
@@ -92,7 +97,7 @@ class Surface:
                 angle = (2 * math.pi) * (i / numPoints) # calculates every angle from 0-2pi, placing 500 points to create the circle
                 x = self.dCircleCenter.x + radius * math.cos(angle)
                 y = self.dCircleCenter.y + radius * math.sin(angle)
-                if angle == math.pi:
+                if angle == math.pi and r_offset != 0:
                     circlePoints.append((self.midpoint.x, self.midpoint.y))
                     circlePoints = sorted(circlePoints, key=lambda x: x[0], reverse = True)
                     i += 1
@@ -102,7 +107,7 @@ class Surface:
                 angle = (2 * math.pi) * (i / numPoints)
                 x = self.dCircleCenter.x + radius * math.cos(angle)
                 y = self.dCircleCenter.y + radius * math.sin(angle)
-                if angle == math.pi:
+                if angle == math.pi and r_offset != 0:
                     circlePoints.append((self.midpoint.x, self.midpoint.y))
                     circlePoints = sorted(circlePoints, key=lambda x: x[0], reverse = True)
                     i += 1
@@ -132,9 +137,7 @@ class Surface:
 
         self.triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # triangle from midpoint of self to the endpoints of the other surface, s2
         self.overlapShape = self.triangle.intersection(self.circle)
-        print(type(self.overlapShape))
         
-
         overlapArea = self.overlapShape.area
         circleArea = self.circle.area
 
@@ -142,19 +145,20 @@ class Surface:
 
         return fractionalArea
 
-    def distributionPlot(self): # creates a plot of the distribution that can be compared to the analytic cosine
-        from shapely import Point, plotting, Polygon
+    def distributionPlot(self): # creates a plot of the distribution circle that will be compared to the analytic cosine
+        from shapely import Point, plotting, Polygon, MultiPoint, is_closed, get_coordinates, LineString
         from shapely.plotting import plot_points
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
         import math
         
         """Reference Variables/Important:
+            self.outerCircle
 
         """
 
         # creating the outer circle of S2 surfaces
-        outerRadius = self.segment.length / 2 
+        outerRadius = self.surfaceLength / 2
         outerCenter = self.midpoint
         outerCirclePoints = []
         numPoints = 500
@@ -167,27 +171,53 @@ class Surface:
     
         fullCircle = Polygon(outerCirclePoints) # polygon object of the full outer circle
 
-        buffLine = self.segment.buffer(0.0000001)
-        self.outerCircle = fullCircle.difference(buffLine)
+        buffLine = self.segment.buffer(0.000000000001)
+        splitCircles = fullCircle.difference(buffLine) # make this not self after done testing things out
+        if splitCircles.geoms[0].intersects(self.normal):
+            self.outerCircle = splitCircles.geoms[0]
+        else:
+            self.outerCircle = splitCircles.geoms[1]
+
+
+
+        # # CREATING THE PLOT OF ANGLE VS AREA # #
+        s2Points = get_coordinates(self.outerCircle) 
+        s2Start = s2Points[0]
+        plotPoints = []
+
+        for i in range(1, len(s2Points), 1):
+            s2End = s2Points[i]
+            s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1])) # the surface to pass in as s2 into intersectionArea
+            s2MidpointLine = LineString([self.midpoint, s2Surface.midpoint])
+            # take dot product to find the angle from the normal (?)
+            iNormal = self.normalEnd.x - self.normalStart.x 
+            jNormal = self.normalEnd.y - self.normalStart.y
+            magnitudeNormal = math.sqrt(iNormal**2 + jNormal**2)
+
+            iS2 = s2Surface.midpoint.x - self.midpoint.x # line from midpoint of self to s2 to calculate the angle between the surface and the normal
+            jS2 = s2Surface.midpoint.y - self.midpoint.y 
+            magnitudeS2 = math.sqrt(iS2**2 + jS2**2)
+
+            #angle = math.acos((iNormal * iS2) + (jNormal * jS2) / (magnitudeNormal * magnitudeS2)) # store as x in tuple
+            angle = math.atan2(jS2, iS2) - math.atan2(jNormal, iNormal)
+            areaValue = self.intersectionArea(s2Surface) # store as y in tuple
+            plotPoints.append(Point(angle, areaValue))
+
+            s2Start = s2End
 
         """plotting the actual distribution"""
-        #plotPoints = []
-        #for number in distributionNumbers:
-            #plotPoints.append(Point(number, self.intersectionArea(surface)))
-            
-        #ioff()
-        #fig, ax = subplots()
+        ioff()
+        fig, ax = subplots()
         #ax.set_aspect('equal')         
-        #for point in plotPoints:
-           #plot_points(point, ax, color='black')
-
-        #plt.xlabel("Angle")
-        #plt.ylabel("Fractional Area")
-        #plt.show()
+        for point in plotPoints:
+           plot_points(point, ax, color='black')
+        plt.xlabel("Angle (Radians)")
+        plt.ylabel("Fractional Area")
+        plt.show()
 
         return
 
-    def fullPlot(self): # plots all relevant objects (surface, normal, distribution circle, etc.)
+    def fullPlot(self): # plots all relevant objects (surface, normal, distribution circle, etc.) (excluding the plot of the distribution itself (angle vs area plot))
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
@@ -203,7 +233,7 @@ class Surface:
 
         plotting.plot_line(self.dCircleCenter, ax, color='green') # plots point at center of distribution circle
         plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
-        ax.text(self.dCircleCenter.x, self.dCircleCenter.y, "Distribution Circle", color='green')
+        ax.text(self.dCircleCenter.x, self.dCircleCenter.y, self.distType, color='green')
 
         plotting.plot_polygon(self.triangle, ax, color='orange', linewidth=2) # plots the triangle connecting to another surface
         ax.text(self.triangle.centroid.x, self.triangle.centroid.y, "Surface 2", color='orange')
@@ -211,7 +241,7 @@ class Surface:
         plotting.plot_polygon(self.overlapShape, ax, add_points=False, color='black', linewidth=2) # displays the overlapping area
         ax.text(self.overlapShape.centroid.x, self.overlapShape.centroid.y, "Overlap Area", color='black')
 
-        plotting.plot_polygon(self.outerCircle, ax, add_points=False, color='gray')
+        plotting.plot_polygon(self.outerCircle, ax, add_points=True, color='gray') # displays the "outerCircle" which is needed to create the analytic distributions (angle vs fractionalArea plot)
 
         plt.show()
 
