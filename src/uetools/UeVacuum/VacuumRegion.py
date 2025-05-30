@@ -11,15 +11,23 @@ class VacuumRegion:
     
     def outerCirclePlot(self):
         S1 = Surface((1, 2), (4, 5))
-        S1.distributionCircle(0)
+        S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showOuterCirclePlot()
 
     def analyticPlot(self):
         S1 = Surface((1, 2), (4, 5))
-        S1.distributionCircle(0)
+        S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showAnalyticPlot()
+    
+    def fullPlotTest(self):
+        S1 = Surface((1, 2), (4, 5))
+        S2 = Surface((7, 4), (6, 2))
+        S1.distributionCircle(1)
+        S1.intersectionArea(S2)
+        S1.drawOuterCircle()
+        S1.fullPlot()
 
 class Surface:
 
@@ -152,16 +160,16 @@ class Surface:
         self.overlapShape = self.triangle.intersection(self.circle)
         
         overlapArea = self.overlapShape.area
-        if (0 < self.r_offset and self.r_offset < 1):
+        if (0 < self.r_offset and self.r_offset < 1): # if we're dealing with a circle shifted between uniform and cosine
             buffLine = self.segment.buffer(0.000000000001)
-            splitdCircle = self.circle.difference(buffLine)
-            if splitdCircle.geoms[0].intersects(self.normal):
+            splitdCircle = self.circle.difference(buffLine) # split the distribution circle and the surface line
+            if splitdCircle.geoms[0].intersects(self.normal): 
                 self.totalAreaCircle = splitdCircle.geoms[0]
             else:
                 self.totalAreaCircle = splitdCircle.geoms[1]
-            circleArea = self.totalAreaCircle.area #FIX THIS TO GET CORRECT AREA
+            circleArea = self.totalAreaCircle.area 
         else:
-            circleArea = self.circle.area # NEED TO CHANGE THIS SO THAT IT'S ONLY THE AREA OF THE CIRCLE THAT'S ON THE SAME SIDE OF THE SURFACE AS THE NORMAL!!!!!!!!!!!!!!!!
+            circleArea = self.circle.area
 
         fractionalArea = overlapArea / circleArea
 
@@ -207,33 +215,33 @@ class Surface:
         import math
 
         # # CREATING THE PLOT OF ANGLE VS AREA # #
-        s2Points = get_coordinates(self.outerCircle) 
+        s2Points = get_coordinates(self.outerCircle) # points defining the outer circle
         s2Start = s2Points[0]
-        plotPoints = []
+        plotPoints = [] # points to plot for the curve
 
         for i in range(1, len(s2Points), 1):
-            s2End = s2Points[i]
+            s2End = s2Points[i] # end point of the surface
+
             s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1])) # the surface to pass in as s2 into intersectionArea
-            s2MidpointLine = LineString([self.midpoint, s2Surface.midpoint])
-            # take dot product to find the angle from the normal (?)
+
+            # take dot product to find the angle from the normal
             iNormal = self.normalEnd.x - self.normalStart.x 
             jNormal = self.normalEnd.y - self.normalStart.y
-            magnitudeNormal = math.sqrt(iNormal**2 + jNormal**2)
 
             iS2 = s2Surface.midpoint.x - self.midpoint.x # line from midpoint of self to s2 to calculate the angle between the surface and the normal
             jS2 = s2Surface.midpoint.y - self.midpoint.y 
-            magnitudeS2 = math.sqrt(iS2**2 + jS2**2)
 
             angle = math.atan2(jS2, iS2) - math.atan2(jNormal, iNormal)
             areaValue = self.intersectionArea(s2Surface) # store as y in tuple
             plotPoints.append(Point(angle, areaValue))
-
+    
             s2Start = s2End
 
         """plotting the actual distribution"""
         ioff()
-        fig, ax = subplots()        
-        for point in plotPoints:
+        fig, ax = subplots()
+
+        for point in plotPoints: # uncomment
            plot_points(point, ax, color='black')
         plt.xlabel("Angle (Radians)")
         plt.ylabel("Fractional Area")
@@ -303,7 +311,7 @@ class Surface:
         return
 
 
-    """def fullPlot(self): # plots all relevant objects (surface, normal, distribution circle, etc.) (excluding the plot of the distribution itself (angle vs area plot))
+    def fullPlot(self): # plots all relevant objects (surface, normal, distribution circle, etc.) (excluding the plot of the distribution itself (angle vs area plot))
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
@@ -331,4 +339,4 @@ class Surface:
 
         plt.show()
 
-        return"""
+        return
