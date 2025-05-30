@@ -1,11 +1,11 @@
 # UEDGE toolbox (UEtools) 
-Version: 1.2.1
+Version: 1.3.0
 
 ## Website (beta)
 http://software.llnl.gov/UETOOLS/
 
 ## Authors
-Andreas Holm, Ben Dudson, William H. Meyer
+Andreas Holm, Ben Dudson, William H. Meyer, Yichen Fu
 
 ## Release 
 
