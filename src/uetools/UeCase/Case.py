@@ -8,6 +8,7 @@ from uetools.UeGrid import Grid
 from uetools.UeUtils import *
 from uetools.UeDEGAS import DEGAS2Coupling
 from uetools.UePostproc.Postproc import PostProcessors
+from uetools.UeBayesian import Bayesian
 import uetools
 
 try:
@@ -780,6 +781,82 @@ class Case:
         win = StandaloneDashboard(self)
         win.show()
         app.exec_()
+        
+    def add_bayes_optimizer(self, physics):
+        """
+        Add Bayesian to Case to perporm Bayesian optimization (BO) for transport estimation
+        
+        Argument:
+        ---------
+        physics:
+            A user-defined class setting the creteria of Bayesian optimization, which 
+            should includes the following methods:
+        
+            set_params(params, **kwargs):
+                Defines how given parameters are used in UEDGE calculation.
+                
+                Arguments:
+                ----------
+                params: np.array(N,) -- Required
+                    Each parameter BO provide is an np.array with N elements. Generally, they represents some
+                    transport coefficients that needs to be defined on UEDGE grids. 
+                **kwargs:
+                    Other user defined parameters.
+                
+            find_equilibrium(uetools_case, save_dir, **kwargs):
+                Defines the method to calculate an equilibrium.
+                
+                Arguments:
+                ----------
+                uetools_case: uetools.Case -- Required
+                    A uetools Case container to be converged.
+                save_dir: String -- Required
+                    The location where HDF5 files are saved. The default is the current location.
+                **kwargs:
+                    Other user defined parameters.
+                    
+                Return:
+                -------
+                convergence: boolean -- Required
+                    An indicator on whether such a case converges. 
+                    
+            loss_function(**kwargs):
+                Defines how the loss function is defined, which will be minimized during 
+                Bayesian optimization process. 
+                
+                Argumetns:
+                ----------
+                **kwargs: 
+                    Other user defined parameters.
+                    
+                Return:
+                -------
+                loss: float -- Required
+                
+            find_constraint(**kwargs): -- Optional
+                Define constraint of the system if needed. This will force the algorithm 
+                to do a constrained optimization.
+                
+                Argumetns:
+                ----------
+                **kwargs: 
+                    Other user defined parameters.
+                    
+            probability_function(**kwargs): -- Optional
+                Calculate the probability based for given loss. This is used to estimate the
+                uncertainties from Bayesian optimization.
+                
+                Argumetns:
+                ----------
+                **kwargs: 
+                    Other user defined parameters.
+                    
+                Return:
+                -------
+                probability: float -- Required
+        """
+
+        self.bayes_optimizer = Bayesian(self, physics=physics)
 
 
 class GetSetMemory:
@@ -866,7 +943,7 @@ class GetSetMemory:
 
         Returns
         -------
-        None
+        ndarray containing data or None if not found
         """
         try:
             package = self.variables["package"][variable]
