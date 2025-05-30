@@ -309,7 +309,8 @@ class Solver(UeRun):
         from copy import deepcopy
 
         self.oldgrid = {}
-        for grdvar in ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b"]:
+        for grdvar in ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", 
+            'sibdrys', 'simagxs', "b"]:
             self.oldgrid[grdvar] = deepcopy(self.getue(grdvar))
 
     def gridmorph(self, newgrid, savedir, var={}, gridtarget=1, **kwargs):
@@ -381,7 +382,8 @@ class Solver(UeRun):
         from copy import deepcopy
 
         # List of variables to morph
-        variables = ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b"]
+        variables = ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b", 
+                "sibdrys", "simagxs"]
         # "nlim", "xlim", "ylim", "nplate1", "nplate2", "rplate1", "rplate2",
         # "zplate1", "zplate2"
         if "griddata" not in dir(self):
