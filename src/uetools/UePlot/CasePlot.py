@@ -1,14 +1,70 @@
 # Plotting routines for case objects
 from uetools.UePlot import Plot
+from uetools.UeUtils import Tools
 
 
+# TODO: implement profile plots
 class Caseplot(Plot):
-    # TODO: implement profile plots
+    def __init__(self, case, *args, **kwargs):
+        # Couple get to case
+        self.get = case.get
+        self.info = case.info
+        self.tools = Tools()
+        if self.get('geometry')[0].decode('UTF-8').strip() \
+            in ['uppersn', 'snull']:
+            snull = True
+            dnull = False
+            if  self.get('geometry')[0].decode('UTF-8').strip() \
+                    == 'uppersn':
+                usn = True
+            else:
+                usn = False
+        elif  self.get('geometry')[0].decode('UTF-8').strip() \
+            == 'dnull':
+            snull = False
+            usn = False
+            dnull = True
+        elif  self.get('geometry')[0].decode('UTF-8').strip() \
+            == 'dnbot':
+            snull = True
+            usn = False
+            dnull = False
+        else:
+            raise TypeError("Geometry {} not recognized! Aborting.".format(\
+                self.get('geometry')[0].decode('UTF-8').strip()))
+
+        super().__init__(*args, snull=snull, dnull=dnull, usn=usn, **kwargs)
+    
+    def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
+        """Adds metadata to figure"""
+        from time import ctime
+
+        label = '{}, case "{}"\n'.format(ctime(), self.info['casename'])
+        label += 'UEDGE {} v{}, UETOOLS v{}, user "{}", hostname "{}"\n'.format(
+            self.info['uedge_ver'].replace("$", "\$"),
+            self.info['pyver'],
+            self.info['uetoolsversion'],
+            self.info['user'],
+            self.info['hostname'],
+        )
+        try:
+            label += 'cwd "{}"'.format(self.info['location'])
+        except:
+            label += 'cwd "{}"'.format(self.info['casefname'])
+        figure.subplots_adjust(bottom=bottom, top=top, left=left, right=right)
+        figure.text(0.995, 0.005, label, fontsize=4, horizontalalignment="right")
+
+        return
+
 
     def it(self, variable, ylabel=None, marksep=True, staggered=False, 
-                xlim=(None, None), ylim=(None, None), **kwargs
+                xlim=(None, None), ylim=(None, None), primary=True, **kwargs
             ):
         """ Plots variable at inner plate as distance along the plate
+
+        In case of double-null, plots values along primary target (bias 
+        direction) unless kwarg primary=False is set. For balance double 
+        null geometries, the lower target is assumed primary.
 
         Arguments
         ---------
@@ -33,22 +89,45 @@ class Caseplot(Plot):
         -------
         Figure 
         """
-        fig = self.plotprofile(
-            self.get('yylb')[1:-1], variable[0 ** staggered, 1:-1], **kwargs
-        )
+        trgt = ""
+        x = self.get('yyrb')[1:-1]
+        idx = 0
+        if self.dnull == "upper":
+            if not primary:
+                idx = self.get("ixlb")[0] + (0 ** staggered)
+                trgt = "lower"
+                x = self.get('yylb')[1:-1,1]
+            else:
+                idx = self.get("ixrb")[0]
+                trgt = "upper"
+                x = self.get('yyrb')[1:-1,0]
+        elif self.dnull in ["lower", "balanced"]:
+            if not primary:
+                idx = self.get("ixrb")[0]
+                trgt = "upper"
+                x = self.get('yyrb')[1:-1,0]
+            else:
+                idx = self.get("ixlb")[0] + (0 ** staggered)
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,0]
+        fig = self.profile(x, variable[idx, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
         fig.get_axes()[0].set_xlim(xlim)
         fig.get_axes()[0].set_ylim(ylim)
         fig.get_axes()[0].set_ylabel(ylabel)
-        fig.get_axes()[0].set_xlabel("Distance from separatrix along IT [m]")
+        fig.get_axes()[0].set_xlabel(f"Distance from separatrix along {trgt} IT [m]")
         return fig
 
     def ot(self, variable, ylabel=None, marksep=True, xlim=(None, None), 
-            ylim=(None, None), **kwargs
+            ylim=(None, None), primary=True, staggered=False, **kwargs
             ):
         """ Plots variable at outer plate as distance along the plate
+
+        In case of double-null, plots values along primary target (bias 
+        direction) unless kwarg primary=False is set. For balance double 
+        null geometries, the lower target is assumed primary.
 
         Arguments
         ---------
@@ -70,14 +149,35 @@ class Caseplot(Plot):
         -------
         Figure 
         """
-        fig = self.plotprofile(self.get('yyrb')[1:-1], variable[-2, 1:-1], **kwargs)
+        trgt = ""
+        x = self.get('yyrb')[1:-1]
+        idx = -2
+        if self.dnull == "upper":
+            if primary:
+                idx = self.get("ixlb")[1] + (0 ** staggered)
+                trgt = "upper"
+                x = self.get('yylb')[1:-1,1]
+            else:
+                idx = self.get("ixrb")[1]
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,0]
+        elif self.dnull in ["lower", "balanced"]:
+            if primary:
+                idx = self.get("ixrb")[1]
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,1]
+            else:
+                idx = self.get("ixlb")[1] + (0 ** staggered)
+                trgt = "lower"
+                x = self.get('yyrb')[1:-1,1]
+        fig = self.profile(x, variable[idx, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
         fig.get_axes()[0].set_ylabel(ylabel)
         fig.get_axes()[0].set_xlim(xlim)
         fig.get_axes()[0].set_ylim(ylim)
-        fig.get_axes()[0].set_xlabel("Distance from separatrix along OT [m]")
+        fig.get_axes()[0].set_xlabel(f"Distance from separatrix along {trgt} OT [m]")
         return fig
 
     def omp(self, variable, ylabel=None, marksep=True, xlim=(None, None), 
@@ -104,7 +204,7 @@ class Caseplot(Plot):
         -------
         Figure
         """
-        fig = self.plotprofile(self.get('yyc')[1:-1], variable[self.get('ixmp'), 1:-1], **kwargs)
+        fig = self.profile(self.get('yyc')[1:-1], variable[self.get('ixmp'), 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
@@ -143,7 +243,8 @@ class Caseplot(Plot):
         -------
         Figure
         """
-        fig = self.plotprofile(self.get('yyc')[1:-1], variable[ix, 1:-1], **kwargs)
+
+        fig = self.profile(self.get('yyc')[1:-1], variable[ix, 1:-1], **kwargs)
         # Add Sep location if requested
         if marksep is True:
             fig.get_axes()[0].axvline(0, color="grey", linewidth=1)
@@ -182,13 +283,15 @@ class Caseplot(Plot):
         -------
         Figure
         """
+        # TODO: how to deal with dnulls??
+
         from numpy import concatenate
         # Check if we are in the PFR
         ixpt1 = self.get('ixpt1')[0]
         ixpt2 = self.get('ixpt2')[0]
         if (self.get('ixp1')[ixpt1, iy] - ixpt1) == 1:
             x = self.lcon[1:-1, iy]
-            fig = self.plotprofile(x, variable[1:-1, iy], **kwargs)
+            fig = self.profile(x, variable[1:-1, iy], **kwargs)
             # Add Sep location if requested
             if markxpts is True:
                 xpt1 = 0.5*sum(self.lcon[ixpt1:ixpt1+2, iy])
@@ -199,31 +302,12 @@ class Caseplot(Plot):
             xpt = self.lcon[ixpt1, iy]  
             x = concatenate((self.lcon[:ixpt1+1, iy], self.lcon[ixpt2+1:, iy]+xpt))
             y = concatenate((variable[:ixpt1+1, iy], variable[ixpt2+1:, iy]))
-            fig = self.plotprofile(x, y, **kwargs)
+            fig = self.profile(x, y, **kwargs)
             if markxpts is True:
                 xpt = 0.5*(self.lcon[ixpt1,iy] + self.lcon[ixpt2+1, iy])
                 fig.get_axes()[0].axvline(xpt, color="grey", linewidth=1)
 
         return fig
-
-    def sep(self, variable, markxpts=True, **kwargs):
-        """
-
-        Arguments
-        ---------
-
-        Keyword arguments
-        -----------------
-            
-        Modifies
-        --------
-
-        Returns
-        -------
-        """
-        return self.ft(variable, self.get('iysptrx')+1, markxpts=markxpts, **kwargs)
-        
-
 
     def neOT(self, s=None, **kwargs):
         f = self.ot(self.get('ne', s), **kwargs)
@@ -289,17 +373,20 @@ class Caseplot(Plot):
 
     # Expand the 2D plot list
     def grid(self, **kwargs):
-        return self.plotmesh(**kwargs)
+        return self.mesh(**kwargs)
     
-    def grid_hdf5(self, file, flip=True, **kwargs):
+    def gridue(self, file, flip=True, **kwargs):
+        from h5py import is_hdf5
 
-        rm=self.hdf5search(file,'rm')[1:-1,1:-1]
-        zm=self.hdf5search(file,'zm')[1:-1,1:-1]
+        if not is_hdf5(file):
+            raise NotImplementedError("ASCII gridue support not implemented.")
+        rm=self.tools.hdf5search(file,'rm')[1:-1,1:-1]
+        zm=self.tools.hdf5search(file,'zm')[1:-1,1:-1]
         if (
             self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
         ) and (flip is True):
             zm = self.disp-zm        
-        return self.plotmesh( 
+        return self.mesh( 
             lcfs=False,
             rm=rm,
             zm=zm,
@@ -309,15 +396,15 @@ class Caseplot(Plot):
 
     def heatmap(self, var, s=None, **kwargs):
         if isinstance(var, str):
-            return self.plotmesh(self.get(var, s), **kwargs)
+            return self.mesh(self.get(var, s), **kwargs)
         else:
-            return self.plotmesh(var, **kwargs)
+            return self.mesh(var, **kwargs)
 
     def selector2D(self, var, interactive, **kwargs):
         if interactive is True:
             return self.variablemesh(var, **kwargs)
         else:
-            return self.plotmesh(var, **kwargs)
+            return self.mesh(var, **kwargs)
 
     def ne2D(self, interactive=False, **kwargs):
         return self.selector2D(self.get("ne"), interactive, **kwargs)
@@ -377,7 +464,7 @@ class Caseplot(Plot):
         mask = self.CIII_emission[1:-1, 1:-1].reshape(self.nx * self.ny)
         mask = [1 * ((x < maskvalues[0]) or (x > maskvalues[1])) for x in mask]
         if interactive is False:
-            return self.plotmesh(z, **kwargs)
+            return self.mesh(z, **kwargs)
         else:
             kwargs["mask"] = mask
             kwargs["mvs"] = maskvalues
@@ -434,7 +521,7 @@ class Caseplot(Plot):
             origrange = kwargs["zrange"]
         mvs = kwargs.pop("mvs")
         mask = self.CIII_emission[1:-1, 1:-1]
-        cbar, verts = self.plotmesh(
+        cbar, verts = self.mesh(
             z, ax=ax, watermark=False, interactive=True, **kwargs
         )
         f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
@@ -497,7 +584,7 @@ class Caseplot(Plot):
         except:
             kwargs["zrange"] = (z[1:-1, 1:-1].min(), z[1:-1, 1:-1].max())
             origrange = kwargs["zrange"]
-        cbar, verts = self.plotmesh(
+        cbar, verts = self.mesh(
             z, ax=ax, watermark=False, interactive=True, **kwargs
         )
         f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])
@@ -544,7 +631,7 @@ class Caseplot(Plot):
     def gasflow(self, s, surfnorm=True, **kwargs):
         return self.plot_streamline("fngx", "fngy", s, surfnorm, **kwargs)
 
-    def plot_driftdirection(self, ax=None, width=0.02, color='k', flip=True,
+    def iongradB(self, ax=None, width=0.02, color='k', flip=True,
         **kwargs):
         ''' Plots the drift direction on the requested axis '''
         """
@@ -655,7 +742,7 @@ class Caseplot(Plot):
         except:
             kwargs["cmap"] = "bwr"
 
-        cbar, verts = self.plotmesh(
+        cbar, verts = self.mesh(
             vararray[:, :, 0], ax=ax, watermark=False, interactive=True, **kwargs
         )
         f.axes[0].set_position([0.125, 0.13, 0.55, 0.85])

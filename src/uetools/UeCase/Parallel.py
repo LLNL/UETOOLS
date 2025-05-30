@@ -353,6 +353,7 @@ class Pool:
         return results
 
 
+
 def mute():
     """
     Redirect output to /dev/null by modifying the C library
@@ -396,3 +397,4 @@ def QuietPool(processes: int = 2, *args, **kwargs):
     import multiprocessing as mp
 
     return mp.Pool(processes=processes, initializer=mute, *args, **kwargs)
+

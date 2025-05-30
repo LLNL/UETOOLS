@@ -1,10 +1,13 @@
 *.swp
 *~
 *.hdf
-*.hdf5
 *.h5
 .DS_Store
 uetools/ignore/
+requirements.txt
+jupyter/**/progress*.hdf5
+jupyter/**/SUCCESS*.hdf5
+jupyter/**/ncore_down*.hdf5
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -61,6 +64,7 @@ cover/
 
 # Sphinx documentation
 docs/_build/
+docs/
 
 # PyBuilder
 .pybuilder/
@@ -94,3 +98,6 @@ dmypy.json
 .pytype/
 *.swo
 /dashboard_test
+
+# data from Bayesian optimization
+bayes_opt/

@@ -85,7 +85,7 @@ class InteractivePlot():
             )
             origrange = kwargs["zrange"]
 
-        self.cbar, self.verts = db.getcase(0).plotmesh(
+        self.cbar, self.verts = db.getcase(0).plot.mesh(
                 vararray[0], 
                 flip=self.flip,
                 ax=self.ax, 
@@ -141,7 +141,7 @@ class InteractivePlot():
                 self.slce = self.slice_slider.val
                 index = where(self.db.sortvalues == self.slce)[0][0]
                 c = self.db.getcase(index)
-                nodes = array(c.nodes)
+                nodes = array(c.plot.nodes)
                 if not self.flip:
                     nodes[:,:,1] = c.disp-nodes[:,:,1]
                 self.verts.set_verts(nodes)
@@ -157,11 +157,11 @@ class InteractivePlot():
                         self.vessel = True
                     line.remove()
                 if self.lcfs:
-                    c.plotlcfs(self.ax, flip=self.flip, color="grey", linewidth=0.5)
+                    c.plot.lcfs(self.ax, flip=self.flip, color="grey", linewidth=0.5)
                 if self.vessel:
-                    c.plotvessel(self.ax, flip=self.flip)
+                    c.plot.vessel(self.ax, flip=self.flip)
                 if self.plates:
-                    c.plotplates(self.ax, flip=self.flip)
+                    c.plot.plates(self.ax, flip=self.flip)
 
             self.verts.set_clim(self.zrange_slider.val)
             self.verts.set_cmap(self.cmap)

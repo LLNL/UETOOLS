@@ -190,10 +190,6 @@ class Database(DB_1DPlots, DB_2DPlots):
         self.sortlabel = "{} {}".format(self.sortlocation, self.sortvar)
 
 
-    def closedb(self):
-        for key, case in self.cases.items():
-            case.hdf5case.close()
-
     def create_database(self, path):#, database):
         from  os.path import join, exists, isdir, isfile
         from os import walk

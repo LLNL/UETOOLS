@@ -1,7 +1,5 @@
 from .Case import *
-from .CasePlot import *
-from .Solver import *
 from .Save import *
+from .Input import *
 from .Parallel import ParallelCase
-from .SolverStrategy import SolverStrategy
-
+from .Config import Config

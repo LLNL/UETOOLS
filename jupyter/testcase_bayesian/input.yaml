@@ -1,0 +1,147 @@
+casename: "bayesian"
+restart: 1
+
+oldseec: 0  # to turn off the old model
+isbohmcalc: 0 
+
+species:
+    nhsp: 1     # No. of hydrogenic species
+
+grid:
+    mhdgeo: 1   # Toroidal MHD equilibrium
+    geometry: "snull" #
+    isnonog: 0  # Evaluates nonorthogonal fluxes on grid
+    newgeo: 1 # 1 = calculate new grid
+    gengrid: 0  # =0 Read grid from file; =1 generate grid
+    GridFileName: 'grid.hdf5' # Path to grid file
+    isgriduehdf5: 1 # Switch whether to read HDF5 gridue file
+
+    savefile: 'initial_profile.hdf5'
+
+# ==================== From set_numerics ====================
+# Finite-difference algorithms (upwind, central diff, etc.)
+numerics:
+    methn: 33              #ion continuty eqn
+    methu: 33              #ion parallel momentum eqn
+    methe: 33              #electron energy eqn
+    methi: 33              #ion energy eqn
+    methg: 33              #neutral gas continuity eqn
+
+    # Symmetric differencing of momentum equations near x-points:
+    isnfmiy: 1
+
+
+# ==================== From set_physics ====================
+
+physics:
+
+    #-special values for the test
+    minu:
+        0: 2.      # ion mass relative to mp (hydrogen)
+    lnlam: 11.     # Coulomb logarithm
+    cthe: 0.       # thermal force coeff. for || mom. eq. (0.71 default)
+    cvgp: 0.       # turn off grad p in Te and Ti eqns.
+    cfvisx: 0.     # turn off viscous heating for ions
+    cfvisy: 0.     # turn off viscous heating for ions
+    ckinfl: 0.     # turn off viscous boundary term for heat flux
+
+    #-turn off convective heat flux
+    cfcvte: 0.
+    cfcvti: 0.
+    cfloye: 0.
+    cfloyi: 0.
+
+    #turn off Y-flux coef for conv. in up-eq.
+    cmfy: 0.0
+    isflxlde: 1
+
+    #turn off thermal force
+    cthe: 0.
+
+    #turn off equilibration
+    feqp: 0.
+
+    #turn off vgradP terms
+    cvgp: 0.
+
+    #turn off radiation energy gain/loss terms
+    chradi: 0
+    chradr: 0
+
+    # switch to activate the prad term in UEDGE
+    isvolsorext: 1
+
+
+# Equations solved
+equations:
+    isteon: 1
+    istion: 0
+    isnion: 0
+    isupon: 0
+    isngon: 0
+    isupgon: 0
+    isphion: 0
+
+
+# ==================== From set_bc ====================
+
+# Boundary conditions
+boudanry_conditions:
+
+    ##-core
+    isnicore:
+        0: 1         #=3 gives uniform density and I=curcore
+    ncore:
+        0: 4.5e19       #hydrogen ion density on core if isnicore=1
+    curcore: 0.0           #hydr core current if isnicore=3
+    iflcore: 1             #flag; =0, fixed Te,i; =1, fixed power on core
+    tcoree: 100.           #core Te if iflcore=0
+    tcorei: 100.           #core Ti if iflcore=0
+    pcorei: 0.0            #core ion  power if iflcore=1
+    isupcore: 1            #=1 sets d(up)/dy=0
+    isngcore:
+        0: 1                #set neutral density: ngcore at core bndry
+
+    ##-outer wall
+    tedge: 2.              #fixed wall, pf Te,i if istewc=1, etc
+    istewc: 0              #=3, for (1/Te)dTe/dy=1/lyte
+    istiwc: 1              #=3, ditto
+    isnwcono: 3            #=3 for (1/n)dn/dy: 1/lyni
+    isnwconi: 1
+
+    ##-PF wall
+    istepfc: 1
+    istipfc: 1
+
+    ##-this is both for outer wall and PF wall -?
+    lyte: 0.05
+    lyti: 0.05
+    lyni:
+        1: 0.02          #iy=ny+1 density radial scale length (m)
+        0: 0.02          #iy=0 density radial scale length
+
+    ##-plate
+    recycp:
+        0: 0.7         #hydrogen recycling coeff at plates
+    isplflxl: 1            #=0 for no flux limit (te & ti) at plate
+
+    #-Fix temperature at plates
+    ibctepl: 0
+    tepltl: 1.
+    ibctepr: 0
+    tepltr: 2.
+
+    # P_core_e, need to be changed for each shot
+    pcoree: 4107938.289642334
+
+
+# ==================== From init ====================
+# Initial profiles
+initial:
+    nis: 1.e20
+    ngs: 1.e12
+    ngbackg: 1.e10 #-should be smaller than ng
+
+    tes: 1.6022e-19
+    tis: 1.6022e-25
+    ups: 0.0
