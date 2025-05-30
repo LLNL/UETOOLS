@@ -3,10 +3,12 @@ class VacuumRegion:
         return 
 
     def testFunction(self):
-        s = Surface((5, 1), (5, 8))
+        s = Surface((1, 1), (8, 2))
         s.distributionCircle(1)
         s.distributionPlot()
-        #s.fullPlot()
+        s2 = Surface((2,5), (3, 7))
+        s.intersectionArea(s2)
+        s.fullPlot()
 
 class Surface:
 
@@ -121,10 +123,6 @@ class Surface:
     def intersectionArea(self, s2): # finds the overlapping area (flux) between two surfaces
         from shapely import Point, LineString, plotting, Polygon
         import math
-        """ For now: pass in a surface object, s2, so that we can access the end points of the surface and make a triangle from the midpoint of self to the endpoints of s2.
-            The parameters s2Start and s2End would represent the start and end points of the second surface (the one we are measuring flux into from self).
-            This parameter might be changed instead to an array that represents the start and end points of all relevant surfaces to self, rather than just 2 input points.
-            """
 
         """Reference Variables/Important:
         self.triangle, self.overlapShape, overlapArea, fractionalArea
@@ -139,11 +137,11 @@ class Surface:
         self.overlapShape = self.triangle.intersection(self.circle)
         
         overlapArea = self.overlapShape.area
-        circleArea = self.circle.area
+        circleArea = self.circle.area # NEED TO CHANGE THIS SO THAT IT'S ONLY THE AREA OF THE CIRCLE THAT'S ON THE SAME SIDE OF THE SURFACE AS THE NORMAL!!!!!!!!!!!!!!!!
 
         fractionalArea = overlapArea / circleArea
 
-        return fractionalArea
+        return fractionalArea 
 
     def distributionPlot(self): # creates a plot of the distribution circle that will be compared to the analytic cosine
         from shapely import Point, plotting, Polygon, MultiPoint, is_closed, get_coordinates, LineString
@@ -198,22 +196,27 @@ class Surface:
             jS2 = s2Surface.midpoint.y - self.midpoint.y 
             magnitudeS2 = math.sqrt(iS2**2 + jS2**2)
 
-            #angle = math.acos((iNormal * iS2) + (jNormal * jS2) / (magnitudeNormal * magnitudeS2)) # store as x in tuple
             angle = math.atan2(jS2, iS2) - math.atan2(jNormal, iNormal)
             areaValue = self.intersectionArea(s2Surface) # store as y in tuple
             plotPoints.append(Point(angle, areaValue))
 
             s2Start = s2End
 
-        """plotting the actual distribution"""
+        plotting the actual distribution
         ioff()
-        fig, ax = subplots()
-        #ax.set_aspect('equal')         
+        fig, ax = subplots()        
         for point in plotPoints:
            plot_points(point, ax, color='black')
         plt.xlabel("Angle (Radians)")
         plt.ylabel("Fractional Area")
+        
         plt.show()
+
+        total = 0
+        for point in plotPoints:
+            total += point.y 
+
+        print("Total Area: ", total)
 
         return
 
