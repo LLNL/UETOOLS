@@ -91,10 +91,8 @@ class Plot:
         northface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
         northface[:-1] = nodes[4] - nodes[3]
         # Find normals to faces
-        toroidal = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
-        toroidal[-1] = 1
-        eastnormal = cross(eastface, toroidal, axis=0)
-        northnormal = cross(toroidal, northface, axis=0)
+        northnormal = self.symid[1]-self.symid[0]
+        eastnormal = self.sxmid[1]-self.sxmid[0]
 
         self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
         for i in range(2):
