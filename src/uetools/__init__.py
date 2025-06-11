@@ -4,6 +4,12 @@ try:
 # In case no UEDGE is installed, only standalone mode is allowed
 except:
     print('No UEDGE install found. Importing UEDGE Toolbox in standalone mode')
+try:
+    from uedge import ppp
+except:
+    # Using version of UEDGE not contining the ppp package
+    pass
+
 from .UeCase import Case, Config
 from .UeDatabase import Database
 from . import UeCase
