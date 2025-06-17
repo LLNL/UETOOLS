@@ -10,13 +10,13 @@ class VacuumRegion:
         S1.showTwoSurfacePlot()
     
     def outerCirclePlot(self):
-        S1 = Surface((4, 2), (1, 6))
+        S1 = Surface((1, 2), (1, 4))
         S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showOuterCirclePlot()
 
     def analyticPlot(self):
-        S1 = Surface((4, 2), (1, 6))
+        S1 = Surface((1, 2), (1, 4))
         S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showAnalyticPlot(True)
@@ -29,13 +29,6 @@ class VacuumRegion:
         S1.drawOuterCircle()
         S1.fullPlot()
 
-    def cosineComparison(self): # for comparing my generated cosine plot to the equation-based plot
-        S1 = Surface((4, 2), (1, 6))
-        S1.distributionCircle(1)
-        S1.drawOuterCircle()
-
-
-
 class Surface:
 
     def __init__(self, start, end): # creates the surface
@@ -44,7 +37,7 @@ class Surface:
         import math
 
         """Reference Variables/Important:
-        self.start, self.end, self.segment, self.midpoint, self.normalStart, self.normalEnd
+        self.start, self.end, self.segment, self.surfaceLength, self.midpoint, self.normalStart, self.normalEnd
         """
 
         # Start and end should be shapely point objects?
@@ -106,7 +99,9 @@ class Surface:
         """
 
         self.r_offset = r_offset
-        radius = 1.0
+        radius = self.surfaceLength / 8
+        if self.r_offset == 1:
+            r_offset = radius
         self.dCircleCenter = self.normal.interpolate(r_offset) # the center of the distribution circle along the normal line
 
         # for labeling the plots
@@ -168,7 +163,7 @@ class Surface:
         
         # Getting the correct area of the circle on one side of the normal line
         overlapArea = self.overlapShape.area
-        if (0 <= self.r_offset and self.r_offset < 1): # if we're dealing with a circle shifted between uniform and cosine
+        if (0 <= self.r_offset and self.r_offset < 1) and self.circle.intersects(self.segment): # if we're dealing with a circle shifted between uniform and cosine
             buffLine = self.segment.buffer(0.000000000001)
             splitdCircle = self.circle.difference(buffLine) # split the distribution circle and the surface line
             if splitdCircle.geoms[0].intersects(self.normal): 
@@ -192,21 +187,21 @@ class Surface:
         """
 
         # creating the outer circle of S2 surfaces
-        outerRadius = self.surfaceLength / 2
-        outerCenter = self.midpoint
+        outerRadius = self.surfaceLength / 2 # outer circle has diameter equal to the length of self surface (S1)
+        outerCenter = self.midpoint 
         outerCirclePoints = []
         numPoints = 500
 
-        for i in range(numPoints + 1):
+        for i in range(numPoints):
                 angle = (2 * math.pi) * (i / numPoints)
                 x = outerCenter.x + outerRadius * math.cos(angle) # uses same center as the distribution circle
                 y = outerCenter.y + outerRadius * math.sin(angle)
                 outerCirclePoints.append((x, y))
     
-        fullCircle = Polygon(outerCirclePoints) # polygon object of the full outer circle
+        fullCircle = Polygon(outerCirclePoints) # polygon object of the full outer circle, before splitting to correct side of normal
 
         buffLine = self.segment.buffer(0.000000000001)
-        splitCircles = fullCircle.difference(buffLine) # make this not self after done testing things out
+        splitCircles = fullCircle.difference(buffLine)
         if splitCircles.geoms[0].intersects(self.normal):
             self.outerCircle = splitCircles.geoms[0]
         else:
@@ -221,6 +216,7 @@ class Surface:
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
         import math
+        import numpy as np
 
         """The 'comparison' variable determines if we are comparing the plotted distribution to the known cosine distribution or not. 
         True means yes, do the comparison and plot both the generated and plot for comparison.
@@ -229,14 +225,18 @@ class Surface:
         and you want to compare it to the standard."""
 
         # # CREATING THE PLOT OF ANGLE VS AREA # #
-        s2Points = get_coordinates(self.outerCircle) # points defining the outer circle
+        s2Points = get_coordinates(self.outerCircle) # points defining the outer circle of S2 surfaces
         s2Start = s2Points[0]
         plotPoints = [] # points to plot for the curve
-
+        
         for i in range(1, len(s2Points), 1):
             s2End = s2Points[i] # end point of the surface
 
             s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1])) # the surface to pass in as s2 into intersectionArea
+
+            if (s2Surface.segment.length >= (self.surfaceLength - 1)) and (s2Surface.segment.length <= (self.surfaceLength + 1)): # remove outlier point (rough but works for the current cases)
+                s2Start = s2End
+                continue
 
             # take dot product to find the angle from the normal
             iNormal = self.normalEnd.x - self.normalStart.x 
@@ -247,14 +247,31 @@ class Surface:
 
             angle = math.atan2(jS2, iS2) - math.atan2(jNormal, iNormal) # calculated between normal and line from midpoint of S1 to midpoint of S2
             areaValue = self.intersectionArea(s2Surface) # store as y in tuple
+
+            if comparison == True: # making a comparison to the formula cosine plot -- need to scale the values by dTheta
+                iLeg1 = s2Start[0] - self.midpoint.x 
+                jLeg1 = s2Start[1] - self.midpoint.y 
+
+                iLeg2 = s2End[0] - self.midpoint.x 
+                jLeg2 = s2End[1] - self.midpoint.y 
+
+                dTheta = abs(math.atan2(jLeg1, iLeg1) - math.atan2(jLeg2, iLeg2))
+                #areaValue = areaValue * dTheta
+                #print("dTheta:", dTheta)
+                #print("areaValue: ", areaValue)
+                #break
+
+            if areaValue < 1e-15: # single out the points for the outliers
+                print(s2Start, s2End)
+
             plotPoints.append(Point(angle, areaValue))
     
             s2Start = s2End
 
-        # plotting the actual distribution
         ioff()
         fig, ax = subplots()
 
+        # Plotting the distribution
         for point in plotPoints:
            plot_points(point, ax, color='black')
         plt.xlabel("Angle (Radians)")
@@ -264,20 +281,21 @@ class Surface:
         for point in plotPoints:
             total += point.y 
 
-        print("Total Area: ", total)
+        print("Total Area (fractional): ", total)
 
-        # Plotting the analytic cosine distribution from the equation
-        if comparison == True:
+        # Plotting the analytic cosine distribution from the equation y = (1/2pi) * (1 + cos(x))
+        if comparison == True: # compare the generated to expected cosine dist.
             cosPoints = []
             for plotPoint in plotPoints:
                 cosXval = plotPoint.x
-                cosYval = (1/(2*math.pi))*(1 + math.cos(cosXval))
+                cosYval = (1/(2*math.pi))*(1 + math.cos(cosXval*2))
                 cosPoints.append(Point(cosXval, cosYval))
+                i += 1
             
             for cosPoint in cosPoints:
-                plot_points(point, ax, color='red', marker='1') # why isn't this plotting?
+                plot_points(cosPoint, ax, color='red', marker='1')
 
-        plt.show()
+        plt.show() # generates the plot
 
         return
 
