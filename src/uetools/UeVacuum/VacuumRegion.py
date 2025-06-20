@@ -3,26 +3,26 @@ class VacuumRegion:
         return 
 
     def twoSurfacePlot(self):
-        S1 = Surface((1, 2), (4, 5))
+        S1 = Surface((5, 2), (4, 1))
         S1.distributionCircle(1)
-        S2 = Surface((7, 4), (6, 2))
+        S2 = Surface((2, 5), (1, 4))
         S1.intersectionArea(S2)
         S1.showTwoSurfacePlot()
     
     def outerCirclePlot(self):
-        S1 = Surface((6, 2), (8, 1))
-        S1.distributionCircle(0.5)
+        S1 = Surface((5, 2), (4, 1))
+        S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showOuterCirclePlot()
 
     def analyticPlot(self):
-        S1 = Surface((6, 2), (8, 1))
-        S1.distributionCircle(0.5)
+        S1 = Surface((5, 2), (4, 1))
+        S1.distributionCircle(1)
         S1.drawOuterCircle()
-        S1.showAnalyticPlot(True)
+        S1.showAnalyticPlot(False)
     
     def fullPlotTest(self):
-        S1 = Surface((1, 2), (4, 5))
+        S1 = Surface((1, 2), (1, 4))
         S2 = Surface((7, 4), (6, 2))
         S1.distributionCircle(1)
         S1.intersectionArea(S2)
@@ -98,11 +98,11 @@ class Surface:
         self.dCircleCenter, self.circle, self.r_offset
         """
 
-        self.r_offset = r_offset
+        self.r_offset = r_offset 
         radius = self.surfaceLength / 8
-        if self.r_offset == 1:
-            r_offset = radius
-        self.dCircleCenter = self.normal.interpolate(r_offset * radius) # the center of the distribution circle along the normal line
+        #if self.r_offset == 1:
+            #r_offset = radius
+        self.dCircleCenter = self.normal.interpolate(self.r_offset * radius) # the center of the distribution circle along the normal line
 
         # for labeling the plots
         if r_offset == 0:
@@ -209,7 +209,7 @@ class Surface:
         
         return
 
-    def showAnalyticPlot(self, comparison): # plots the curve
+    def showAnalyticPlot(self, comparison): # Plots the curve from the outer circle and compares it to the analytic equation plot
         from shapely import Point, plotting, Polygon, MultiPoint, is_closed, get_coordinates, LineString
         from shapely.plotting import plot_points
         from matplotlib.pyplot import subplots, ioff
@@ -223,66 +223,75 @@ class Surface:
         Only set 'comparison' equal to true if you are modeling a COSINE distribution (offset = 1) 
         and you want to compare it to the standard."""
 
-        # # CREATING THE PLOT OF ANGLE VS AREA # #
+        # # # Plotting setup # # #
+        ioff()
+        fig, ax = subplots()
+        plt.xlabel("Angle (Radians)")
+        plt.ylabel("Fractional Area")
+        
+
+        # # # CREATING THE PLOT OF ANGLE VS AREA # # #
         s2Points = get_coordinates(self.outerCircle) # points defining the outer circle of S2 surfaces
-        s2Start = s2Points[0]
-        plotPoints = [] # points to plot for the curve
-        pdfArea = 0
+        s2Start = s2Points[0] # The starting point of the first S2 surface
+        plotPoints = [] # Points to plot for the outer circle plot
+        pdfArea = 0 # "C" for the outer circle plot
+
+        pdfAreaRed = 0
 
         for i in range(1, len(s2Points), 1):
-            s2End = s2Points[i] # end point of the surface
+            # # # End point of S2 # # # 
+            s2End = s2Points[i]
 
-            s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1])) # the surface to pass in as s2 into intersectionArea
+            # # # S2 # # #
+            s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1]))
 
-            # removes some outlier points
+            # # # Removes some outlier points # # #
             if (s2Surface.segment.length >= (self.surfaceLength - 1)) and (s2Surface.segment.length <= (self.surfaceLength + 1)): 
                 s2Start = s2End
                 continue
 
-            # take dot product to find the angle from the normal
+            # # # Vector representations of the normal and the line from the midpoint of S2 to the midpoint of S1 # # #
             iNormal = self.normalEnd.x - self.normalStart.x
             jNormal = self.normalEnd.y - self.normalStart.y
             vNormal = np.array([iNormal, jNormal])
 
-            iS2 = s2Surface.midpoint.x - self.midpoint.x # line from midpoint of self to s2 to calculate the angle between the surface and the normal
+            iS2 = s2Surface.midpoint.x - self.midpoint.x
             jS2 = s2Surface.midpoint.y - self.midpoint.y 
             vS2 = np.array([iS2, jS2])
 
-            # use dot product to find the angle between the normal and the area we're concerned with
-            angle = self.dotProductAngle(vNormal, vS2)
+            # # # Call helper function that uses dot product to calculate angle between vectors # # #
+            angle = self.dotProductAngle(vNormal, vS2) # Plot on x-axis
 
-            areaValue = self.intersectionArea(s2Surface) # store as y in tuple
+            areaValue = self.intersectionArea(s2Surface) # Plot on y-axis
 
-            if comparison == True: # making a comparison to the formula cosine plot -- need to scale the values by dTheta!
-                iLeg1 = s2Start[0] - self.midpoint.x 
-                jLeg1 = s2Start[1] - self.midpoint.y
-                vLeg1 = np.array([iLeg1, jLeg1])
+            plotPoints.append(Point(angle, areaValue))
 
-                iLeg2 = s2End[0] - self.midpoint.x 
-                jLeg2 = s2End[1] - self.midpoint.y 
-                vLeg2 = np.array([iLeg2, jLeg2])
+            # # # If making a comparison to the formula plot, need to normalize the areaValue values with pdfArea and dTheta # # #
+            # # # This section updates the pdfArea, not the areaValue yet # # #
+            # # # Vector representations of the borders of the segments being swept out by S2 # # #
+            iLeg1 = s2Start[0] - self.midpoint.x 
+            jLeg1 = s2Start[1] - self.midpoint.y
+            vLeg1 = np.array([iLeg1, jLeg1])
 
-                dTheta = self.dotProductAngle(vLeg1, vLeg2)
-                pdfArea += areaValue * dTheta
+            iLeg2 = s2End[0] - self.midpoint.x 
+            jLeg2 = s2End[1] - self.midpoint.y 
+            vLeg2 = np.array([iLeg2, jLeg2])
+            
+            dTheta = self.dotProductAngle(vLeg1, vLeg2)
+            pdfArea += areaValue * dTheta
 
             """if areaValue < 1e-15: # single out the points for the outliers
                 print(s2Start, s2End)"""
-
-            plotPoints.append(Point(angle, areaValue))
     
             s2Start = s2End
-            # end for loop
+            # # # End of for loop # # #
 
-        # Plotting the distribution
-        ioff()
-        fig, ax = subplots()
-
+        # # # Just plotting the outer circle plot-- no need to normalize # # #
         if comparison == False:
             for point in plotPoints:
                 plot_points(point, ax, color='black')
-        plt.xlabel("Angle (Radians)")
-        plt.ylabel("Fractional Area")
         
+        # # # Sanity check of total fractional Area and the PDF Area # # #
         total = 0
         for point in plotPoints:
             total += point.y 
@@ -290,28 +299,32 @@ class Surface:
         print("Total Fractional Area: ", total)
         print("PDF Area: ", pdfArea)
 
-        # Plotting the analytic cosine distribution from the equation y = (1/2pi) * (1 + cos(x))
-        if comparison == True: # compare the generated to expected cosine dist.
+        # # # Plotting the analytic cosine distribution from the equation y = (1/2pi) * (1 + cos(x)), scaled to be from -pi/2 to pi/2 # # #
+        # # # Normalizing the outer circle area value points as well using pdfArea # # #
+        if comparison == True:
             cosPoints = []
             adjustedPlotPoints = []
             for plotPoint in plotPoints:
-                #red points
+                # # # Red points (not normalized) # # #
                 cosXval = plotPoint.x
-                cosYval = (1/(2*math.pi))*(1 + math.cos(cosXval*2))
-                cosPoints.append(Point(cosXval, cosYval))
+                cosYval = (1/math.pi)*(1 + math.cos(cosXval*2)) #(from solving integral to be = to 1)
 
-                #black points/c -- renormalized
+                #cosYval = (1/(2*math.pi))*(1 + math.cos(cosXval*2)) (integrated this from -pi/2 to pi/2, C = 1/2)
+                cosPoints.append(Point(cosXval, cosYval))
+                pdfAreaRed += cosYval
+
+                # # # Normalized outer circle points # # #
                 adjustedArea = plotPoint.y / abs(pdfArea)
                 adjustedPlotPoints.append(Point(plotPoint.x, adjustedArea))
-
-            
-            for cosPoint in cosPoints:
-                plot_points(cosPoint, ax, color='red', marker='1')
             
             for adjPoint in adjustedPlotPoints:
                 plot_points(adjPoint, ax, color='black')
 
-        plt.show() # generates the plot
+            for cosPoint in cosPoints:
+                plot_points(cosPoint, ax, color='red', marker='1')
+
+        # # # Generate the plot # # #
+        plt.show()
 
         return
 
