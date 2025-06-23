@@ -3,26 +3,26 @@ class VacuumRegion:
         return 
 
     def twoSurfacePlot(self):
-        S1 = Surface((5, 2), (4, 1))
+        S1 = Surface((2, 5), (4, 2))
         S1.distributionCircle(1)
-        S2 = Surface((2, 5), (1, 4))
+        S2 = Surface((2, 1), (3, 1))
         S1.intersectionArea(S2)
         S1.showTwoSurfacePlot()
     
     def outerCirclePlot(self):
-        S1 = Surface((5, 2), (4, 1))
+        S1 = Surface((2, 5), (4, 1))
         S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showOuterCirclePlot()
 
     def analyticPlot(self):
-        S1 = Surface((5, 2), (4, 1))
+        S1 = Surface((2, 5), (4, 1))
         S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showAnalyticPlot(False)
     
     def fullPlotTest(self):
-        S1 = Surface((1, 2), (1, 4))
+        S1 = Surface((5, 2), (4, 1))
         S2 = Surface((7, 4), (6, 2))
         S1.distributionCircle(1)
         S1.intersectionArea(S2)
@@ -198,10 +198,10 @@ class Surface:
                 y = outerCenter.y + outerRadius * math.sin(angle)
                 outerCirclePoints.append((x, y))
     
-        fullCircle = Polygon(outerCirclePoints) # polygon object of the full outer circle, before splitting to correct side of normal
+        self.fullCircle = Polygon(outerCirclePoints) # polygon object of the full outer circle, before splitting to correct side of normal
 
         buffLine = self.segment.buffer(0.000000000001)
-        splitCircles = fullCircle.difference(buffLine)
+        splitCircles = self.fullCircle.difference(buffLine)
         if splitCircles.geoms[0].intersects(self.normal):
             self.outerCircle = splitCircles.geoms[0]
         else:
@@ -226,6 +226,7 @@ class Surface:
         # # # Plotting setup # # #
         ioff()
         fig, ax = subplots()
+        ax.set_aspect('auto')
         plt.xlabel("Angle (Radians)")
         plt.ylabel("Fractional Area")
         
@@ -236,8 +237,6 @@ class Surface:
         plotPoints = [] # Points to plot for the outer circle plot
         pdfArea = 0 # "C" for the outer circle plot
 
-        pdfAreaRed = 0
-
         for i in range(1, len(s2Points), 1):
             # # # End point of S2 # # # 
             s2End = s2Points[i]
@@ -247,6 +246,14 @@ class Surface:
 
             # # # Removes some outlier points # # #
             if (s2Surface.segment.length >= (self.surfaceLength - 1)) and (s2Surface.segment.length <= (self.surfaceLength + 1)): 
+                s2Start = s2End
+                continue
+            
+            # # # Edge case outliers (mainly for uniform distribution) # # #
+            startTuple = (s2Start[0], s2Start[1])
+            endTuple = (s2End[0], s2End[1])
+            if startTuple not in list(self.fullCircle.exterior.coords) or endTuple not in list(self.fullCircle.exterior.coords):
+                #print("Removal", startTuple, endTuple)
                 s2Start = s2End
                 continue
 
@@ -264,8 +271,6 @@ class Surface:
 
             areaValue = self.intersectionArea(s2Surface) # Plot on y-axis
 
-            plotPoints.append(Point(angle, areaValue))
-
             # # # If making a comparison to the formula plot, need to normalize the areaValue values with pdfArea and dTheta # # #
             # # # This section updates the pdfArea, not the areaValue yet # # #
             # # # Vector representations of the borders of the segments being swept out by S2 # # #
@@ -280,38 +285,31 @@ class Surface:
             dTheta = self.dotProductAngle(vLeg1, vLeg2)
             pdfArea += areaValue * dTheta
 
-            """if areaValue < 1e-15: # single out the points for the outliers
-                print(s2Start, s2End)"""
-    
+            #if areaValue < 0.003: # single out the points for the outliers
+                #print(s2Start, s2End)
+
+            # # # Add the point and continue to the next iteration of the loop # # #
+            plotPoints.append(Point(angle, areaValue))
             s2Start = s2End
             # # # End of for loop # # #
 
-        # # # Just plotting the outer circle plot-- no need to normalize # # #
+        # # # Just plotting the outer circle plot points-- no need to normalize # # #
         if comparison == False:
             for point in plotPoints:
                 plot_points(point, ax, color='black')
-        
-        # # # Sanity check of total fractional Area and the PDF Area # # #
-        total = 0
-        for point in plotPoints:
-            total += point.y 
-
-        print("Total Fractional Area: ", total)
-        print("PDF Area: ", pdfArea)
-
+             
         # # # Plotting the analytic cosine distribution from the equation y = (1/2pi) * (1 + cos(x)), scaled to be from -pi/2 to pi/2 # # #
         # # # Normalizing the outer circle area value points as well using pdfArea # # #
-        if comparison == True:
+        else: # if comparison == True
             cosPoints = []
             adjustedPlotPoints = []
             for plotPoint in plotPoints:
                 # # # Red points (not normalized) # # #
                 cosXval = plotPoint.x
-                cosYval = (1/math.pi)*(1 + math.cos(cosXval*2)) #(from solving integral to be = to 1)
+                cosYval = (1/math.pi)*(1 + math.cos(cosXval*2)) #(normalized from solving integral to be = to 1 -- see notebook)
 
                 #cosYval = (1/(2*math.pi))*(1 + math.cos(cosXval*2)) (integrated this from -pi/2 to pi/2, C = 1/2)
                 cosPoints.append(Point(cosXval, cosYval))
-                pdfAreaRed += cosYval
 
                 # # # Normalized outer circle points # # #
                 adjustedArea = plotPoint.y / abs(pdfArea)
@@ -322,9 +320,18 @@ class Surface:
 
             for cosPoint in cosPoints:
                 plot_points(cosPoint, ax, color='red', marker='1')
+        
+
+        # # # Sanity check of total fractional Area and the PDF Area # # #
+        total = 0
+        for point in plotPoints:
+            total += point.y 
+
+        print("Total Fractional Area: ", total)
+        print("PDF Area: ", pdfArea)
 
         # # # Generate the plot # # #
-        plt.show()
+        plt.show(block=False)
 
         return
 
@@ -353,7 +360,7 @@ class Surface:
         plotting.plot_polygon(self.overlapShape, ax, add_points=False, color='black', linewidth=2) # displays the overlapping area
         ax.text(self.overlapShape.centroid.x, self.overlapShape.centroid.y, "Overlap Area", color='black')
 
-        plt.show()
+        plt.show(block=False)
 
         return
 
@@ -378,7 +385,7 @@ class Surface:
 
         plotting.plot_polygon(self.outerCircle, ax, add_points=True, color='gray') # displays the "outerCircle"
 
-        plt.show()
+        plt.show(block=False)
 
         return
 
@@ -409,7 +416,7 @@ class Surface:
 
         plotting.plot_polygon(self.outerCircle, ax, add_points=True, color='gray') # displays the "outerCircle" which is needed to create the analytic distributions (angle vs fractionalArea plot)
 
-        plt.show()
+        plt.show(block=False)
 
         return
 
