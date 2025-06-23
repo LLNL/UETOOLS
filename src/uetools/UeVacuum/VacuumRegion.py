@@ -4,20 +4,20 @@ class VacuumRegion:
 
     def twoSurfacePlot(self):
         S1 = Surface((2, 5), (4, 2))
-        S1.distributionCircle(1)
+        S1.distributionCircle(0)
         S2 = Surface((2, 1), (3, 1))
         S1.intersectionArea(S2)
         S1.showTwoSurfacePlot()
     
     def outerCirclePlot(self):
         S1 = Surface((2, 5), (4, 1))
-        S1.distributionCircle(1)
+        S1.distributionCircle(0)
         S1.drawOuterCircle()
         S1.showOuterCirclePlot()
 
     def analyticPlot(self):
         S1 = Surface((2, 5), (4, 1))
-        S1.distributionCircle(1)
+        S1.distributionCircle(0)
         S1.drawOuterCircle()
         S1.showAnalyticPlot(False)
     
@@ -28,16 +28,21 @@ class VacuumRegion:
         S1.intersectionArea(S2)
         S1.drawOuterCircle()
         S1.fullPlot()
+    
+    def trianglePlot(self): # make this an equilateral triangle-- maybe setup a helper method to create equilateral triangles
+        S1 = Surface((2, 5), (4, 1))
+        S1.geometries([(4, 1), (S1.normalEnd.x, S1.normalEnd.y), (2, 5)], 1)
 
 class Surface:
 
-    def __init__(self, start, end): # creates the surface
+    def __init__(self, start, end, reflecting=1, emitting=0, absorbing=0): # creates the surface
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
 
         """Reference Variables/Important:
-        self.start, self.end, self.segment, self.surfaceLength, self.midpoint, self.normalStart, self.normalEnd
+        self.start, self.end, self.segment, self.surfaceLength, self.midpoint, self.normalStart, self.normalEnd, self.reflecting, 
+        self.emitting, self.absorbing
         """
 
         # Start and end should be shapely point objects?
@@ -70,6 +75,10 @@ class Surface:
         self.normalStart = Point(self.midpoint.x, self.midpoint.y) # Start point of normal # USE THIS FOR REFERENCE
         self.normalEnd = Point(self.normalEndX, self.normalEndY) # End point of normal USE THIS FOR REFERENCE
         self.normal = LineString([self.normalStart, self.normalEnd])
+
+        self.reflecting = reflecting
+        self.emitting = emitting
+        self.absorbing = absorbing
 
         return
 
@@ -139,7 +148,6 @@ class Surface:
                     i += 1
                 circlePoints.append((x, y))
 
-        
         self.circle = Polygon(circlePoints) # object representation of the circle
 
         return
@@ -331,6 +339,9 @@ class Surface:
         print("PDF Area: ", pdfArea)
 
         # # # Generate the plot # # #
+        if self.r_offset == 0:
+            yUpperLim = plotPoints[-1].y + plotPoints[-1].y * 0.1
+            ax.set_ylim(bottom=0, top=yUpperLim)
         plt.show(block=False)
 
         return
@@ -436,4 +447,51 @@ class Surface:
             angle = -angle
 
         return angle
+
+    def geometries(self, nodeList, distributionType): # make this more generic-- not just a triangle
+        # pass in an array of points to represent the nodes of the surfaces
+        from shapely import Point, LineString, plotting
+        from matplotlib.pyplot import subplots, ioff
+        import matplotlib.pyplot as plt
+        import math
+        import numpy as np
+
+        """The parameter nodeList WILL include the start and end points of S1 (or self) to define the endpoints of the first and last surface.
+        Ex: For a triangle with base (0, 0) to (1, 1), nodeList would be [(0, 0), (2, 2), (1, 1)]. 
+        DistributionType determines if we are using cosine or uniform or other type of distribution circle."""
+
+        # # # Plot set-up # # #
+        ioff()
+        fig, ax = subplots()
+        ax.set_aspect('equal')
+
+        # # # Set up surfaces of geometry # # #
+        surfaces = []
+        startNode = nodeList[0]
+        for i in range(1, len(nodeList), 1):
+            endNode = nodeList[i]
+            s = Surface(startNode, endNode)
+            s.distributionCircle(distributionType)
+            surfaces.append(s)
+            startNode = endNode
+            # later if n < i < m: s.reflecting = 0, something like this
+        self.distributionCircle(distributionType)
+
+        # # # Plot geometry # # # -- CHANGE TO BE GENERAL< NOT TRIANGLE
+        for surface in surfaces:
+            plotting.plot_line(surface.segment, ax, color='black', linewidth=2) # plots surfaces
+            plotting.plot_polygon(surface.circle, ax, add_points=False, color='green', linewidth=1) # plots distribution circles
+            
+        plotting.plot_line(self.segment, ax, color='blue', linewidth=2) # plots Surface 1 (self)
+        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
+        ax.text(self.midpoint.x, self.midpoint.y, "Surface 1 (Source)", color='red')
+
+        plt.show(block=False)
+
+        return
+
+
+
+
+
 
