@@ -4,34 +4,26 @@ class VacuumRegion:
 
     def twoSurfacePlot(self):
         S1 = Surface((2, 5), (4, 2))
-        S1.distributionCircle(0)
+        S1.distributionCircle(1)
         S2 = Surface((2, 1), (3, 1))
         S1.intersectionArea(S2)
         S1.showTwoSurfacePlot()
     
     def outerCirclePlot(self):
         S1 = Surface((2, 5), (4, 1))
-        S1.distributionCircle(0)
+        S1.distributionCircle(1)
         S1.drawOuterCircle()
         S1.showOuterCirclePlot()
 
     def analyticPlot(self):
         S1 = Surface((2, 5), (4, 1))
-        S1.distributionCircle(0)
-        S1.drawOuterCircle()
-        S1.showAnalyticPlot(False)
-    
-    def fullPlotTest(self):
-        S1 = Surface((5, 2), (4, 1))
-        S2 = Surface((7, 4), (6, 2))
         S1.distributionCircle(1)
-        S1.intersectionArea(S2)
         S1.drawOuterCircle()
-        S1.fullPlot()
+        S1.showAnalyticPlot(True)
     
     def trianglePlot(self): # make this an equilateral triangle-- maybe setup a helper method to create equilateral triangles
-        S1 = Surface((2, 5), (4, 1))
-        S1.geometries([(4, 1), (S1.normalEnd.x, S1.normalEnd.y), (2, 5)], 1)
+        S1 = Surface((1, 1), (1, 20))
+        S1.geometries(S1.equilateral(), 1)
 
 class Surface:
 
@@ -41,21 +33,21 @@ class Surface:
         import math
 
         """Reference Variables/Important:
-        self.start, self.end, self.segment, self.surfaceLength, self.midpoint, self.normalStart, self.normalEnd, self.reflecting, 
-        self.emitting, self.absorbing
+        self.start (Point), self.end (Point), self.segment (LineString), self.surfaceLength, self.midpoint (Point), self.normalStart (Point), 
+        self.normalEnd (Point), self.reflecting, self.emitting, self.absorbing
         """
 
-        # Start and end should be shapely point objects?
+        # # # Start and end points of the surface and a segment representation of the surface # # # 
         self.start = Point(start[0], start[1])
         self.end = Point(end[0], end[1])
         self.segment = LineString([start, end]) # segment representing the surface
 
         self.surfaceLength = math.sqrt((self.end.x - self.start.x)**2 + (self.end.y - self.start.y)**2)
 
-        # Midpoint of surface
+        # # # Midpoint of surface # # #
         self.midpoint = self.segment.centroid
 
-        # Construct normal vector
+        # # # Construct normal vector # # #
             # slope of normal vector = -slope of line segment
             # add x and y components of the line segment to the midpoint to get the correct
                 # x and y for the normal
@@ -66,24 +58,35 @@ class Surface:
         self.normalEndX = self.midpoint.x # ending x coordinate for normal (don't use for reference, only to determine which direction the normal vector should point in the normal helper method)
         self.normalEndY = self.midpoint.y # ending y coordinate for normal
 
-        # in order to get the correct slope for the normal vector
+        # # # In order to get the correct slope for the normal vector # # #
         dx = abs(self.end.x - self.start.x)
         dy = abs(self.end.y - self.start.y)
 
         self.normalHelper(dx, dy)
 
-        self.normalStart = Point(self.midpoint.x, self.midpoint.y) # Start point of normal # USE THIS FOR REFERENCE
-        self.normalEnd = Point(self.normalEndX, self.normalEndY) # End point of normal USE THIS FOR REFERENCE
+        # # # Start and end points, and the normal line itself (use these for reference) # # #
+        self.normalStart = Point(self.midpoint.x, self.midpoint.y)
+        self.normalEnd = Point(self.normalEndX, self.normalEndY)
         self.normal = LineString([self.normalStart, self.normalEnd])
 
+        # # # Properties of the surface # # #
         self.reflecting = reflecting
         self.emitting = emitting
         self.absorbing = absorbing
 
         return
+    
+    def vectorHelper(self, surface): # Finds the vector representation of a segment (surface object)
+        from shapely import Point, LineString
+        import numpy as np
+
+        iSurface = surface.end.x - surface.start.x 
+        jSurface = surface.end.y - surface. start.y 
+        vSurface = np.array([iSurface, jSurface])
+
+        return vSurface
 
     def normalHelper(self, dx, dy): # helper function to find normal direction
-
         if self.end.y > self.start.y:
             self.normalEndX += dy
             if self.end.x > self.start.x:
@@ -104,16 +107,17 @@ class Surface:
         import math
 
         """Reference Variables/Important:
-        self.dCircleCenter, self.circle, self.r_offset
+        self.dCircleCenter (Point), self.circle (Polygon), self.r_offset
         """
 
+        # # # Finding radius and center of circle # # #
         self.r_offset = r_offset 
         radius = self.surfaceLength / 8
         #if self.r_offset == 1:
             #r_offset = radius
         self.dCircleCenter = self.normal.interpolate(self.r_offset * radius) # the center of the distribution circle along the normal line
 
-        # for labeling the plots
+        # # # for labeling the plots # # #
         if r_offset == 0:
             self.distType = "Uniform Distribution"
         elif r_offset == 1:
@@ -124,9 +128,11 @@ class Surface:
 
         numPoints = 500
         circlePoints = []
-        # at pi, none of the x values for the circle will have been repeated, so we can add the point and then sort based on x values, descending order
+
+        # # # Getting the Points of the circle # # #
+        '''at pi, none of the x values for the circle will have been repeated, so we can add the point and then sort based on x values, descending order
         # for the surfaces that have the normal going from the bottom to top:
-            # if endX > startX, angle is negative
+            # if endX > startX, angle is negative '''
         if self.end.x < self.start.x: # builds circle clockwise rather than counter clockwise
             for i in range(numPoints, -1, -1):
                 angle = (2 * math.pi) * (i / numPoints) # calculates every angle from 0-2pi, placing 500 points to create the circle
@@ -148,28 +154,24 @@ class Surface:
                     i += 1
                 circlePoints.append((x, y))
 
-        self.circle = Polygon(circlePoints) # object representation of the circle
+        # # # Object representation of the distribution circle # # #
+        self.circle = Polygon(circlePoints) 
 
         return
 
     def intersectionArea(self, s2): # finds the overlapping area (flux) between two surfaces
-        # also draws the triangle between s1 and s2
         from shapely import Point, LineString, plotting, Polygon
         import math
 
         """Reference Variables/Important:
         self.triangle, self.overlapShape, overlapArea, fractionalArea
         """
-        # find area that overlaps between circle and triangle 
-        # areaOverlap / circleArea = flux on surface 2 from surface 1
 
-        # need 3 segements (LineStrings) to make the triangle
-        # s2 start to end, s2 end to s1 midpoint, s1 midpoint to s2 end
-
+        # # # Creates/draws the relevant shapes for finding the flux (fractional area) # # #
         self.triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # triangle from midpoint of self to the endpoints of the other surface, s2
         self.overlapShape = self.triangle.intersection(self.circle)
         
-        # Getting the correct area of the circle on one side of the normal line
+        # # # Getting the correct area of the distribution circle on one side of the normal line # # #
         overlapArea = self.overlapShape.area
         if (0 <= self.r_offset and self.r_offset < 1) and self.circle.intersects(self.segment): # if we're dealing with a circle shifted between uniform and cosine
             buffLine = self.segment.buffer(0.000000000001)
@@ -182,6 +184,7 @@ class Surface:
         else:
             circleArea = self.circle.area
 
+        # # # Calculate the flux (fractional area) # # #
         fractionalArea = overlapArea / circleArea
 
         return fractionalArea 
@@ -191,10 +194,10 @@ class Surface:
         import math
         
         """Reference Variables/Important:
-            self.outerCircle
+            self.outerCircle (Polygon)
         """
 
-        # creating the outer circle of S2 surfaces
+        # # # Creating the outer circle of S2 surfaces # # #
         outerRadius = self.surfaceLength / 2 # outer circle has diameter equal to the length of self surface (S1)
         outerCenter = self.midpoint 
         outerCirclePoints = []
@@ -211,10 +214,10 @@ class Surface:
         buffLine = self.segment.buffer(0.000000000001)
         splitCircles = self.fullCircle.difference(buffLine)
         if splitCircles.geoms[0].intersects(self.normal):
-            self.outerCircle = splitCircles.geoms[0]
+            self.outerCircle = splitCircles.geoms[0] # desired circle
         else:
-            self.outerCircle = splitCircles.geoms[1]
-        
+            self.outerCircle = splitCircles.geoms[1] # desired circle
+
         return
 
     def showAnalyticPlot(self, comparison): # Plots the curve from the outer circle and compares it to the analytic equation plot
@@ -266,13 +269,15 @@ class Surface:
                 continue
 
             # # # Vector representations of the normal and the line from the midpoint of S2 to the midpoint of S1 # # #
-            iNormal = self.normalEnd.x - self.normalStart.x
+            '''iNormal = self.normalEnd.x - self.normalStart.x
             jNormal = self.normalEnd.y - self.normalStart.y
-            vNormal = np.array([iNormal, jNormal])
+            vNormal = np.array([iNormal, jNormal])'''
+            vNormal = self.vectorHelper(Surface((self.normalStart.x, self.normalStart.y), (self.normalEnd.x, self.normalEnd.y)))
 
-            iS2 = s2Surface.midpoint.x - self.midpoint.x
+            '''iS2 = s2Surface.midpoint.x - self.midpoint.x
             jS2 = s2Surface.midpoint.y - self.midpoint.y 
-            vS2 = np.array([iS2, jS2])
+            vS2 = np.array([iS2, jS2])'''
+            vS2 = self.vectorHelper(Surface((self.midpoint.x, self.midpoint.y), (s2Surface.midpoint.x, s2Surface.midpoint.y)))
 
             # # # Call helper function that uses dot product to calculate angle between vectors # # #
             angle = self.dotProductAngle(vNormal, vS2) # Plot on x-axis
@@ -282,13 +287,15 @@ class Surface:
             # # # If making a comparison to the formula plot, need to normalize the areaValue values with pdfArea and dTheta # # #
             # # # This section updates the pdfArea, not the areaValue yet # # #
             # # # Vector representations of the borders of the segments being swept out by S2 # # #
-            iLeg1 = s2Start[0] - self.midpoint.x 
+            '''iLeg1 = s2Start[0] - self.midpoint.x 
             jLeg1 = s2Start[1] - self.midpoint.y
-            vLeg1 = np.array([iLeg1, jLeg1])
+            vLeg1 = np.array([iLeg1, jLeg1])'''
+            vLeg1 = self.vectorHelper(Surface((self.midpoint.x, self.midpoint.y), (s2Start[0], s2Start[1])))
 
-            iLeg2 = s2End[0] - self.midpoint.x 
+            '''iLeg2 = s2End[0] - self.midpoint.x 
             jLeg2 = s2End[1] - self.midpoint.y 
-            vLeg2 = np.array([iLeg2, jLeg2])
+            vLeg2 = np.array([iLeg2, jLeg2])'''
+            vLeg2 = self.vectorHelper(Surface((self.midpoint.x, self.midpoint.y), (s2End[0], s2End[1])))
             
             dTheta = self.dotProductAngle(vLeg1, vLeg2)
             pdfArea += areaValue * dTheta
@@ -400,38 +407,7 @@ class Surface:
 
         return
 
-
-    def fullPlot(self): # plots all relevant objects (surface, normal, distribution circle, etc.) (excluding the plot of the distribution itself (angle vs area plot))
-        from shapely import Point, LineString, plotting
-        from matplotlib.pyplot import subplots, ioff
-        import matplotlib.pyplot as plt
-
-        ioff()
-        fig, ax = subplots()
-        ax.set_aspect('equal')
-        plotting.plot_line(self.segment, ax, color='red', linewidth=2) # plots surface
-        ax.text(self.start.x, self.start.y, "Surface 1", color='red')
-
-        plotting.plot_line(self.normal, ax, color='blue', linewidth=2) # plots normal line to surface
-        ax.text(self.normalEnd.x, self.normalEnd.y, "Normal (S1)", color='blue')
-
-        plotting.plot_line(self.dCircleCenter, ax, color='green') # plots point at center of distribution circle
-        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
-        ax.text(self.dCircleCenter.x, self.dCircleCenter.y, self.distType, color='green')
-
-        plotting.plot_polygon(self.triangle, ax, color='orange', linewidth=2) # plots the triangle connecting to another surface
-        ax.text(self.triangle.centroid.x, self.triangle.centroid.y, "Surface 2", color='orange')
-
-        plotting.plot_polygon(self.overlapShape, ax, add_points=False, color='black', linewidth=2) # displays the overlapping area
-        ax.text(self.overlapShape.centroid.x, self.overlapShape.centroid.y, "Overlap Area", color='black')
-
-        plotting.plot_polygon(self.outerCircle, ax, add_points=True, color='gray') # displays the "outerCircle" which is needed to create the analytic distributions (angle vs fractionalArea plot)
-
-        plt.show(block=False)
-
-        return
-
-    def dotProductAngle(self, v1, v2):
+    def dotProductAngle(self, v1, v2): # Calculates the angle between two vectors using the dot product
         import numpy as np
 
         dotProduct = np.dot(v1, v2)
@@ -448,8 +424,7 @@ class Surface:
 
         return angle
 
-    def geometries(self, nodeList, distributionType): # make this more generic-- not just a triangle
-        # pass in an array of points to represent the nodes of the surfaces
+    def geometries(self, nodeList, distributionType): # Does flux calculations for a simple geometry, such as a triangle or a square
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
@@ -470,25 +445,40 @@ class Surface:
         startNode = nodeList[0]
         for i in range(1, len(nodeList), 1):
             endNode = nodeList[i]
-            s = Surface(startNode, endNode)
+            s = Surface((startNode.x, startNode.y), (endNode.x, endNode.y))
             s.distributionCircle(distributionType)
             surfaces.append(s)
             startNode = endNode
             # later if n < i < m: s.reflecting = 0, something like this
         self.distributionCircle(distributionType)
 
-        # # # Plot geometry # # # -- CHANGE TO BE GENERAL< NOT TRIANGLE
+        # # # Plot geometry # # #
         for surface in surfaces:
             plotting.plot_line(surface.segment, ax, color='black', linewidth=2) # plots surfaces
             plotting.plot_polygon(surface.circle, ax, add_points=False, color='green', linewidth=1) # plots distribution circles
             
         plotting.plot_line(self.segment, ax, color='blue', linewidth=2) # plots Surface 1 (self)
-        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
-        ax.text(self.midpoint.x, self.midpoint.y, "Surface 1 (Source)", color='red')
+        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots self's distribution circle
+        plotting.plot_line(self.normal, ax, color='blue', linewidth=2)
+        ax.text(self.midpoint.x, self.midpoint.y, "Surface 1 (Source)", color='blue') # labels the self/S1 surface
 
+
+        # # # Generates the Plot # # #
         plt.show(block=False)
 
         return
+
+    def equilateral(self): # Generates segments that form an equilateral triangle with self
+        from shapely import Point, LineString
+        import math
+        import numpy as np
+
+        height = math.sqrt(3) * self.surfaceLength / 2 # height of the et
+        vertex = self.normal.interpolate(height)
+        self.ETvertices = [self.end, vertex, self.start]
+
+        return self.ETvertices
+
 
 
 

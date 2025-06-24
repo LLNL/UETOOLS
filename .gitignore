@@ -110,3 +110,5 @@ src/testScript.py
 src/testScript.py
 src/testScript.py
 src/testScript.py
+src/uetools/geometryTest.py
+src/uetools/threePlots.py
