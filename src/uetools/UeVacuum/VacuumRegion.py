@@ -5,7 +5,7 @@ class VacuumRegion:
     def twoSurfacePlot(self):
         S1 = Surface((2, 5), (4, 2))
         S1.distributionCircle(1)
-        S2 = Surface((2, 1), (3, 1))
+        S2 = Surface((2, 1), (3, 2))
         S1.intersectionArea(S2)
         S1.showTwoSurfacePlot()
     
@@ -24,6 +24,10 @@ class VacuumRegion:
     def trianglePlot(self):
         S1 = Surface((1, 3), (2, 6))
         S1.geometries(S1.equilateral(), 1)
+
+    def squarePlot(self):
+        S1 = Surface((5, 5), (4, 2))
+        S1.geometries(S1.square(), 1)
 
 class Surface:
 
@@ -61,10 +65,10 @@ class Surface:
         self.normalEndY = self.midpoint.y # ending y coordinate for normal
 
         # # # In order to get the correct slope for the normal vector # # #
-        dx = abs(self.end.x - self.start.x)
-        dy = abs(self.end.y - self.start.y)
+        self.dx = abs(self.end.x - self.start.x)
+        self.dy = abs(self.end.y - self.start.y)
 
-        self.normalHelper(dx, dy)
+        self.normalHelper(self.dx, self.dy, self.normalEndX, self.normalEndY, True)
 
         # # # Start and end points, and the normal line itself (use these for reference) # # #
         self.normalStart = Point(self.midpoint.x, self.midpoint.y)
@@ -250,23 +254,9 @@ class Surface:
                 continue
 
             # # # Vector representations of the normal and the line from the midpoint of S2 to the midpoint of S1 # # #
-            '''iNormal = self.normalEnd.x - self.normalStart.x
-            jNormal = self.normalEnd.y - self.normalStart.y
-            vNormal = np.array([iNormal, jNormal])'''
-            ######
-            ###### vectorHelper(self, start, end)--> start and end are (x, y)
             vNormal = self.vectorHelper((self.normalStart.x, self.normalStart.y), (self.normalEnd.x, self.normalEnd.y))
-            ######
-            ######
 
-            '''iS2 = s2Surface.midpoint.x - self.midpoint.x
-            jS2 = s2Surface.midpoint.y - self.midpoint.y 
-            vS2 = np.array([iS2, jS2])'''
-            ######
-            ######
             vS2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2Surface.midpoint.x, s2Surface.midpoint.y))
-            ######
-            ######
 
             # # # Call helper function that uses dot product to calculate angle between vectors # # #
             angle = self.dotProductAngle(vNormal, vS2) # Plot on x-axis
@@ -276,23 +266,9 @@ class Surface:
             # # # If making a comparison to the formula plot, need to normalize the areaValue values with pdfArea and dTheta # # #
             # # # This section updates the pdfArea, not the areaValue yet # # #
             # # # Vector representations of the borders of the segments being swept out by S2 # # #
-            '''iLeg1 = s2Start[0] - self.midpoint.x 
-            jLeg1 = s2Start[1] - self.midpoint.y
-            vLeg1 = np.array([iLeg1, jLeg1])'''
-            ######
-            ######
             vLeg1 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2Start[0], s2Start[1]))
-            ######
-            ######
 
-            '''iLeg2 = s2End[0] - self.midpoint.x 
-            jLeg2 = s2End[1] - self.midpoint.y 
-            vLeg2 = np.array([iLeg2, jLeg2])'''
-            ######
-            ######
             vLeg2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2End[0], s2End[1]))
-            ######
-            ######
 
             dTheta = self.dotProductAngle(vLeg1, vLeg2)
             pdfArea += areaValue * dTheta
@@ -422,7 +398,7 @@ class Surface:
         ioff()
         fig, ax = subplots()
         ax.set_aspect('equal')
-
+    
         # # # Set up surfaces of geometry # # #
         surfaces = [self]
         startNode = Point(nodeList[0])
@@ -443,17 +419,20 @@ class Surface:
                 plotting.plot_line(surface.segment, ax, color='black', linewidth=2) # plots surfaces
             plotting.plot_polygon(surface.circle, ax, add_points=False, color='green', linewidth=1) # plots distribution circles
             
-        plotting.plot_line(self.normal, ax, color='blue', linewidth=2) # plots normal line
+        plotting.plot_line(self.normal, ax, color='gray', linewidth=2) # plots normal line
         ax.text(self.midpoint.x, self.midpoint.y, "Surface 1 (Source)", color='blue') # labels the self/S1 surface
 
         # # # Fractional Area Calculations # # # --> add self to surfaces and have double for loops running
         i = 1 # for labeling purposes
         for surface1 in surfaces:
+            j = 1
             for surface2 in surfaces:
                 if surface1 == surface2: # don't want self to self flux
+                    j += 1
                     continue
                 flux = surface1.intersectionArea(surface2)
-                print(f"Surface {i} flux (onto other surfaces): {flux}")
+                print(f"Surface {i} onto Surface {j}: {flux}")
+                j += 1
             ax.text(surface1.midpoint.x, surface1.midpoint.y, f"Surface {i}", color='black')
             i += 1
 
@@ -465,19 +444,24 @@ class Surface:
     # # # # # # 
     # HELPER FUNCTIONS #
     # # # # # #
-    def normalHelper(self, dx, dy): # helper function to find normal direction
+    def normalHelper(self, dx, dy, endX, endY, init): # helper function to find normal direction
         if self.end.y > self.start.y:
-            self.normalEndX += dy
+            endX += dy
             if self.end.x > self.start.x:
-                self.normalEndY -= dx # (+x, -y)
+                endY -= dx # (+x, -y)
             else:
-                self.normalEndY += dx # (+x, +y)
+                endY += dx # (+x, +y)
         else: # -x
-            self.normalEndX -= dy
+            endX -= dy
             if self.end.x < self.start.x:
-                self.normalEndY += dx # (-x, +y)
+                endY += dx # (-x, +y)
             else:
-                self.normalEndY -= dx # (-x, -y)
+                endY -= dx # (-x, -y)
+        if init:
+            self.normalEndX = endX
+            self.normalEndY = endY
+        else:
+            return (endX, endY)
 
     def vectorHelper(self, start, end): # Finds the vector representation of a segment (surface object)
         from shapely import Point, LineString
@@ -511,16 +495,33 @@ class Surface:
 
         return angle
     
-    def equilateral(self): # Generates segments that form an equilateral triangle with self
+    def equilateral(self): # Generates points that form an equilateral triangle with self
         from shapely import Point, LineString
         import math
         import numpy as np
 
         height = math.sqrt(3) * self.surfaceLength / 2 # height of the et
         vertex = self.normal.interpolate(height)
-        self.ETvertices = [(self.end.x, self.end.y), (vertex.x, vertex.y), (self.start.x, self.start.y)]
+        ETvertices = [(self.end.x, self.end.y), (vertex.x, vertex.y), (self.start.x, self.start.y)]
 
-        return self.ETvertices
+        return ETvertices
+
+    def square(self): # Generates points that form a square geometry with self
+        from shapely import Point, LineString
+        
+        # # # Make the sides of the square perpendicular to self # # #
+        side1Start = (self.end.x, self.end.y)
+        side1End = self.normalHelper(self.dx, self.dy, side1Start[0], side1Start[1], False)
+
+        side3End = (self.start.x, self.start.y)
+        side3Start = self.normalHelper(self.dx, self.dy, side3End[0], side3End[1], False)
+
+        squareVertices = [side1Start, side1End, side3Start, side3End]
+
+        return squareVertices
+
+
+        
 
 
 
