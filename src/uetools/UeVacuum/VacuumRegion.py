@@ -26,12 +26,16 @@ class VacuumRegion:
         S1.geometries(S1.equilateral(), 1)
 
     def squarePlot(self):
-        S1 = Surface((5, 5), (4, 2))
+        S1 = Surface((1, 2), (3, 6))
         S1.geometries(S1.square(), 1)
+    
+    def lineOfSightPlot(self):
+        source = Surface((3, 1), (1, 1))
+        source.geometries(source.lineOfSightVertices(), 1)
 
 class Surface:
 
-    def __init__(self, start, end, reflecting=1, emitting=0, absorbing=0): # creates the surface
+    def __init__(self, start, end, material=1, emitting=0, absorbing=0): # creates the surface
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
@@ -65,10 +69,10 @@ class Surface:
         self.normalEndY = self.midpoint.y # ending y coordinate for normal
 
         # # # In order to get the correct slope for the normal vector # # #
-        self.dx = abs(self.end.x - self.start.x)
-        self.dy = abs(self.end.y - self.start.y)
+        self.dx = self.end.x - self.start.x
+        self.dy = self.end.y - self.start.y
 
-        self.normalHelper(self.dx, self.dy, self.normalEndX, self.normalEndY, True)
+        self.normalHelper(abs(self.dx), abs(self.dy), self.normalEndX, self.normalEndY, True)
 
         # # # Start and end points, and the normal line itself (use these for reference) # # #
         self.normalStart = Point(self.midpoint.x, self.midpoint.y)
@@ -77,7 +81,7 @@ class Surface:
 
         # # # Properties of the surface # # #
         self.circle = None 
-        self.reflecting = reflecting
+        self.material = material
         self.emitting = emitting
         self.absorbing = absorbing
 
@@ -155,6 +159,8 @@ class Surface:
 
         # # # Creates/draws the relevant shapes for finding the flux (fractional area) # # #
         self.triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # triangle from midpoint of self to the endpoints of the other surface, s2
+        self.leg1 = LineString([self.midpoint, s2.start]) # legs of the triangle
+        self.leg2 = LineString([self.midpoint, s2.end])
         self.overlapShape = self.triangle.intersection(self.circle)
         
         # # # Getting the correct area of the distribution circle on one side of the normal line # # #
@@ -381,7 +387,7 @@ class Surface:
         return
 
     def geometries(self, nodeList, distributionType): # Does flux calculations for a simple geometry, such as a triangle or a square
-        from shapely import Point, LineString, plotting
+        from shapely import Point, LineString, plotting, Polygon, polygonize, contains, intersection
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
         import math
@@ -398,8 +404,15 @@ class Surface:
         ioff()
         fig, ax = subplots()
         ax.set_aspect('equal')
+
+        if len(nodeList) == 3:
+            geometryType = "Triangle"
+        elif len(nodeList) == 4:
+            geometryType = "Square"
+        else:
+            geometryType = "Other Geometry"
     
-        # # # Set up surfaces of geometry # # #
+        # # # Set up surfaces of geometry and the polygon object # # #
         surfaces = [self]
         startNode = Point(nodeList[0])
         for i in range(1, len(nodeList), 1):
@@ -410,6 +423,8 @@ class Surface:
             startNode = endNode
             # later if n < i < m: s.reflecting = 0, something like this
         self.distributionCircle(distributionType)
+
+        geometry = polygonize([s.segment for s in surfaces])
 
         # # # Plot geometry # # #
         for surface in surfaces:
@@ -423,15 +438,28 @@ class Surface:
         ax.text(self.midpoint.x, self.midpoint.y, "Surface 1 (Source)", color='blue') # labels the self/S1 surface
 
         # # # Fractional Area Calculations # # # --> add self to surfaces and have double for loops running
-        i = 1 # for labeling purposes
+        i = 1 # labeling 
         for surface1 in surfaces:
-            j = 1
+            if i > 1: # DELETE AFTER DONE TESTING
+                break # DELETE AFTER DONE TESTING
+            j = 1 # labeling
             for surface2 in surfaces:
+                if j > 3:# DELETE AFTER DONE TESTING
+                    break# DELETE AFTER DONE TESTING
                 if surface1 == surface2: # don't want self to self flux
                     j += 1
                     continue
+                # keep or delete the parallel surfaces part?
+                ###
+                if surface1.dx == surface2.dx and surface1.dy == surface2.dy: # parallel surfaces have no flux relation
+                    flux = 0
+                ###
                 flux = surface1.intersectionArea(surface2)
-                print(f"Surface {i} onto Surface {j}: {flux}")
+                if contains(geometry, surface1.triangle) == False: # find intersection points
+                    intersectionPoints = intersection(geometry, surface1.triangle)
+                    plotting.plot_points(intersectionPoints, ax, color='red', marker='1')
+                    plotting.plot_polygon(surface1.triangle, ax, add_points=False, color='orange', linewidth=1)
+                print(f"({geometryType}) Surface {i} onto Surface {j}: {flux}")
                 j += 1
             ax.text(surface1.midpoint.x, surface1.midpoint.y, f"Surface {i}", color='black')
             i += 1
@@ -511,14 +539,25 @@ class Surface:
         
         # # # Make the sides of the square perpendicular to self # # #
         side1Start = (self.end.x, self.end.y)
-        side1End = self.normalHelper(self.dx, self.dy, side1Start[0], side1Start[1], False)
+        side1End = self.normalHelper(abs(self.dx), abs(self.dy), side1Start[0], side1Start[1], False)
 
         side3End = (self.start.x, self.start.y)
-        side3Start = self.normalHelper(self.dx, self.dy, side3End[0], side3End[1], False)
+        side3Start = self.normalHelper(abs(self.dx), abs(self.dy), side3End[0], side3End[1], False)
 
         squareVertices = [side1Start, side1End, side3Start, side3End]
 
         return squareVertices
+
+    def lineOfSightVertices(self): # Store the test vertices for the line of sight shape
+        from shapely import Point, LineString
+
+        """To be used alongside the source surface S1-- Surface((2, 1), (1, 1))-- which is defined in the lineOfSightPlot function
+        in the test functions."""
+
+        geometryVertices = [(1, 1), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
+
+        return geometryVertices
+
 
 
         
