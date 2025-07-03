@@ -27,6 +27,234 @@ class VacuumRegion:
         source = Surface((3, 1), (1, 1), 0)
         source.geometries(source.lineOfSightVertices(), 1)
 
+    def geometries(self, startSurface, nodeList, distributionType): # Does flux calculations for a geometry, such as a triangle or a square or something more complex
+        from shapely import Point, LineString, plotting, Polygon, difference, intersects, contains, intersection, is_closed, LinearRing, buffer, crosses, area
+        from matplotlib.pyplot import subplots, ioff
+        import matplotlib.pyplot as plt
+        import math
+        import numpy as np
+
+        """The parameter nodeList WILL include the start and end points of S1 (or self) to define the endpoints of the first and last surface.
+        Ex: For a triangle with base (0, 0) to (1, 1), nodeList would be [(0, 0), (2, 2), (1, 1)]. 
+        DistributionType determines if we are using cosine or uniform or other type of distribution circle with a number like
+        0 (uniform) or 1 (cosine)."""
+
+        """nodeList should be an array of tuples like this: [(x1, y1), (x2, y2), ..., (xn, yn)]"""
+
+        # # # Plot set-up # # #
+        ioff()
+        fig, ax = subplots()
+        ax.set_aspect('equal')
+
+        if len(nodeList) == 3:
+            geometryType = "Triangle"
+        elif len(nodeList) == 4:
+            geometryType = "Square"
+        else:
+            geometryType = "Other Geometry"
+    
+        # # # Set up surfaces of geometry and the polygon object # # # FIX THIS REGION!!!!!!
+        surfaces = [startSurface]
+        startNode = Point(nodeList[0])
+        self.distributionCircle(distributionType)
+        self.drawOuterCircle()
+        for i in range(1, len(nodeList), 1):
+            endNode = Point(nodeList[i])
+            s = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
+            s.distributionCircle(distributionType)
+            s.drawOuterCircle()
+            surfaces.append(s)
+            startNode = endNode
+            # later if n < i < m: s.reflecting = 0, something like this
+        
+
+        #nodeList.append(nodeList[0]) # to "close" the geometry
+        geometry = Polygon(nodeList) # boundary of the figure
+        print(f"Surfaces: {[(surface.start, surface.end) for surface in surfaces]}")
+
+        # # # Plot geometry # # #
+        for surface in surfaces:
+            if surface.ID == 0:
+                plotting.plot_line(surface.segment, ax, color='blue', linewidth=2)
+                ax.text(surface.midpoint.x, surface.midpoint.y, "Surface 0 (Source)", color='blue') # labels the self/S1 surface
+                plotting.plot_line(surface.normal, ax, color='gray', linewidth=2) # plots normal line
+            else:
+                plotting.plot_line(surface.segment, ax, color='black', linewidth=2) # plots surfaces
+            plotting.plot_polygon(surface.circle, ax, add_points=False, color='green', linewidth=1) # plots distribution circles
+            
+        
+        # # # Fractional Area Calculations # # # 
+        s1test = 0
+        s2test = 4
+        fluxRelations = {} # store flux relations between surfaces in a nested dictionary
+        for surface1 in surfaces:
+            fluxOut = 0
+            fluxRelations[surface1.ID] = {}
+            print("##########################")
+            print(f"Surface {surface1.ID}:")
+
+            for surface2 in surfaces:
+            
+                if surface1.ID == surface2.ID: # don't want self to self flux
+                    # print(f"Surface {surface1.ID} to Surface {surface2.ID} flux.")
+                    fluxRelations[surface1.ID][surface2.ID] = 0
+                    continue
+
+                flux = surface1.intersectionArea(surface2)
+
+                if intersects(surface1.triangle, surface2.outerCircle) == False: # flux would go to the wrong (back) side of the surface
+                    # print(f"Wrong side of normal, Surface {surface1.ID} to Surface {surface2.ID}.")
+                    #plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='red')
+                    flux = 0
+                    fluxRelations[surface1.ID][surface2.ID] = flux
+                    continue
+
+                AllIntersections = difference(surface1.triangle, geometry) # polygon/multipolygon of the intersections of the outside area of the geometry w/ the legs
+                leg1SmallestPoint = (surface2.start.x, surface2.start.y)
+                leg2SmallestPoint = (surface2.end.x, surface2.end.y)
+
+                vNewLeg1 = surface1.vLeg1
+                vNewLeg2 = surface1.vLeg2
+                smallestAngle = surface1.dotProductAngle(vNewLeg1, vNewLeg2)
+
+                # # # Only one area of intersection with the triangle # # #
+                if AllIntersections.geom_type == 'Polygon':
+                    # # # Good statements for testing # # #
+                    if surface1.ID == s1test and surface2.ID == s2test:
+                        '''print(f"Polygon: {AllIntersections.exterior}")
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 INTERSECTS EXTERIOR: {intersects(AllIntersections, buffer(surface1.leg1, 0.000001))}")
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 1: {contains(geometry, surface1.leg1) == False}")
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 START CONTAINS INTERSECTION OF EXTERIOR AND LEG 1: {contains(buffer(surface1.midpoint, 0.00001), intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False}")
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 END CONTAINS INTERSECTION OF EXTERIOR AND LEG 1: {contains(buffer(surface2.start, 0.00001), intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False}")
+                        #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg1, 0.000001)), ax, add_points=True, color='orange', linewidth=1)
+                        print()
+
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 INTERSECTS EXTERIOR: {intersects(AllIntersections, buffer(surface1.leg2, 0.000001))}")
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 2: {contains(geometry, surface1.leg2) == False}")
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 START CONTAINS INTERSECTION OF EXTERIOR AND LEG 2: {contains(buffer(surface1.midpoint, 0.00001), intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False}")
+                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 END CONTAINS INTERSECTION OF EXTERIOR AND LEG 2: {contains(buffer(surface2.end, 0.00001), intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False}")
+                        #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg2, 0.000001)), ax, add_points=True, color='purple', linewidth=1)
+                        print()'''
+            
+                    # # # If both legs of the triangle are blocked by the same outside region # # #
+                    if crosses(geometry, surface1.leg1) and crosses(geometry, surface1.leg2): 
+                        # print(f"Intersects both legs, Surface {surface1.ID} to Surface {surface2.ID}.")
+                        #plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='red')
+                        flux = 0
+                        fluxRelations[surface1.ID][surface2.ID] = flux
+                        continue
+
+                    # # # If Leg 1 (from S1 midpoint to S2 start) intersects the outside region # # #
+                    if intersects(AllIntersections, buffer(surface1.leg1, 0.000001)) and (contains(geometry, surface1.leg1) == False):
+                        coordinates1 = list(AllIntersections.exterior.coords)
+                        leg1Start, leg1End = buffer(surface1.midpoint, 0.00001), buffer(surface2.start, 0.00001)
+
+                        if contains(leg1Start, intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False and contains(leg1End, intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False:
+                            for pair in coordinates1:
+                                vNewLeg1 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
+                                vNewLeg2 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg2SmallestPoint[0], leg2SmallestPoint[1]))
+                                newAngle = surface1.dotProductAngle(vNewLeg1, vNewLeg2)
+                                if abs(newAngle) < abs(smallestAngle):
+                                    smallestAngle = newAngle
+                                    leg1SmallestPoint = pair
+                        
+                    # # # If Leg 2 (S1 midpoint to S2 end) intersects the outside region # # #
+                    if intersects(AllIntersections, buffer(surface1.leg2, 0.000001)) and (contains(geometry, surface1.leg2) == False):
+                        coordinates2 = list(AllIntersections.exterior.coords)
+                        leg2Start, leg2End = buffer(surface1.midpoint, 0.00001), buffer(surface2.end, 0.00001)
+
+                        if contains(leg2Start, intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False and contains(leg2End, intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False:
+                            for pair in coordinates2:
+                                vNewLeg1 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg1SmallestPoint[0], leg1SmallestPoint[1]))
+                                vNewLeg2 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
+                                newAngle = surface1.dotProductAngle(vNewLeg1, vNewLeg2)
+                                if abs(newAngle) < abs(smallestAngle):
+                                    smallestAngle = newAngle
+                                    leg2SmallestPoint = pair
+
+                # # # Multiple intersections with the outside region and the triangle/triangle legs # # #
+                elif AllIntersections.geom_type == 'MultiPolygon':
+                    # # # Check all possible polygons # # #
+                    for polygon in AllIntersections.geoms:
+                        '''if surface1.ID == s1test and surface2.ID == s2test:
+                            # # # Testing statements -- each block should output all "Trues" in order to enter if statements for the legs # # #
+                            print(f"Multipolygon: {polygon.exterior}")
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 INTERSECTS POLYGON: {intersects(polygon, buffer(surface1.leg1, 0.000001))}")
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 1: {contains(geometry, surface1.leg1) == False}")
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 START CONTAINS INTERSECTION OF POLYGON AND LEG 1: {contains(buffer(surface1.midpoint, 0.00001), intersection(polygon, buffer(surface1.leg1, 0.000001))) == False}")
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 END CONTAINS INTERSECTION OF POLYGON AND LEG 1: {contains(buffer(surface2.start, 0.00001), intersection(polygon, buffer(surface1.leg1, 0.000001))) == False}")
+                            #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg1, 0.000001)), ax, add_points=True, color='orange', linewidth=1)
+                            print()
+
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 INTERSECTS POLYGON: {intersects(polygon, buffer(surface1.leg2, 0.000001))}")
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 2: {contains(geometry, surface1.leg2) == False}")
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 START CONTAINS INTERSECTION OF POLYGON AND LEG 2: {contains(buffer(surface1.midpoint, 0.00001), intersection(polygon, buffer(surface1.leg2, 0.000001))) == False}")
+                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 END CONTAINS INTERSECTION OF POLYGON AND LEG 2: {contains(buffer(surface2.end, 0.00001), intersection(polygon, buffer(surface1.leg2, 0.000001))) == False}")
+                            #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg2, 0.000001)), ax, add_points=True, color='purple', linewidth=1)
+                            print()'''
+
+                        # # # Both legs of the triangle are blocked by the same outer region # # #
+                        if crosses(polygon, buffer(surface1.leg1, 0.000001)) and crosses(polygon, buffer(surface1.leg2, 0.000001)):
+                            # print(f"Both legs blocked by multipolygon, Surface {surface1.ID} to Surface {surface2.ID}.")
+                            #plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='red')
+                            flux = 0
+                            fluxRelations[surface1.ID][surface2.ID] = flux
+                            continue
+
+                        # # # Leg 1 (S1 midpoint to S2 start) is blocked by this polygon in the outer region # # #
+                        if intersects(polygon, buffer(surface1.leg1, 0.000001)) and (contains(geometry, surface1.leg1) == False): # and crosses(geometry, surface1.leg1) 
+                            coordinates1 = list(polygon.exterior.coords)
+                            leg1Start, leg1End = buffer(surface1.midpoint, 0.00001), buffer(surface2.start, 0.00001)
+                            
+                            if contains(leg1Start, intersection(polygon, buffer(surface1.leg1, 0.000001))) == False and contains(leg1End, intersection(polygon, buffer(surface1.leg1, 0.000001))) == False:
+                                for pair in coordinates1:
+                                    vNewLeg1 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
+                                    vNewLeg2 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg2SmallestPoint[0], leg2SmallestPoint[1]))
+                                    newAngle = surface1.dotProductAngle(vNewLeg1, vNewLeg2)
+                                    if abs(newAngle) < abs(smallestAngle):
+                                        smallestAngle = newAngle
+                                        leg1SmallestPoint = pair
+
+                        # # # Leg 2 (S2 midpoint to S2 end) is blocked by this polygon in the outer region # # #
+                        if intersects(polygon, buffer(surface1.leg2, 0.000001)) and (contains(geometry, surface1.leg2) == False):  #and crosses(geometry, surface1.leg2) 
+                            coordinates2 = list(polygon.exterior.coords)
+                            leg2Start, leg2End = buffer(surface1.midpoint, 0.00001), buffer(surface2.end, 0.00001)
+                            
+                            if (contains(leg2Start, intersection(polygon, buffer(surface1.leg2, 0.000001))) == False) and (contains(leg2End, intersection(polygon, buffer(surface1.leg2, 0.000001))) == False):
+                                for pair in coordinates2:
+                                    vNewLeg1 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg1SmallestPoint[0], leg1SmallestPoint[1]))
+                                    vNewLeg2 = surface1.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
+                                    newAngle = surface1.dotProductAngle(vNewLeg1, vNewLeg2)
+                                    if abs(newAngle) < abs(smallestAngle):
+                                        smallestAngle = newAngle
+                                        leg2SmallestPoint = pair
+
+                # # # Set new S2 Surface and calculate the new flux. Update the total flux out of Surface 1. # # #
+                newS2 = Surface((leg1SmallestPoint[0], leg1SmallestPoint[1]), (leg2SmallestPoint[0], leg2SmallestPoint[1]), surface2.ID)
+                flux = surface1.intersectionArea(newS2)
+                fluxOut += flux
+                fluxRelations[surface1.ID][surface2.ID] = flux
+                #print(f"Surface {surface1.ID} onto Surface {surface2.ID}: {flux}") # Prints results for every single surface
+
+                # # # Results for a specific surface # # #
+                if surface1.ID == s1test and surface2.ID == s2test: # find intersection points
+                    #plotting.plot_line(newS2.segment, ax, add_points=True, color='orange', linewidth=1)
+                    #plotting.plot_line(surface1.leg1, ax, add_points=True, color='blue', linewidth=2)
+                    #plotting.plot_line(surface1.leg2, ax, add_points=True, color='red', linewidth=1)
+                    #surface1.intersectionArea(surface2)
+                    plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='orange', linewidth=1)
+                    intersectionPoints = intersection(geometry, surface1.triangle)
+                    plotting.plot_points(intersectionPoints, ax, color='red', marker='1')
+                    print(f"Surface {surface1.ID} onto Surface {surface2.ID}: {flux}")
+                    
+            print(f"Surface {surface1.ID} outward flux: {fluxOut}") # Prints total flux output for each Surface 1
+            ax.text(surface1.midpoint.x, surface1.midpoint.y, f"Surface {surface1.ID}", color='black') # labels surfaces
+
+        # # # Generates the Plot # # #
+        plt.show(block=False)
+
+        return
+
 class Surface:
 
     def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0): # creates the surface
@@ -429,242 +657,6 @@ class Surface:
 
         return
 
-    def geometries(self, nodeList, distributionType): # Does flux calculations for a geometry, such as a triangle or a square or something more complex
-        from shapely import Point, LineString, plotting, Polygon, difference, intersects, contains, intersection, is_closed, LinearRing, buffer, crosses, area
-        from matplotlib.pyplot import subplots, ioff
-        import matplotlib.pyplot as plt
-        import math
-        import numpy as np
-
-        """The parameter nodeList WILL include the start and end points of S1 (or self) to define the endpoints of the first and last surface.
-        Ex: For a triangle with base (0, 0) to (1, 1), nodeList would be [(0, 0), (2, 2), (1, 1)]. 
-        DistributionType determines if we are using cosine or uniform or other type of distribution circle with a number like
-        0 (uniform) or 1 (cosine)."""
-
-        """nodeList should be an array of tuples like this: [(x1, y1), (x2, y2), ..., (xn, yn)]"""
-
-        # # # Plot set-up # # #
-        ioff()
-        fig, ax = subplots()
-        ax.set_aspect('equal')
-
-        if len(nodeList) == 3:
-            geometryType = "Triangle"
-        elif len(nodeList) == 4:
-            geometryType = "Square"
-        else:
-            geometryType = "Other Geometry"
-    
-        # # # Set up surfaces of geometry and the polygon object # # #
-        surfaces = [self]
-        self.distributionCircle(distributionType)
-        self.drawOuterCircle()
-        startNode = Point(nodeList[0])
-        for i in range(1, len(nodeList), 1):
-            endNode = Point(nodeList[i])
-            s = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
-            s.distributionCircle(distributionType)
-            s.drawOuterCircle()
-            surfaces.append(s)
-            startNode = endNode
-            # later if n < i < m: s.reflecting = 0, something like this
-        
-
-        nodeList.append(nodeList[0]) # to "close" the geometry
-        geometry = Polygon(nodeList) # boundary of the figure
-        print(f"Surfaces: {[(surface.start, surface.end) for surface in surfaces]}")
-
-        # # # Plot geometry # # #
-        for surface in surfaces:
-            if surface == self:
-                plotting.plot_line(surface.segment, ax, color='blue', linewidth=2)
-            else:
-                plotting.plot_line(surface.segment, ax, color='black', linewidth=2) # plots surfaces
-            plotting.plot_polygon(surface.circle, ax, add_points=False, color='green', linewidth=1) # plots distribution circles
-            
-        plotting.plot_line(self.normal, ax, color='gray', linewidth=2) # plots normal line
-        ax.text(self.midpoint.x, self.midpoint.y, "Surface 0 (Source)", color='blue') # labels the self/S1 surface
-
-        # # # Fractional Area Calculations # # # --> 
-        # create a helper function at some point to reduce the amount of repeated code #
-        s1test = 9
-        s2test = 4
-        fluxRelations = {} # store flux relations in a nested dictionary
-        for surface1 in surfaces:
-            fluxOut = 0
-            fluxRelations[surface1.ID] = {}
-            print("##########################")
-            print(f"Surface {surface1.ID}:")
-
-            for surface2 in surfaces:
-            
-                if surface1.ID == surface2.ID: # don't want self to self flux
-                    # print(f"Surface {surface1.ID} to Surface {surface2.ID} flux.")
-                    fluxRelations[surface1.ID][surface2.ID] = 0
-                    continue
-
-                flux = surface1.intersectionArea(surface2)
-
-                if intersects(surface1.triangle, surface2.outerCircle) == False: # flux would go to the wrong (back) side of the surface
-                    # print(f"Wrong side of normal, Surface {surface1.ID} to Surface {surface2.ID}.")
-                    #plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='red')
-                    flux = 0
-                    fluxRelations[surface1.ID][surface2.ID] = flux
-                    continue
-
-                AllIntersections = difference(surface1.triangle, geometry) # polygon/multipolygon of the intersections w/ the legs
-                leg1SmallestPoint = (surface2.start.x, surface2.start.y)
-                leg2SmallestPoint = (surface2.end.x, surface2.end.y)
-
-                vNewLeg1 = surface1.vLeg1
-                vNewLeg2 = surface1.vLeg2
-                smallestAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-
-                if AllIntersections.geom_type == 'Polygon': # only one polygon intersects the legs of the polygon
-                    if surface1.ID == s1test and surface2.ID == s2test:
-                        print(f"Polygon: {AllIntersections.exterior}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 INTERSECTS EXTERIOR: {intersects(AllIntersections, buffer(surface1.leg1, 0.000001))}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 1: {contains(geometry, surface1.leg1) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 START CONTAINS INTERSECTION OF EXTERIOR AND LEG 1: {contains(buffer(surface1.midpoint, 0.00001), intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 END CONTAINS INTERSECTION OF EXTERIOR AND LEG 1: {contains(buffer(surface2.start, 0.00001), intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False}")
-                        #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg1, 0.000001)), ax, add_points=True, color='orange', linewidth=1)
-                        print()
-
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 INTERSECTS EXTERIOR: {intersects(AllIntersections, buffer(surface1.leg2, 0.000001))}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 2: {contains(geometry, surface1.leg2) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 START CONTAINS INTERSECTION OF EXTERIOR AND LEG 2: {contains(buffer(surface1.midpoint, 0.00001), intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 END CONTAINS INTERSECTION OF EXTERIOR AND LEG 2: {contains(buffer(surface2.end, 0.00001), intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False}")
-                        #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg2, 0.000001)), ax, add_points=True, color='purple', linewidth=1)
-                        print()
-            
-                    # CHANGE CROSSES BACK TO INTERSECTS IF NEEDED buffer(surface1.leg1, 0.000001)
-                    if crosses(geometry, surface1.leg1) and crosses(geometry, surface1.leg2): # intersects both legs of triangle
-                        # print(f"Intersects both legs, Surface {surface1.ID} to Surface {surface2.ID}.")
-                        #plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='red')
-                        flux = 0
-                        fluxRelations[surface1.ID][surface2.ID] = flux
-                        continue
-
-                    if intersects(AllIntersections, buffer(surface1.leg1, 0.000001)) and (contains(geometry, surface1.leg1) == False): #and crosses(geometry, surface1.leg1)
-                        coordinates1 = list(AllIntersections.exterior.coords)
-                        leg1Start, leg1End = buffer(surface1.midpoint, 0.00001), buffer(surface2.start, 0.00001)
-
-                        if contains(leg1Start, intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False and contains(leg1End, intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False:
-                            for pair in coordinates1:
-                                vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg2SmallestPoint[0], leg2SmallestPoint[1]))
-                                newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                if abs(newAngle) < abs(smallestAngle):
-                                    smallestAngle = newAngle
-                                    leg1SmallestPoint = pair
-                        
-                    if intersects(AllIntersections, buffer(surface1.leg2, 0.000001)) and (contains(geometry, surface1.leg2) == False): #and crosses(geometry, surface1.leg2)
-                        coordinates2 = list(AllIntersections.exterior.coords)
-                        leg2Start, leg2End = buffer(surface1.midpoint, 0.00001), buffer(surface2.end, 0.00001)
-
-                        if contains(leg2Start, intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False and contains(leg2End, intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False:
-                            for pair in coordinates2:
-                                vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg1SmallestPoint[0], leg1SmallestPoint[1]))
-                                vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                if abs(newAngle) < abs(smallestAngle):
-                                    smallestAngle = newAngle
-                                    leg2SmallestPoint = pair
-
-                elif AllIntersections.geom_type == 'MultiPolygon': # multiple polygons that intersect the legs
-                    for polygon in AllIntersections.geoms:
-
-                        if surface1.ID == s1test and surface2.ID == s2test:
-                            print(f"Multipolygon: {polygon.exterior}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 INTERSECTS POLYGON: {intersects(polygon, buffer(surface1.leg1, 0.000001))}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 1: {contains(geometry, surface1.leg1) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 START CONTAINS INTERSECTION OF POLYGON AND LEG 1: {contains(buffer(surface1.midpoint, 0.00001), intersection(polygon, buffer(surface1.leg1, 0.000001))) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 END CONTAINS INTERSECTION OF POLYGON AND LEG 1: {contains(buffer(surface2.start, 0.00001), intersection(polygon, buffer(surface1.leg1, 0.000001))) == False}")
-                            #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg1, 0.000001)), ax, add_points=True, color='orange', linewidth=1)
-                            print()
-
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 INTERSECTS POLYGON: {intersects(polygon, buffer(surface1.leg2, 0.000001))}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 2: {contains(geometry, surface1.leg2) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 START CONTAINS INTERSECTION OF POLYGON AND LEG 2: {contains(buffer(surface1.midpoint, 0.00001), intersection(polygon, buffer(surface1.leg2, 0.000001))) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 END CONTAINS INTERSECTION OF POLYGON AND LEG 2: {contains(buffer(surface2.end, 0.00001), intersection(polygon, buffer(surface1.leg2, 0.000001))) == False}")
-                            #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg2, 0.000001)), ax, add_points=True, color='purple', linewidth=1)
-                            print()
-                            # TRUE, TRUE, TRUE, TRUE
-
-            
-                        # CHANGE CROSSES BACK TO INTERSECTS IF NEEDED
-                        if crosses(polygon, buffer(surface1.leg1, 0.000001)) and crosses(polygon, buffer(surface1.leg2, 0.000001)): # intersects both legs of triangle
-                            # print(f"Both legs blocked by multipolygon, Surface {surface1.ID} to Surface {surface2.ID}.")
-                            #plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='red')
-                            flux = 0
-                            fluxRelations[surface1.ID][surface2.ID] = flux
-                            continue
-
-                        if intersects(polygon, buffer(surface1.leg1, 0.000001)) and (contains(geometry, surface1.leg1) == False): # and crosses(geometry, surface1.leg1) 
-                            coordinates1 = list(polygon.exterior.coords)
-                            leg1Start, leg1End = buffer(surface1.midpoint, 0.00001), buffer(surface2.start, 0.00001)
-                            
-                            if contains(leg1Start, intersection(polygon, buffer(surface1.leg1, 0.000001))) == False and contains(leg1End, intersection(polygon, buffer(surface1.leg1, 0.000001))) == False:
-                                for pair in coordinates1:
-                                    vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                    vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg2SmallestPoint[0], leg2SmallestPoint[1]))
-                                    newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                    if abs(newAngle) < abs(smallestAngle):
-                                        smallestAngle = newAngle
-                                        leg1SmallestPoint = pair
-
-                        if intersects(polygon, buffer(surface1.leg2, 0.000001)) and (contains(geometry, surface1.leg2) == False):  #and crosses(geometry, surface1.leg2) 
-                            if surface1.ID == s1test and surface2.ID == s2test:
-                                print("wow! checking leg2!")
-                            coordinates2 = list(polygon.exterior.coords)
-                            leg2Start, leg2End = buffer(surface1.midpoint, 0.00001), buffer(surface2.end, 0.00001)
-                            
-                            if (contains(leg2Start, intersection(polygon, buffer(surface1.leg2, 0.000001))) == False) and (contains(leg2End, intersection(polygon, buffer(surface1.leg2, 0.000001))) == False):
-                                for pair in coordinates2:
-                                    vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg1SmallestPoint[0], leg1SmallestPoint[1]))
-                                    vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                    newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                    if surface1.ID == s1test and surface2.ID == s2test:
-                                        print()
-                                        print(f"Checking coordinate: {pair}")
-                                        print(f"Last checked angle: {smallestAngle} with points {leg1SmallestPoint} and {leg2SmallestPoint}")
-                                        print(f"New angle with current leg1SmallestPoint and pair: {newAngle}")
-                                        print()
-                                    if abs(newAngle) < abs(smallestAngle):
-                                        smallestAngle = newAngle
-                                        leg2SmallestPoint = pair
-
-
-                newS2 = Surface((leg1SmallestPoint[0], leg1SmallestPoint[1]), (leg2SmallestPoint[0], leg2SmallestPoint[1]), surface2.ID)
-                flux = surface1.intersectionArea(newS2)
-                fluxOut += flux
-                fluxRelations[surface1.ID][surface2.ID] = flux
-                #print(f"Surface {surface1.ID} onto Surface {surface2.ID}: {flux}")
-                #print(newS2.start, newS2.end)
-
-                # if surface1.ID == s1test:
-                #     print(f"Surface {surface1.ID} onto Surface {surface2.ID}: {flux}")
-
-                if surface1.ID == s1test and surface2.ID == s2test: # find intersection points
-                    #plotting.plot_line(newS2.segment, ax, add_points=True, color='orange', linewidth=1)
-                    plotting.plot_line(surface1.leg1, ax, add_points=True, color='blue', linewidth=2)
-                    plotting.plot_line(surface1.leg2, ax, add_points=True, color='red', linewidth=1)
-                    #surface1.intersectionArea(surface2)
-                    #plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='orange', linewidth=1)
-                    intersectionPoints = intersection(geometry, surface1.triangle)
-                    plotting.plot_points(intersectionPoints, ax, color='red', marker='1')
-                    print(f"Surface {surface1.ID} onto Surface {surface2.ID}: {flux}")
-                    
-            print(f"Surface {surface1.ID} outward flux: {fluxOut}")
-            ax.text(surface1.midpoint.x, surface1.midpoint.y, f"Surface {surface1.ID}", color='black')
-
-        # # # Generates the Plot # # #
-        plt.show(block=False)
-
-        return
-
-
-
 
 
     # # # # # # # # # # # #
@@ -753,141 +745,9 @@ class Surface:
         in the test functions."""
 
         #geometryVertices = [(1, 1), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
-        geometryVertices = [(1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
+        geometryVertices = [(3, 1), (1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
 
-
-        return geometryVertices
-
-    '''def geometriesRedoing(self):
-        # rewriting/reworking code for geoemtries
-
-        for surface1 in surfaces:
-            for surface2 in surfaces:
-
-                if surface1.ID == surface2.ID:
-                    print("Self to self flux. Skip.")
-                    continue
-
-                AllIntersections = difference(geometry, surface1.triangle) # polygon/multipolygon of the intersections w/ the legs
-                leg1SmallestPoint = (surface2.start.x, surface2.start.y)
-                leg2SmallestPoint = (surface2.end.x, surface2.end.y)
-
-                vNewLeg1 = surface1.vLeg1
-                vNewLeg2 = surface1.vLeg2
-                smallestAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-
-                if AllIntersections.geom_type == 'Polygon':
-                    if ... # fill in both case
-                    elif intersects(surface1.leg1, AllIntersections):
-                        intersectPoints = sorted(list(AllIntersections.exterior.coords))
-                        leg1Points = sorted(list(surface1.leg1.exterior.coords))
-                        if intersectPoints != leg1Points:
-                            # angle adjustment
-
-                    elif intersects(surface1.leg1, AllIntersections):
-                        intersectPoints = sorted(list(AllIntersections.exterior.coords))
-                        leg2Points = sorted(list(AllIntersections.exterior.coords))
-                        if intersectionPoints != leg2Points:
-                            # angle adjustment
-
-                elif AllIntersections.geom_type == 'MultiPolygon':
-                    for polygon in AllIntersections.geoms:
-                        if ... # fill in both case
-                        elif intersects(surface1.leg1, polygon):
-                            intersectPoints = sorted(list(polygon.exterior.coords))
-                            leg1Points = sorted(list(surface1.leg1.exterior.coords))
-                            if intersectPoints != leg1Points:
-                                # angle adjustment
-                        elif intersects(surface1.leg2, polygon):
-                            intersectPoints = sorted(list(polygon.exterior.coords))
-                            leg2Points = sorted(list(surface1.leg2.exterior.coords))
-                            if intersectPoints != leg2Points:
-                                # angle adjustment
-                                
-                                DELETED FROM CODE for POLYGON:
-                                elif intersects(surface1.leg1, AllIntersections):
-                        coordinates1 = sorted(list(AllIntersections.exterior.coords))
-                        leg1Start, leg1End = surface1.midpoint, surface2.start
-                        if intersection(surface1.leg1, AllIntersections) != leg1Start and intersection(surface1.leg1, AllIntersections) != leg1End:
-                            for pair in coordinates1:
-                                vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg2SmallestPoint[0], leg2SmallestPoint[1]))
-                                newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                if abs(newAngle) < abs(smallestAngle):
-                                    smallestAngle = newAngle
-                                    leg1SmallestPoint = pair
-
-                    elif intersects(surface1.leg2, AllIntersections):
-                        coordinates2 = sorted(list(AllIntersections.exterior.coords))
-                        leg2Start, leg2End = surface1.midpoint, surface2.end
-                        if surface1.ID == s1test and surface2.ID == s2test:
-                            print("Start/End:", leg2Start, leg2End)
-                            print(intersection(surface1.leg2, AllIntersections), intersection(surface1.leg2, AllIntersections))
-                        if (intersection(surface1.leg2, AllIntersections) != leg2Start) and (intersection(surface1.leg2, AllIntersections) != leg2End):
-                            for pair in coordinates2:
-                                vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg1SmallestPoint[0], leg1SmallestPoint[1]))
-                                vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                if abs(newAngle) < abs(smallestAngle):
-                                    smallestAngle = newAngle
-                                    leg2SmallestPoint = pair
-                                    
-                                    
-                            DELETED FROM CODE FROM MULTIPOLYGON:
-                            elif intersects(surface1.leg1, polygon):
-                            coordinates1 = sorted(list(polygon.exterior.coords))
-                            leg1Start, leg1End = surface1.midpoint, surface2.start
-                            if intersection(surface1.leg1, polygon) != leg1Start and intersection(surface1.leg1, polygon) != leg1End:
-                                for pair in coordinates1:
-                                    vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                    vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg2SmallestPoint[0], leg2SmallestPoint[1]))
-                                    newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                    if abs(newAngle) < abs(smallestAngle):
-                                        smallestAngle = newAngle
-                                        leg1SmallestPoint = pair
-                        elif intersects(surface1.leg2, polygon):
-                            coordinates2 = sorted(list(polygon.exterior.coords))
-                            leg2Start, leg2End = surface1.midpoint, surface2.end
-                            if intersection(surface1.leg2, polygon) != leg2Start and intersection(surface1.leg2, polygon) != leg2End:
-                                for pair in coordinates2:
-                                    vNewLeg1 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), (leg1SmallestPoint[0], leg1SmallestPoint[1]))
-                                    vNewLeg2 = self.vectorHelper((surface1.midpoint.x, surface1.midpoint.y), pair)
-                                    newAngle = self.dotProductAngle(vNewLeg1, vNewLeg2)
-                                    if abs(newAngle) < abs(smallestAngle):
-                                        smallestAngle = newAngle
-                                        leg2SmallestPoint = pair'''
-
-
-                    
-
-
-
-        
-
-
-
-
-    #             '''CURRENTLY:
-    #             if crosses(AllIntersections, surface1.leg1) and crosses(AllIntersections, surface1.leg2):
-    #                 flux = 0
-    #                 continue
-    #             elif crosses(AllIntersections, buffer(surface1.leg1, 0.000001)):
-    #                 if crosses(geometry, surface1.leg1):
-    #                     #angle adjustment
-    #             elif crosses(AllIntersections, buffer(surface1.leg2, 0.000001)):
-    #                 if crosses(geometry, surface1.leg2):
-    #                     #angle adjust
-
-    #             if crosses(polygon, surface1.leg1) and crosses(polygon, surface1.leg2):
-    #                 flux = 0
-    #                 continue
-    #             elif crosses(polygon, buffer(surface1.leg1, 0.000001)):
-    #                 if crosses(geometry, surface1.leg1):
-    #                     #adjust
-    #             elif crosses(polygon, buffer(surface1.leg2, 0.000001)):
-    #                 if crosses(geometry, surface1.leg1):
-    #                     # adjust
-    #             '''
+        return geometryVertices    
 
 
 
