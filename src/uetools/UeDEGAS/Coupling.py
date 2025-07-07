@@ -226,44 +226,32 @@ class DEGAS2Coupling:
         for idx, nodes in grid['trias'].items():
             ax.plot(nodes[:,0], nodes[:,1], 'k-', linewidth=0.3)
         
-
-    def define_snull_vacuum_region(self, gridname="tria",   
-        maxlength = 0.05, plot=True, limiter=None, **kwargs):
-        """ Creates arrays enclosing the main-SOL and PF vacuum regions
-        
-        Calls Triangle if executable found in PATH or TRIA_PATH. Else,
-        applies Scipy Delaunay routines.
+    def get_snull_vacuum_regions(self, maxlength=0.05, limiter=None,
+        plot = False):
+        ''' Returns list of points defining main and PF vacuum regions
 
         Arguments
         ---------
-        gridname - optional (default: tria)
-            name for Triangle-related files if Triangle available
         maxlength - optional (default: 0.05)
             maximum vessel segment length in meters. Necessary to 
             find approproiate vessel neighboring points for 
             automated vacuum region detection
-        plot - optional (default: True)
-            switch whether to plot results or not
         limiter - optional (default: None)
             Nx2 array of points ordered clockwise (snull) or 
             counterclockwise (usn) to contain the nodes
             specifying the vessel geometry.
-        **kwargs - passed to run_triangle
-    
+                
         Returns
         -------
-        main_vacuum - Nx2 array points enclosing main vacuum region
-        pf_vacuum - Mx2 array of points enclosing PFR vacuum region
-        """
-        from shapely import LinearRing, LineString, plotting, Polygon
-        from shapely.ops import linemerge
-        from matplotlib.pyplot import subplots, triplot
-        from numpy import array, roll, cross
-        from copy import deepcopy
-        from scipy.spatial import Delaunay
-        from os import environ
-        from shutil import which
-                
+        Tuple (main, pf) vacuum regions. Each tuple consists of
+        (points, nmesh, intersects), where points are the 
+        Nx2 array bounding the vacuum region, nmesh the last index of
+        the vessel, and intersects the coordinates of the first/last
+        vessel points.
+        '''
+        from shapely import LinearRing, LineString
+        from numpy import array, roll
+        from matplotlib.pyplot import subplots
         # Get shifts and switches for upper-single null geometries
         if (self.get("rmagx") + self.get("zmagx") == 0):
             disp = 2.8
@@ -320,6 +308,121 @@ class DEGAS2Coupling:
         # Account for USN flip
         main_points[:,1] = (-1)**usn*main_points[:,1] + usn*disp
         pf_points[:,1] = (-1)**usn*pf_points[:,1] + usn*disp
+
+        # Set start point to be first plasma mesh point
+        main = roll(main_points, -(nmain_points+1), axis=0)
+        pf = roll(pf_points, -(npf_points+1), axis=0)
+        # Get index of last plasma mesh point
+        nmain_vessel = len(main_points) - (nmain_points + 2)
+        npf_vessel = len(pf_points) - (npf_points + 2)
+
+        if plot:
+            f, ax = subplots(figsize=(5,12))
+            ax.plot(pf[:,0], pf[:,1], 'k.-')
+            ax.plot(pf[0,0], pf[0,1], 'r*')
+            ax.plot(pf[npf_vessel,0], pf[npf_vessel,1], 'bo')
+
+            ax.plot(main[:,0], main[:,1], 'k.-')
+            ax.plot(main[0,0], main[0,1], 'r*')
+            ax.plot(main[nmain_vessel,0], main[nmain_vessel,1], 'bo')
+            ax.set_aspect('equal')
+
+        return (main, nmain_vessel), (pf, npf_vessel)
+
+
+
+    def define_snull_vacuum_region(self, gridname="tria",   
+        maxlength=0.05, limiter=None, plot=True, **kwargs):
+        """ Creates arrays enclosing the main-SOL and PF vacuum regions
+        
+        Calls Triangle if executable found in PATH or TRIA_PATH. Else,
+        applies Scipy Delaunay routines.
+
+        Arguments
+        ---------
+        gridname - optional (default: tria)
+            name for Triangle-related files if Triangle available
+        plot - optional (default: True)
+            switch whether to plot results or not
+        maxlength - optional (default: 0.05)
+            maximum vessel segment length in meters. Necessary to 
+            find approproiate vessel neighboring points for 
+            automated vacuum region detection
+        limiter - optional (default: None)
+            Nx2 array of points ordered clockwise (snull) or 
+            counterclockwise (usn) to contain the nodes
+            specifying the vessel geometry.
+        **kwargs - passed to run_triangle
+    
+        Returns
+        -------
+        main_vacuum - Nx2 array points enclosing main vacuum region
+        pf_vacuum - Mx2 array of points enclosing PFR vacuum region
+        """
+        from shapely import LinearRing, LineString, plotting, Polygon
+        from matplotlib.pyplot import subplots, triplot
+        from numpy import array
+        from copy import deepcopy
+        from scipy.spatial import Delaunay
+        from os import environ
+        from shutil import which
+        # Get shifts and switches for upper-single null geometries
+        if (self.get("rmagx") + self.get("zmagx") == 0):
+            disp = 2.8
+        else:
+            disp = self.get('zmagx')
+        usn = self.get('geometry')[0].decode('UTF-8').strip() == 'uppersn'
+
+        # Specify the vessel geometry: introduce copy for plotting purposes only
+        if limiter is None:
+            vessel_orig = LinearRing( zip(self.get('xlim'), self.get('ylim')))
+        else:
+            vessel_orig = LinearRing( limiter )
+        if usn:
+            limiter = array(list(zip(
+                vessel_orig.coords.xy[0],
+                vessel_orig.coords.xy[1]
+            )))
+            vessel_orig_plot = LinearRing( zip(
+                limiter[:,0],
+                (-1)**usn*limiter[:,1] + disp*usn
+            ))
+        else:
+            vessel_orig_plot = vessel_orig
+                
+        # Get the nodes for the north and south plasma boundaries
+        northpoints = array(list(zip(
+                self.get('rm')[:-1,-1,2],
+                self.get('zm')[:-1,-1,2]
+        )))
+        southpoints = array(tuple(zip(
+                    self.get('rm')[:self.get('ixpt1')[0]+1,0,4],
+                    self.get('zm')[:self.get('ixpt1')[0]+1,0,4]
+        )) + tuple(zip(
+                    self.get('rm')[self.get('ixpt2')[0]+1:,0,3],
+                    self.get('zm')[self.get('ixpt2')[0]+1:,0,3]
+        )))
+        # Create a LineString for plotting
+        north = LineString( northpoints ) 
+        south = LineString( southpoints )
+        # Segmentize the vessel to enforce max segments lengths
+        vessel=vessel_orig.segmentize(maxlength)
+        vessel_plot=vessel_orig_plot.segmentize(maxlength)
+        # Get the segmentized vessel coordinates
+        vesselpoints = array( list( zip(
+            vessel.coords.xy[0],
+            vessel.coords.xy[1]
+        )))
+        # Ensure right-handedness of final vessel points
+        if usn:
+            vesselpoints = vesselpoints[::-1]
+        # Get vacuum region points and information
+        main_points, nmain_points, nintersects = self.get_vacuum(northpoints, vesselpoints, True)
+        pf_points, npf_points, sintersects = self.get_vacuum(southpoints, vesselpoints, False)
+        # Account for USN flip
+        main_points[:,1] = (-1)**usn*main_points[:,1] + usn*disp
+        pf_points[:,1] = (-1)**usn*pf_points[:,1] + usn*disp
+
         # Set up triangulation dict
         triadata = {
             'filled': {
