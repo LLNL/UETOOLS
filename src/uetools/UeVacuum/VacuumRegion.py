@@ -17,13 +17,23 @@ class VacuumRegion:
     
     def trianglePlot(self):
         S1 = Surface((1, 3), (2, 6), 0)
-        self.geometries(S1.equilateral(), 1)
+        self.geometries(S1, S1.equilateral())
 
     def squarePlot(self):
         S1 = Surface((1, 2), (3, 6), 0)
-        self.geometries(S1.square(), 1)
+        self.geometries(S1, S1.square())
 
-    def geometries(self, nodeList, distributionType=1): # Does flux calculations for a geometry, such as a triangle or a square or something more complex
+    def tokamakPlot(self):
+        from uetools import Case
+        c = Case('reference.hdf5', inplace=True)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.05)
+        main_nodes = main[0]
+        P = main[1]
+        self.geometries(Surface(main_nodes[0], main_nodes[1]), main_nodes[2:])
+        
+
+
+    def geometries(self, startSurface, nodeList, distributionType=1): # Does flux calculations for a geometry, such as a triangle or a square or something more complex
         from shapely import Point, LineString, plotting, Polygon, difference, intersects, contains, intersection, is_closed, LinearRing, buffer, crosses, area
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
