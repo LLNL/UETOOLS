@@ -250,7 +250,7 @@ class DEGAS2Coupling:
         vessel points.
         '''
         from shapely import LinearRing, LineString
-        from numpy import array, roll, unique
+        from numpy import array, roll, unique, sort
         from matplotlib.pyplot import subplots
         # Get shifts and switches for upper-single null geometries
         if (self.get("rmagx") + self.get("zmagx") == 0):
@@ -316,8 +316,10 @@ class DEGAS2Coupling:
         nmain_vessel = len(main_points) - (nmain_points + 2)
         npf_vessel = len(pf_points) - (npf_points + 2)
         # Remove duplicate points, assuming they only occur along the walls
-        main = unique(main, axis=0)
-        pf = unique(pf, axis=0)
+        _, idx = unique(main, axis=0, return_index=True)
+        main = main[sort(idx)]
+        _, idx = unique(pf, axis=0, return_index=True) 
+        pf = pf[sort(idx)]
 
         if plot:
             f, ax = subplots(figsize=(5,12))
