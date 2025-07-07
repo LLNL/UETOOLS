@@ -53,11 +53,11 @@ class VacuumRegion:
         else:
             geometryType = "Other Geometry"
     
-        # # # Set up surfaces of geometry and the polygon object # # # FIX THIS REGION!!!!!!
+        # # # Set up surfaces of geometry and the polygon object # # #
         surfaces = [startSurface]
         startNode = Point(nodeList[0])
-        self.distributionCircle(distributionType)
-        self.drawOuterCircle()
+        startSurface.distributionCircle(distributionType)
+        startSurface.drawOuterCircle()
         for i in range(1, len(nodeList), 1):
             endNode = Point(nodeList[i])
             s = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
@@ -67,9 +67,8 @@ class VacuumRegion:
             startNode = endNode
             # later if n < i < m: s.reflecting = 0, something like this
         
-
-        #nodeList.append(nodeList[0]) # to "close" the geometry
-        geometry = Polygon(nodeList) # boundary of the figure
+        #  # # Outer boundary of the figure # # # 
+        geometry = Polygon(nodeList) 
         print(f"Surfaces: {[(surface.start, surface.end) for surface in surfaces]}")
 
         # # # Plot geometry # # #
@@ -84,7 +83,7 @@ class VacuumRegion:
             
         
         # # # Fractional Area Calculations # # # 
-        s1test = 0
+        s1test = 6
         s2test = 4
         fluxRelations = {} # store flux relations between surfaces in a nested dictionary
         for surface1 in surfaces:
@@ -96,7 +95,6 @@ class VacuumRegion:
             for surface2 in surfaces:
             
                 if surface1.ID == surface2.ID: # don't want self to self flux
-                    # print(f"Surface {surface1.ID} to Surface {surface2.ID} flux.")
                     fluxRelations[surface1.ID][surface2.ID] = 0
                     continue
 
@@ -119,22 +117,6 @@ class VacuumRegion:
 
                 # # # Only one area of intersection with the triangle # # #
                 if AllIntersections.geom_type == 'Polygon':
-                    # # # Good statements for testing # # #
-                    if surface1.ID == s1test and surface2.ID == s2test:
-                        '''print(f"Polygon: {AllIntersections.exterior}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 INTERSECTS EXTERIOR: {intersects(AllIntersections, buffer(surface1.leg1, 0.000001))}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 1: {contains(geometry, surface1.leg1) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 START CONTAINS INTERSECTION OF EXTERIOR AND LEG 1: {contains(buffer(surface1.midpoint, 0.00001), intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 END CONTAINS INTERSECTION OF EXTERIOR AND LEG 1: {contains(buffer(surface2.start, 0.00001), intersection(AllIntersections, buffer(surface1.leg1, 0.000001))) == False}")
-                        #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg1, 0.000001)), ax, add_points=True, color='orange', linewidth=1)
-                        print()
-
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 INTERSECTS EXTERIOR: {intersects(AllIntersections, buffer(surface1.leg2, 0.000001))}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 2: {contains(geometry, surface1.leg2) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 START CONTAINS INTERSECTION OF EXTERIOR AND LEG 2: {contains(buffer(surface1.midpoint, 0.00001), intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False}")
-                        print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 END CONTAINS INTERSECTION OF EXTERIOR AND LEG 2: {contains(buffer(surface2.end, 0.00001), intersection(AllIntersections, buffer(surface1.leg2, 0.000001))) == False}")
-                        #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg2, 0.000001)), ax, add_points=True, color='purple', linewidth=1)
-                        print()'''
             
                     # # # If both legs of the triangle are blocked by the same outside region # # #
                     if crosses(geometry, surface1.leg1) and crosses(geometry, surface1.leg2): 
@@ -174,24 +156,9 @@ class VacuumRegion:
 
                 # # # Multiple intersections with the outside region and the triangle/triangle legs # # #
                 elif AllIntersections.geom_type == 'MultiPolygon':
+
                     # # # Check all possible polygons # # #
                     for polygon in AllIntersections.geoms:
-                        '''if surface1.ID == s1test and surface2.ID == s2test:
-                            # # # Testing statements -- each block should output all "Trues" in order to enter if statements for the legs # # #
-                            print(f"Multipolygon: {polygon.exterior}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 INTERSECTS POLYGON: {intersects(polygon, buffer(surface1.leg1, 0.000001))}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 1: {contains(geometry, surface1.leg1) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 START CONTAINS INTERSECTION OF POLYGON AND LEG 1: {contains(buffer(surface1.midpoint, 0.00001), intersection(polygon, buffer(surface1.leg1, 0.000001))) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 1 END CONTAINS INTERSECTION OF POLYGON AND LEG 1: {contains(buffer(surface2.start, 0.00001), intersection(polygon, buffer(surface1.leg1, 0.000001))) == False}")
-                            #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg1, 0.000001)), ax, add_points=True, color='orange', linewidth=1)
-                            print()
-
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 INTERSECTS POLYGON: {intersects(polygon, buffer(surface1.leg2, 0.000001))}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} GEOMETRY CONTAINS LEG 2: {contains(geometry, surface1.leg2) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 START CONTAINS INTERSECTION OF POLYGON AND LEG 2: {contains(buffer(surface1.midpoint, 0.00001), intersection(polygon, buffer(surface1.leg2, 0.000001))) == False}")
-                            print(f"Surface {surface1.ID} to Surface {surface2.ID} LEG 2 END CONTAINS INTERSECTION OF POLYGON AND LEG 2: {contains(buffer(surface2.end, 0.00001), intersection(polygon, buffer(surface1.leg2, 0.000001))) == False}")
-                            #plotting.plot_polygon(intersection(polygon, buffer(surface1.leg2, 0.000001)), ax, add_points=True, color='purple', linewidth=1)
-                            print()'''
 
                         # # # Both legs of the triangle are blocked by the same outer region # # #
                         if crosses(polygon, buffer(surface1.leg1, 0.000001)) and crosses(polygon, buffer(surface1.leg2, 0.000001)):
@@ -446,6 +413,7 @@ class Surface:
 
 
 
+
     # # # # # # # # # # # 
     # PLOTTING FUNCTIONS #
     # # # # # # # # # # # 
@@ -659,6 +627,10 @@ class Surface:
 
 
 
+
+
+
+
     # # # # # # # # # # # #
     # # HELPER FUNCTIONS # # 
     # # # # # # # # # # # #
@@ -745,7 +717,7 @@ class Surface:
         in the test functions."""
 
         #geometryVertices = [(1, 1), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
-        geometryVertices = [(3, 1), (1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
+        geometryVertices = [(1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
 
         return geometryVertices    
 
