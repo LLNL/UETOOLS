@@ -17,15 +17,11 @@ class VacuumRegion:
     
     def trianglePlot(self):
         S1 = Surface((1, 3), (2, 6), 0)
-        S1.geometries(S1.equilateral(), 1)
+        self.geometries(S1, S1.equilateral(), 1)
 
     def squarePlot(self):
         S1 = Surface((1, 2), (3, 6), 0)
-        S1.geometries(S1.square(), 1)
-    
-    def lineOfSightPlot(self):
-        source = Surface((3, 1), (1, 1), 0)
-        source.geometries(source.lineOfSightVertices(), 1)
+        self.geometries(S1, S1.square(), 1)
 
     def geometries(self, startSurface, nodeList, distributionType): # Does flux calculations for a geometry, such as a triangle or a square or something more complex
         from shapely import Point, LineString, plotting, Polygon, difference, intersects, contains, intersection, is_closed, LinearRing, buffer, crosses, area
