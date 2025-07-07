@@ -17,13 +17,13 @@ class VacuumRegion:
     
     def trianglePlot(self):
         S1 = Surface((1, 3), (2, 6), 0)
-        self.geometries(S1, S1.equilateral(), 1)
+        self.geometries(S1.equilateral(), 1)
 
     def squarePlot(self):
         S1 = Surface((1, 2), (3, 6), 0)
-        self.geometries(S1, S1.square(), 1)
+        self.geometries(S1.square(), 1)
 
-    def geometries(self, startSurface, nodeList, distributionType): # Does flux calculations for a geometry, such as a triangle or a square or something more complex
+    def geometries(self, nodeList, distributionType=1): # Does flux calculations for a geometry, such as a triangle or a square or something more complex
         from shapely import Point, LineString, plotting, Polygon, difference, intersects, contains, intersection, is_closed, LinearRing, buffer, crosses, area
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
@@ -31,7 +31,7 @@ class VacuumRegion:
         import numpy as np
 
         """The parameter nodeList WILL include the start and end points of S1 (or self) to define the endpoints of the first and last surface.
-        Ex: For a triangle with base (0, 0) to (1, 1), nodeList would be [(0, 0), (2, 2), (1, 1)]. 
+        Ex: For a triangle with base (0, 0) to (1, 1), nodeList would be [(0, 0), (2, 2), (1, 1), (0, 0)]. 
         DistributionType determines if we are using cosine or uniform or other type of distribution circle with a number like
         0 (uniform) or 1 (cosine)."""
 
@@ -50,10 +50,8 @@ class VacuumRegion:
             geometryType = "Other Geometry"
     
         # # # Set up surfaces of geometry and the polygon object # # #
-        surfaces = [startSurface]
+        surfaces = []
         startNode = Point(nodeList[0])
-        startSurface.distributionCircle(distributionType)
-        startSurface.drawOuterCircle()
         for i in range(1, len(nodeList), 1):
             endNode = Point(nodeList[i])
             s = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
@@ -688,7 +686,7 @@ class Surface:
 
         height = math.sqrt(3) * self.surfaceLength / 2 # height of the et
         vertex = self.normal.interpolate(height)
-        ETvertices = [(self.end.x, self.end.y), (vertex.x, vertex.y), (self.start.x, self.start.y)]
+        ETvertices = [(self.start.x, self.start.y), (self.end.x, self.end.y), (vertex.x, vertex.y), (self.start.x, self.start.y)]
 
         return ETvertices
 
@@ -702,7 +700,7 @@ class Surface:
         side3End = (self.start.x, self.start.y)
         side3Start = self.normalHelper(abs(self.dx), abs(self.dy), side3End[0], side3End[1], False)
 
-        squareVertices = [side1Start, side1End, side3Start, side3End]
+        squareVertices = [side1Start, side1End, side3Start, side3End, side1Start]
 
         return squareVertices
 
@@ -713,7 +711,7 @@ class Surface:
         in the test functions."""
 
         #geometryVertices = [(1, 1), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
-        geometryVertices = [(1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
+        geometryVertices = [(3, 1), (1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3), (3, 1)]
 
         return geometryVertices    
 
