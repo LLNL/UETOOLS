@@ -56,10 +56,10 @@ class VacuumTests:
         return test
 
 
-    def tokamakPlot(self):
+    def tokamakPlot(self, savefile):
         from uetools import Case
         from numpy import zeros
-        c = Case('reference.hdf5', inplace=True)
+        c = Case(savefile, inplace=True)
         (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 1)
         nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
         nobug[:66] = main[0][:66]
