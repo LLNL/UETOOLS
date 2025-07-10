@@ -58,12 +58,18 @@ class VacuumTests:
 
     def tokamakPlot(self):
         from uetools import Case
+        from numpy import zeros
         c = Case('reference.hdf5', inplace=True)
         (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 1)
-        test = VacuumRegion(main[0], P=main[1])
+        nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
+        nobug[:66] = main[0][:66]
+        nobug[66:] = main[0][67:]
+        test = VacuumRegion(nobug, P=main[1])
         for i in test.errors:
-            if (i > 80) and (i<90):
-                test.plotGeometry(labels=False, testsurf=i)
+            if (i > 50) and (i<90):
+                f = test.plotGeometry(labels=False, testsurf=i, markers='.')
+                f.get_axes()[0].set_title(f"Surface {i}")
+        f = test.plotGeometry(labels=False, testsurf=60, showCircle=True)
         f = test.plotGeometry(labels=False, testsurf=4)
         return test
        
@@ -80,18 +86,10 @@ class VacuumRegion:
         # # # Set up surfaces of geometry and the polygon object # # #
         for i in range(len(nodeList)):
             startNode = Point(nodeList[i])
-
-            ''' Special test coding for reference case '''
-            if startNode.x == 1.0160000300000001 and (startNode.y == 2.6770000449999998 or startNode.y == 2.6700000749999999):
-                continue
-            # NOTE: I think this might overwrite the last surface?
             if i == len(nodeList) - 1:
                 endNode = Point(nodeList[0])
             else:
                 endNode = Point(nodeList[i + 1])
-            ''' Special test coding for reference case '''
-            if endNode.x == 1.0160000300000001 and  (endNode.y == 2.6770000449999998 or endNode.y == 2.6700000749999999):
-                continue
             self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
 
             # later if n < i < m: s.reflecting = 0, something like this

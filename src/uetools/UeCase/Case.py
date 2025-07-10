@@ -416,7 +416,7 @@ class Case:
         self.about = AboutSetup(self)
         self.cherab = Cherab(self)
         self.input = Input(self)
-        self.vacuum = VacuumRegion(self)
+#        self.vacuum = VacuumRegion(self)
         # Set up paths from config file
         self.config.case(verbose=False)
         for key, value in self.config.configs.items():
