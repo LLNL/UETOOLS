@@ -53,22 +53,26 @@ class VacuumTests:
             test.surfaces[i].plotSelf(ax=f)
             test.surfaces[i].printReport()
         f = test.plotGeometry(labels=True, testsurf=6)
+        return test
 
 
     def tokamakPlot(self):
         from uetools import Case
         c = Case('reference.hdf5', inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.05)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 1)
         test = VacuumRegion(main[0], P=main[1])
         for i in test.errors:
-            if i < 10:
-                test.plotGeometry(labels=True, testsurf=i)
+            if (i > 80) and (i<90):
+                test.plotGeometry(labels=False, testsurf=i)
+        f = test.plotGeometry(labels=False, testsurf=4)
+        return test
        
 
 
 class VacuumRegion:
     def __init__(self, nodeList, P=0):
         from shapely import Point, Polygon
+        from tqdm import tqdm
         # Generate all surfaces and create dictionary
         # Create neigbors dictionaries by checking LOS for each surface
         # Dictionary containing all surfaces making up the geometry
@@ -97,7 +101,7 @@ class VacuumRegion:
         self.P = P # Number of plasma surfaces
     
         # Iterate surfaces to identify surface neigbors
-        for _, surface in self.surfaces.items():
+        for _, surface in tqdm(self.surfaces.items()):
             surface.getNeighbors(self.surfaces, self.geometry)
 
         if not self.checkContinuity(False):
@@ -116,14 +120,14 @@ class VacuumRegion:
 
 
     def plotGeometry(self, ax=None, labels=False, testsurf=[], 
-        showCircle=False, **kwargs):
+        showCircle=False, markers=None, connectionLineWidth=0.5,**kwargs):
         from matplotlib.pyplot import subplots, Figure, Axes, ioff
         import matplotlib.pyplot as plt
 
         if isinstance(ax, Figure):
             ax = ax.get_axes()[0]
         elif ax is None:
-            f, ax = subplots()
+            f, ax = subplots(figsize=(5,10))
         elif not isinstance(ax, Axes):
             raise Exception('ax not a valid Figure or Axes object')
         
@@ -131,7 +135,6 @@ class VacuumRegion:
             testsurf = [testsurf]
         
         ioff()
-        ax.set_aspect('equal')
             
         for _, surface in self.surfaces.items():
             color = 'k'
@@ -142,11 +145,17 @@ class VacuumRegion:
         for itest in testsurf:
             self.surfaces[itest].plotConnections(
                             ax=ax, 
+                            linewidth=connectionLineWidth,
                             **kwargs
             )
+    
+        for line in ax.lines:
+            line.set_marker(markers)
 
         plt.show(block=False)
 
+        ax.set_aspect('equal')
+        ax.grid(False)
         return ax.get_figure()
    
 class Surface:
@@ -222,7 +231,6 @@ class Surface:
         self.issues = {}
 
         self.distributionCircle(r_offset)
-        self.drawOuterCircle()
         return
 
     def distributionCircle(self, r_offset): # creates the distribution circle
@@ -338,13 +346,6 @@ class Surface:
         from shapely import intersects, crosses, contains, buffer, intersection
         # # # If both legs of the triangle are blocked by the same outside region # # #
         if crosses(geometry, self.leg1) and crosses(geometry, self.leg2): 
-            """ Omit for now
-            # print(f"Intersects both legs, Surface {surface1.ID} to Surface {surface2.ID}.")
-            if self.ID == s1test:
-                plotting.plot_polygon(self.triangle, ax, add_points=True, color='red')
-                thisIntersection = intersection(self.triangle, geometry)
-                #plotting.plot_points(thisIntersection, ax, add_points=True, color='brown')
-            """
             self.issues[neighbor.ID] = "Intersects both legs of triangle (polygon)"
             return False
 
@@ -414,12 +415,6 @@ class Surface:
         ):
             # print(f"Both legs blocked by multipolygon, Surface {surface1.ID} to Surface {surface2.ID}.")
             self.issues[ineighbor.ID] = "Both legs blocked by multipolygon"
-            """
-            if surface1.ID == s1test:
-                plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='red')
-            flux = 0
-            self.fluxRelations[surface1.ID][surface2.ID] = flux
-            """
             return False
 
         # # # Leg 1 (S1 midpoint to S2 start) is blocked by this polygon in the outer region # # #
@@ -485,23 +480,17 @@ class Surface:
         # # # Fractional Area Calculations # # # 
         for neighid, neighbor in surfaces.items():
             if self.ID != neighid:
-
-                ''' Plotting, neglect for now
-                if surface1.ID == s1test and surface2.ID == s2test: # PLOTTING FOR TESTING
-                    plotting.plot_polygon(surface1.triangle, ax, add_points=False, color='purple', linewidth=2)
-                    plotting.plot_polygon(surface2.outerCircle, ax, add_points=False, color='gray') # displays the "outerCircle"
-                    circleTriangle = intersection(surface2.outerCircle, surface1.triangle)
-                    plotting.plot_polygon(circleTriangle, ax, add_points=True, color='red')
-                    print(f"Intersection of triangle and outer circle of S2?: {intersects(surface1.triangle, surface2.outerCircle)}")
-                '''
                 flux, triangle = self.intersectionArea(neighbor)
 
                 # Flux would go to the wrong (back) side of the surface
-                if not intersects(triangle, neighbor.outerCircle):
-                    self.issues[neighid] = "Wrong side of normal"
+                try:
+                    if not intersects(triangle, neighbor.normal):
+                        self.issues[neighid] = "Wrong side of normal"
+                        continue
+                except:
                     continue
                
-                if not intersects(triangle, self.outerCircle):
+                if not intersects(triangle, self.normal):
                     self.issues[neighid] = "Wrong side of self surface"
                     continue
 
@@ -539,24 +528,6 @@ class Surface:
                         self.neighbors[neighid] = {}
                     self.neighbors[neighid]['flux'] = flux
                     self.neighbors[neighid]['los'] = triangle # Get the new triangle shape and add it here
-
-
-
-                #print(f"Surface {surface1.ID} onto Surface {surface2.ID}: {flux}") # Prints results for every single surface
-
-                """ Neglect plotting/printing for now
-                # # # Results for a specific surface # # #
-                if surface1.ID == s1test and surface2.ID == s2test: # find intersection points
-                    print(f"Surface {surface1.ID} onto Surface {surface2.ID}: {flux}")
-                    #plotting.plot_line(newS2.segment, ax, add_points=True, color='orange', linewidth=1)
-                    #plotting.plot_line(surface1.leg1, ax, add_points=True, color='blue', linewidth=2)
-                    #plotting.plot_line(surface1.leg2, ax, add_points=True, color='red', linewidth=1)
-                    plotting.plot_polygon(surface1.triangle, ax, add_points=True, color='orange', linewidth=1)
-                    # intersectionPoints = intersection(geometry, surface1.triangle)
-                    # plotting.plot_points(intersectionPoints, ax, color='red', marker='1')
-                """
-                    
-            
 
 
 
@@ -640,6 +611,7 @@ class Surface:
         for neighid, neighbor in self.neighbors.items():
             plotting.plot_polygon(
                     neighbor['los'], 
+                    add_points=False,
                     color=next(colors), 
                     linewidth=linewidth,
                     **kwargs
@@ -768,19 +740,6 @@ class Surface:
         plt.show(block=False)
 
         return
-    
-    """
-    def plot_triangle(self, ax=None):
-        from matplotlib.pyplot import subplots, ioff
-        from shapely import plotting
-        ioff()
-        if ax is None:
-            fig, ax = subplots()
-        ax.set_aspect('equal')
-        plotting.plot_polygon(self.triangle, ax, color='orange', linewidth=2) # plots the triangle connecting to another surface
-        ax.text(self.triangle.centroid.x, self.triangle.centroid.y, f"Surface {self.ID}", color='orange')
-        return ax
-    """
 
     def showTwoSurfacePlot(self, s2, r_offset=1):
         from shapely import Point, LineString, plotting
