@@ -41,7 +41,7 @@ class Caseplot(Plot):
 
         label = '{}, case "{}"\n'.format(ctime(), self.info['casename'])
         label += 'UEDGE {} v{}, UETOOLS v{}, user "{}", hostname "{}"\n'.format(
-            self.info['uedge_ver'].replace("$", "\$"),
+            self.info['uedge_ver'].replace("$", r"\$"),
             self.info['pyver'],
             self.info['uetoolsversion'],
             self.info['user'],

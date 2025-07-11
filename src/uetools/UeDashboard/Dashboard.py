@@ -1072,14 +1072,14 @@ class CaseDashboard(QWidget):
     def plot_pradhyd(self):
         self.plot_driver(
             self.get('pradhyd'),
-            'Hydrogenic radiated power [W/m$\mathrm{{}^{-3}}$]',
+            r'Hydrogenic radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_pradhyd
 
     def plot_pradimp(self):
         self.plot_driver(
             self.get('prad'),
-            'Impurity radiated power [W/m$\mathrm{{}^{-3}}$]',
+            r'Impurity radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_pradimp
 
@@ -1814,7 +1814,7 @@ class MainMenu(QMainWindow):
         self.popups.append(PopUp(self))
         self.popups[-1].show()
         title = plot.suptitle
-        for substr in ["$", "\mathrm", "{","}"]:
+        for substr in ["$", r"\mathrm", "{","}"]:
             title = title.replace(substr, "")
         title = self.centralWidget.tabText(self.activeTab())
         self.popups[-1].setWindowTitle(title)
