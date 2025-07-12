@@ -27,7 +27,7 @@ from IPython.utils import io
 
 from bayes_opt import BayesianOptimization
 from bayes_opt.acquisition import ExpectedImprovement, UpperConfidenceBound, ProbabilityOfImprovement, ConstantLiar
-from bayes_opt.util import NotUniqueError
+from bayes_opt.exception import NotUniqueError
 
 from sklearn.gaussian_process.kernels import Matern
 from sklearn.gaussian_process import GaussianProcessRegressor
