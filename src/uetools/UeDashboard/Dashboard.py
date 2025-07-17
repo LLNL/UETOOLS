@@ -1065,7 +1065,7 @@ class CaseDashboard(QWidget):
     def plot_prad(self):
         self.plot_driver(
             self.get('prad')+self.get('pradhyd'),
-            'Total radiated power [W/m$\mathrm{{}^{-3}}$]',
+            r'Total radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_prad
 
