@@ -928,7 +928,7 @@ class GetSetMemory:
                     retvar = retvar[:, :, s]
         return retvar
 
-    def setue(self, variable, value, **kwargs):
+    def setue(self, variable, value, verbose=False, **kwargs):
         """Sets the Forthon variable in package to data
 
         Arguments
@@ -953,7 +953,8 @@ class GetSetMemory:
         if self.mutex():
             try:
                 if type(value) is np.ndarray:
-                    print("Type:",type(value))
+                    if verbose:
+                        print("Type:",type(value))
                     if getattr(packageobject(package), variable).shape == value.shape:
                         setattr(packageobject(package), variable, value)
                     else:
