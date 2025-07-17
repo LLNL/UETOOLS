@@ -1656,10 +1656,11 @@ class MainMenu(QMainWindow):
     def openHDF5(self):#, caseobj=None):
         from uetools import Case
         # Logic for opening an existing file goes here...
-        if 1==0:
+        if 1==1:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
-            self.lastpath, "All files (*.*)")[0]
-            self.lastpath = "/".join(file.split("/")[:-1])
+            self.lastpath, "All files (*.*)",  options=QFileDialog.DontUseNativeDialog)[0]
+            self.lastpath = "/".join(file.split("/")[:-1],
+            )
         else:
             file = "/Users/holm10/Documents/fusion/uedge/src/"+\
                     "UETOOLS/dashboard_test/testcase_hires/nc20.hdf5"
@@ -1691,7 +1692,9 @@ class MainMenu(QMainWindow):
             )
             print("USING TEST DATABASE")
         else:
-            path = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
+            path = str(QFileDialog.getExistingDirectory(self, "Select Directory",
+                 options=QFileDialog.DontUseNativeDialog
+            ))
             if len(path) == 0:
                 return
             name = path.split('/')[-1]
@@ -1856,7 +1859,7 @@ if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
     app = QApplication(sys.argv)
     win = MainMenu()
-    win.openHDF5()
+#    win.openHDF5()
     win.show()
     sys.exit(app.exec_())
 #else:
