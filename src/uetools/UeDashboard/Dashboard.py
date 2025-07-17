@@ -500,6 +500,7 @@ class CaseDashboard(QWidget):
         ==========================="""
     def _createVarButtons(self):
         from numpy import sum, ndarray
+        self.buttonsetup = True
         self.buttons = {
             'layout': QGridLayout(),
             'title': QLabel(self.title("Plots")),
@@ -537,7 +538,8 @@ class CaseDashboard(QWidget):
             cols[int(i/maxbuttons)].addWidget(
                 self.buttons['items'][key], 
             )
-            buttonvar = self.__getattribute__(f'plot_{key}')(check=True)
+            test = True
+            buttonvar = self.__getattribute__(f'plot_{key}')()
             if buttonvar is not None:
                 vis = True
                 if len(buttonvar.shape) == 3:
@@ -552,6 +554,7 @@ class CaseDashboard(QWidget):
                 i += 1
         self.checkedButton = self.buttongroup.button(0)
         self.checkedButton.setChecked(True)
+        test = False
 
         # Add drop-down
         self.buttons['items']['dropdown'] = QComboBox()
@@ -591,6 +594,7 @@ class CaseDashboard(QWidget):
         for i in range(len(cols)):
             self.buttons['layout'].addLayout(cols[i], 1, i, 1, 1)
         self.buttons['layout'].addLayout(custom, 2,0,1,len(cols))
+        self.buttonsetup = False
 
 
 
@@ -1009,9 +1013,9 @@ class CaseDashboard(QWidget):
         self.enable_ionradio(False)
         self.uncheck_buttons()
 
-    def plot_te(self, check=False):  
+    def plot_te(self):  
         var = self.get('te')/1.602e-19
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1019,9 +1023,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_te
 
-    def plot_ti(self, check=False):
+    def plot_ti(self):
         var = self.get('ti')/1.602e-19
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1029,9 +1033,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_ti
 
-    def plot_tg(self, check=False):
+    def plot_tg(self):
         var = self.get('tg')/1.602e-19
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1040,9 +1044,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_tg
 
-    def plot_ne(self, check=False):
+    def plot_ne(self):
         var = self.get('ne')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1050,9 +1054,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_ne
 
-    def plot_ni(self, check=False):
+    def plot_ni(self):
         var = self.get('ni')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1061,9 +1065,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_ni
 
-    def plot_ng(self, check=False):
+    def plot_ng(self):
         var = self.get('ng')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1072,9 +1076,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_ng
 
-    def plot_phi(self, check=False):
+    def plot_phi(self):
         var = self.get('phi')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1082,9 +1086,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_phi
 
-    def plot_prad(self, check=False):
+    def plot_prad(self):
         var = self.get('prad')+self.get('pradhyd')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1092,9 +1096,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_prad
 
-    def plot_pradhyd(self, check=False):
+    def plot_pradhyd(self):
         var = self.get('pradhyd')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1102,9 +1106,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_pradhyd
 
-    def plot_pradimp(self, check=False):
+    def plot_pradimp(self):
         var = self.get('prad')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1112,9 +1116,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_pradimp
 
-    def plot_psorc(self, check=False):
+    def plot_psorc(self):
         var = self.get('psorc')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1123,9 +1127,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_psorc
 
-    def plot_psorgc(self, check=False):
+    def plot_psorgc(self):
         var = self.get('psorgc')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1134,9 +1138,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_psorgc
 
-    def plot_psorxrc(self, check=False):
+    def plot_psorxrc(self):
         var = self.get('psorxrc')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1145,9 +1149,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_psorxrc
 
-    def plot_psorrgc(self, check=False):
+    def plot_psorrgc(self):
         var = self.get('psorrgc')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
@@ -1156,9 +1160,9 @@ class CaseDashboard(QWidget):
         )
         self.lastfunc = self.plot_psorrgc
 
-    def plot_psorcxg(self, check=False):
+    def plot_psorcxg(self):
         var = self.get('psorcxg')
-        if check:
+        if self.buttonsetup:
             return var
         self.plot_driver(
             var,
