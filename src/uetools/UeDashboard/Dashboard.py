@@ -537,8 +537,7 @@ class CaseDashboard(QWidget):
             cols[int(i/maxbuttons)].addWidget(
                 self.buttons['items'][key], 
             )
-            # TODO: Implement smarter check to deactivat buttons
-            buttonvar = self.get(key)
+            buttonvar = self.__getattribute__(f'plot_{key}')(check=True)
             if buttonvar is not None:
                 vis = True
                 if len(buttonvar.shape) == 3:
@@ -548,7 +547,7 @@ class CaseDashboard(QWidget):
                     if varsum == 0:
                         self.buttons['items'][key].setEnabled(False)
                 else:
-                    if sum(self.get(key)) == 0:
+                    if sum(buttonvar) == 0:
                         self.buttons['items'][key].setEnabled(False)
                 i += 1
         self.checkedButton = self.buttongroup.button(0)
@@ -1010,114 +1009,159 @@ class CaseDashboard(QWidget):
         self.enable_ionradio(False)
         self.uncheck_buttons()
 
-    def plot_te(self):
+    def plot_te(self, check=False):  
+        var = self.get('te')/1.602e-19
+        if check:
+            return var
         self.plot_driver(
-            self.get('te')/1.602e-19,
+            var,
             'Electron temperature [eV]',
         )
         self.lastfunc = self.plot_te
 
-    def plot_ti(self):
+    def plot_ti(self, check=False):
+        var = self.get('ti')/1.602e-19
+        if check:
+            return var
         self.plot_driver(
-            self.get('ti')/1.602e-19,
+            var,
             'Ion temperature [eV]',
         )
         self.lastfunc = self.plot_ti
 
-    def plot_tg(self):
+    def plot_tg(self, check=False):
+        var = self.get('tg')/1.602e-19
+        if check:
+            return var
         self.plot_driver(
-            self.get('tg')/1.602e-19,
+            var,
             'Gas temperature [eV]',
             'gas'
         )
         self.lastfunc = self.plot_tg
 
-    def plot_ne(self):
+    def plot_ne(self, check=False):
+        var = self.get('ne')
+        if check:
+            return var
         self.plot_driver(
-            self.get('ne'),
+            var,
             r'Electron density [m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_ne
 
-    def plot_ni(self):
+    def plot_ni(self, check=False):
+        var = self.get('ni')
+        if check:
+            return var
         self.plot_driver(
-            self.get('ni'),
+            var,
             r'Ion density [m$\mathrm{{}^{-3}}$]',
             'ion'
         )
         self.lastfunc = self.plot_ni
 
-    def plot_ng(self):
+    def plot_ng(self, check=False):
+        var = self.get('ng')
+        if check:
+            return var
         self.plot_driver(
-            self.get('ng'),
+            var,
             r'Gas density [m$\mathrm{{}^{-3}}$]',
             'gas'
         )
         self.lastfunc = self.plot_ng
 
-    def plot_phi(self):
+    def plot_phi(self, check=False):
+        var = self.get('phi')
+        if check:
+            return var
         self.plot_driver(
-            self.get('phi'),
+            var,
             'Electrical potential [V]',
         )
         self.lastfunc = self.plot_phi
 
-    def plot_prad(self):
+    def plot_prad(self, check=False):
+        var = self.get('prad')+self.get('pradhyd')
+        if check:
+            return var
         self.plot_driver(
-            self.get('prad')+self.get('pradhyd'),
+            var,
             r'Total radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_prad
 
-    def plot_pradhyd(self):
+    def plot_pradhyd(self, check=False):
+        var = self.get('pradhyd')
+        if check:
+            return var
         self.plot_driver(
-            self.get('pradhyd'),
+            var,
             r'Hydrogenic radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_pradhyd
 
-    def plot_pradimp(self):
+    def plot_pradimp(self, check=False):
+        var = self.get('prad')
+        if check:
+            return var
         self.plot_driver(
-            self.get('prad'),
+            var,
             r'Impurity radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_pradimp
 
-    def plot_psorc(self):
+    def plot_psorc(self, check=False):
+        var = self.get('psorc')
+        if check:
+            return var
         self.plot_driver(
-            self.get('psorc'),
+            var,
             'Ion ionization source [parts/s]',
             'ion'
         )
         self.lastfunc = self.plot_psorc
 
-    def plot_psorgc(self):
+    def plot_psorgc(self, check=False):
+        var = self.get('psorgc')
+        if check:
+            return var
         self.plot_driver(
-            self.get('psorgc'),
+            var,
             'Gas ionization sink [parts/s]',
             'gas'
         )
         self.lastfunc = self.plot_psorgc
 
-    def plot_psorxrc(self):
+    def plot_psorxrc(self, check=False):
+        var = self.get('psorxrc')
+        if check:
+            return var
         self.plot_driver(
-            self.get('psorxrc'),
+            var,
             'Ion recombination + CX sink [parts/s]',
             'ion'
         )
         self.lastfunc = self.plot_psorxrc
 
-    def plot_psorrgc(self):
+    def plot_psorrgc(self, check=False):
+        var = self.get('psorrgc')
+        if check:
+            return var
         self.plot_driver(
-            self.get('psorrgc'),
+            var,
             'Gas recombination source [parts/s]',
             'gas'
         )
         self.lastfunc = self.plot_psorrgc
 
-    def plot_psorcxg(self):
+    def plot_psorcxg(self, check=False):
+        var = self.get('psorcxg')
+        if check:
+            return var
         self.plot_driver(
-            self.get('psorcxg'),
+            var,
             'Gas CX source [parts/s]',
             'gas'
         )
