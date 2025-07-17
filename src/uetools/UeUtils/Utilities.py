@@ -25,6 +25,8 @@ class Utilities:
         """Connects UeUtilitie.Utilities to Case"""
         self.get = case.get
         self.setue = case.setue
+        self.search = case.search
+        self.tools = case.tools
 
     def calc_lcon(self):
         """Stores connection length in Case.lcon"""
@@ -239,3 +241,69 @@ class Utilities:
             sibdrys = self.get("sibdrys")
         psi = self.get("psi")[self.get("ixmp")]
         return ((0.5 * (psi[:, 3] + psi[:, 4])) - simagxs) / (sibdrys - simagxs)
+
+    def compare_converged_inputs(self, inputfile1, dump1, inputfile2, dump2,
+            filter_attributes = True, compare=True):
+        """ Compares the dumps and cross-references inputs to find different inputs
+        
+        Arguments
+        ---------
+        inputfile1 : str
+            path to the input file corresponding to dump1
+        dump1 : str
+            dump of UEDGE data for input 1 to be cross-referenced to inputs
+        inputfile2 : str
+            path to the input file corresponding to dump1
+        dump2 : str
+            dump of UEDGE data for input 1 to be cross-referenced to inputs
+        
+        Optional arguments
+        ------------------
+        filter_attributes : boolean
+            switch whether to filter identified matches for having "input"
+            and "maybeinput" attributes
+        
+        Returns
+        -------
+        List containing strings of differing variables set in either input file
+        """
+        import subprocess
+
+        try: 
+            differences = subprocess.run(
+                ['h5diff', dump1, dump2],
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Error running h5diff: {e}")
+            print(f"Stderr: {e.stderr}")
+            return None
+        except FileNotFoundError:
+            print("Error: h5diff command not found. Ensure HDF5 tools are installed and in your PATH.")
+            return None
+        inputfiles = ""
+        for file in [inputfile1, inputfile2]:
+            with open(file) as f:
+                for line in f:
+                    inputfiles += line.split("#")[0]
+        variables = []
+        for variable in  [x.split('/')[-1].split('>')[0] for x in \
+                            differences.stdout.split('\n') if "dataset" in x]:
+            try:
+                attributes = str(self.search.get_attributes(variable))
+            except:
+                attributes = ''
+            if ((variable in inputfiles) and ('input' in attributes)**filter_attributes):
+                variables.append(variable)
+        
+        variables = list(dict.fromkeys(variables))
+        if compare:
+            for variable in variables:
+                print(20*"="+f"\n{variable}")
+                print(4*" "+"{}".format(dump1.split('/')[-1].ljust(25)), 
+                    self.tools.hdf5search(dump1, variable))
+                print(4*" "+"{}".format(dump2.split('/')[-1].ljust(25)), 
+                    self.tools.hdf5search(dump2, variable))
+            print(20*"=")
+        return variables 

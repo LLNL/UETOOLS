@@ -9,6 +9,7 @@ from uetools.UeUtils import *
 from uetools.UeDEGAS import DEGAS2Coupling
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeBayesian import Bayesian
+import numpy as np
 import uetools
 
 try:
@@ -927,7 +928,7 @@ class GetSetMemory:
                     retvar = retvar[:, :, s]
         return retvar
 
-    def setue(self, variable, value, **kwargs):
+    def setue(self, variable, value, verbose=False, **kwargs):
         """Sets the Forthon variable in package to data
 
         Arguments
@@ -951,7 +952,26 @@ class GetSetMemory:
             package = self.search.getpackage(variable, verbose=False)
         if self.mutex():
             try:
-                setattr(packageobject(package), variable, value)
+                if type(value) is np.ndarray:
+                    if verbose:
+                        print("Type:",type(value))
+                    if getattr(packageobject(package), variable).shape == value.shape:
+                        setattr(packageobject(package), variable, value)
+                    else:
+                        v = getattr(packageobject(package), variable)
+                        s0 = getattr(packageobject(package), variable).shape
+                        s = value.shape
+                        print("mismatch in size:", s, " vs ", s0)
+                        for i in range(s[0]):
+                            for j in range(s[1]):
+                                for k in range(s[2]):
+                                    v[i,j,k] = value[i,j,k]
+                                if s[2] < s0[2]:
+                                    v[i,j,s[2]:s0[2]] = value[i,j,s[2]-1]
+                            
+                            
+                else:
+                    setattr(packageobject(package), variable, value)
             except Exception as e:
                 raise KeyError("{} could not be set: {}".format(variable, e))
 

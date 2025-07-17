@@ -556,6 +556,68 @@ class Caseplot(Plot):
         ion()
         return f, zrange_slider, mask_slider
 
+    def OMP_chunks(self, seed=1):
+        from matplotlib.pyplot import subplots, get_cmap
+        from matplotlib.patches import Polygon
+        from numpy import linspace
+        import random
+
+        f, ax = subplots()
+        ax.set_aspect('equal')
+        cmap=get_cmap('jet')
+        cols = linspace(0,1,self.get('Nchunks'))
+        random.Random(seed).shuffle(cols)
+        colors = iter(cmap(cols))
+        nx = self.get('nx')
+        ny = self.get('ny')
+        iysptrx1 = self.get('iysptrx1')
+        iysptrx2 = self.get('iysptrx2')
+        ixpt1 = self.get('ixpt1')
+        ixpt2 = self.get('ixpt2')
+        ixrb = self.get('ixrb')
+        rangexptchunk = self.get('rangexptchunk')
+        nxpt = self.get('nxpt')
+
+        # 
+        ax.plot((0.5,0.5),(ny+.5,0.5),'k-', linewidth=1.5)
+        ax.plot((nx+0.5,nx+0.5),(ny+.5,0.5),'k-', linewidth=1.5)
+        ax.plot((0.5,nx+.5),(.5,0.5),'k-', linewidth=1.5)
+        ax.plot((0.5,nx+0.5),(ny+.5,ny+0.5),'k-', linewidth=1.5)
+        if nxpt > 1:
+            ax.plot((ixrb[0]+1.5, ixrb[0]+1.5), (-0.5,ny+1.5), 'k:', linewidth=.5)
+            ax.plot((ixrb[0]+0.5, ixrb[0]+0.5), (-0.5,ny+1.5), 'k-', linewidth=1.5)
+            ax.plot((ixrb[0]+2.5, ixrb[0]+2.5), (-0.5,ny+1.5), 'k-', linewidth=1.5)
+
+        ax.plot((-0.5,-0.5),(ny+1.5,-0.5),'k--', linewidth=.5)
+        ax.plot((nx+1.5,nx+1.5),(ny+1.5,-0.5),'k--', linewidth=.5)
+        ax.plot((-0.5,nx+1.5),(-.5,-0.5),'k--', linewidth=.5)
+        ax.plot((-0.5,nx+1.5),(ny+1.5,ny+1.5),'k--', linewidth=.5)
+
+        for ix in range(1, nx+1):
+            ax.plot((ix+0.5,ix+0.5), (-0.5, ny+1.5), 'k:', linewidth=1)
+        for iy in range(1, ny+1):
+            ax.plot((-0.5,nx+1.5), (iy+0.5, iy+.5), 'k:', linewidth=1)
+
+        for ixpt in range(nxpt):
+            ax.plot((-0.5,nx+1.5),(iysptrx1[ixpt]+.5, iysptrx1[ixpt]+.5), 'k-', linewidth=1.5)
+            ax.plot((ixpt1[ixpt]+0.5,ixpt1[ixpt]+0.5), (-0.5,iysptrx1[ixpt]+.5), 'k-', linewidth=1.5)
+            ax.plot((ixpt2[ixpt]+0.5,ixpt2[ixpt]+0.5), (-0.5,iysptrx2[ixpt]+.5), 'k-', linewidth=1.5)
+
+        for ixpt in range(nxpt):
+            for icut in range(self.get('Nxptchunks')[ixpt]):
+                for ii in range(2):
+                    xpatch = rangexptchunk[ixpt, ii, icut]
+                    ax.add_patch(Polygon( [(xpatch[0]-.5,xpatch[2]-.5),(xpatch[0]-.5,xpatch[3]+.5),(xpatch[1]+.5, xpatch[3]+.5),(xpatch[1]+.5, xpatch[2]-0.5)],
+                    closed=True, edgecolor='k', facecolor='red'))
+
+        for xpatch in self.get('rangechunk'):
+            ax.add_patch(Polygon( [(xpatch[0]-.5,xpatch[2]-.5),(xpatch[0]-.5,xpatch[3]+.5),(xpatch[1]+.5, xpatch[3]+.5),(xpatch[1]+.5, xpatch[2]-0.5)],
+                 closed=True, edgecolor='k', alpha=0.3, linestyle='--', linewidth=2, color=next(colors)))
+
+
+        f.show()
+
+
     def variablemesh(self, z=None, **kwargs):
         """
 
@@ -657,15 +719,13 @@ class Caseplot(Plot):
         x0 = mean(self.get('rm')[self.get(\
             'ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
         zm = self.get('zm')
-        if (
-            self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn"
-        ) and (flip is True):
+        if self.usn and (flip is True):
             zm = -zm + self.disp 
         y0 = mean(zm[self.get('ixpt1')[0]+1:self.get('ixpt2')[0]+1, 0, 0])
 
         x = pol * self.eastnormaln[0] + rad * self.northnormaln[0]
         y = pol * self.eastnormaln[1] + rad * self.northnormaln[1]
-        if flip is True:
+        if (flip is True) and self.usn:
             y *= -1
         x = sum(x)
         y = sum(y)

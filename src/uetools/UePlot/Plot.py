@@ -91,10 +91,8 @@ class Plot:
         northface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
         northface[:-1] = nodes[4] - nodes[3]
         # Find normals to faces
-        toroidal = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
-        toroidal[-1] = 1
-        eastnormal = cross(eastface, toroidal, axis=0)
-        northnormal = cross(toroidal, northface, axis=0)
+        northnormal = self.symid[1]-self.symid[0]
+        eastnormal = self.sxmid[1]-self.sxmid[0]
 
         self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
         for i in range(2):
@@ -517,7 +515,7 @@ class Plot:
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
         ax.set_aspect(aspect)
-        if (z is not None) and (colorbar is True):
+        if (z is not None) or (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")
 
