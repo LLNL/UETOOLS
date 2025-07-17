@@ -444,6 +444,7 @@ class Solver(UeRun):
 
         issfon = deepcopy(self.getue("issfon"))
         ftol = deepcopy(self.getue("ftol"))
+        gengrid = deepcopy(self.getue("gengrid"))
         try:
             self.setue("issfon", 0)
             self.setue("ftol", 1e20)
@@ -453,6 +454,7 @@ class Solver(UeRun):
             # Ensure that original settings and working directory are restored
             self.setue("issfon", issfon)
             self.setue("ftol", ftol)
+            self.setue("gengrid", gengrid)  # Ensure that grids aren't generated again
 
         self.update()  # Reloads variables from UEDGE
 

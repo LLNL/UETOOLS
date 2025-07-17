@@ -2,154 +2,154 @@
 
 class DB_1DPlots():
 
-    def tiITsep(self, ylabel="$\mathrm{T_{i,sep}^{IT}}~[eV]$", **kwargs):
+    def tiITsep(self, ylabel=r"$\mathrm{T_{i,sep}^{IT}}~[eV]$", **kwargs):
         return self.plotITsep(self.get("ti") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
-    def tiOTsep(self, ylabel="$\mathrm{T_{i,sep}^{OT}~ [eV]$", **kwargs):
+    def tiOTsep(self, ylabel=r"$\mathrm{T_{i,sep}^{OT}~ [eV]$", **kwargs):
         return self.plotOTsep(self.get("ti") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
 
-    def teITsep(self, ylabel="$\mathrm{T_{e,sep}^{IT}}~[eV]$", **kwargs):
+    def teITsep(self, ylabel=r"$\mathrm{T_{e,sep}^{IT}}~[eV]$", **kwargs):
         return self.plotITsep(self.get("te") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
-    def teOTsep(self, ylabel="$\mathrm{T_{e,sep}^{OT}}~[eV]$", **kwargs):
+    def teOTsep(self, ylabel=r"$\mathrm{T_{e,sep}^{OT}}~[eV]$", **kwargs):
         return self.plotOTsep(self.get("te") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
-    def neOTsep(self, ylabel="$\mathrm{n_{e,sep}^{OT}}~[m^{-3}]$",**kwargs):
+    def neOTsep(self, ylabel=r"$\mathrm{n_{e,sep}^{OT}}~[m^{-3}]$",**kwargs):
         return self.plotOTsep(self.get("ne"), 
                     ylabel=ylabel, **kwargs)
 
-    def neITsep(self, ylabel="$\mathrm{n_{e,sep}^{IT}}~[m^{-3}]$", **kwargs):
+    def neITsep(self, ylabel=r"$\mathrm{n_{e,sep}^{IT}}~[m^{-3}]$", **kwargs):
         return self.plotITsep(self.get("ne"), 
                     ylabel=ylabel, **kwargs)
 
     def niOTsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{i={},sep}}^{{OT}}~[m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{i={},sep}}^{{OT}}~[m^{{-3}}]}}$".format(species)
         return self.plotOTsep(self.get("ni")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def niITsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{i={},sep}}^{{IT}} [m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{i={},sep}}^{{IT}} [m^{{-3}}]}}$".format(species)
         return self.plotITsep(self.get("ni")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def ngOTsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{g={},sep}}^{{OT}}~[m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{g={},sep}}^{{OT}}~[m^{{-3}}]}}$".format(species)
         return self.plotOTsep(self.get("ng")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def ngITsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{g={},sep}}^{{IT}}~[m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{g={},sep}}^{{IT}}~[m^{{-3}}]}}$".format(species)
         return self.plotITsep(self.get("ng")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def tgOTsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{T_{{g={},sep}}^{{OT}}~[eV]}}$".format(species)
+            ylabel=r"$\mathrm{{T_{{g={},sep}}^{{OT}}~[eV]}}$".format(species)
         return self.plotOTsep(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
     def tgITsep(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{T_{{g={},sep}}^{{IT}}~[eV]}}$".format(species)
+            ylabel=r"$\mathrm{{T_{{g={},sep}}^{{IT}}~[eV]}}$".format(species)
         return self.plotITsep(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
 
 
-    def tiITmax(self, ylabel="$\mathrm{T_{i,max}^{IT}}~[eV]$", **kwargs):
+    def tiITmax(self, ylabel=r"$\mathrm{T_{i,max}^{IT}}~[eV]$", **kwargs):
         return self.plotITmax(self.get("ti") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
-    def tiOTmax(self, ylabel="$\mathrm{T_{i,max}^{OT}}~[eV]$", **kwargs):
+    def tiOTmax(self, ylabel=r"$\mathrm{T_{i,max}^{OT}}~[eV]$", **kwargs):
         return self.plotOTmax(self.get("ti") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
 
-    def teITmax(self, ylabel="$\mathrm{T_{e,max}^{IT}}~[eV]$", **kwargs):
+    def teITmax(self, ylabel=r"$\mathrm{T_{e,max}^{IT}}~[eV]$", **kwargs):
         return self.plotITmax(self.get("te") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
-    def teOTmax(self, ylabel="$\mathrm{T_{e,max}^{OT}}~[eV]$", **kwargs):
+    def teOTmax(self, ylabel=r"$\mathrm{T_{e,max}^{OT}}~[eV]$", **kwargs):
         return self.plotOTmax(self.get("te") / 1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
-    def neOTmax(self, ylabel="$\mathrm{n_{e,max}^{OT}}~[m^{-3}]$",**kwargs):
+    def neOTmax(self, ylabel=r"$\mathrm{n_{e,max}^{OT}}~[m^{-3}]$",**kwargs):
         return self.plotOTmax(self.get("ne"), 
                     ylabel=ylabel, **kwargs)
 
-    def neITmax(self, ylabel="$\mathrm{n_{e,max}^{IT}}~[m^{-3}]$", **kwargs):
+    def neITmax(self, ylabel=r"$\mathrm{n_{e,max}^{IT}}~[m^{-3}]$", **kwargs):
         return self.plotITmax(self.get("ne"), 
                     ylabel=ylabel, **kwargs)
 
     def niOTmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{i={},max}}^{{OT}}~[m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{i={},max}}^{{OT}}~[m^{{-3}}]}}$".format(species)
         return self.plotOTmax(self.get("ni")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def niITmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{i={},max}}^{{IT}} [m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{i={},max}}^{{IT}} [m^{{-3}}]}}$".format(species)
         return self.plotITmax(self.get("ni")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def ngOTmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{g={},max}}^{{OT}}~[m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{g={},max}}^{{OT}}~[m^{{-3}}]}}$".format(species)
         return self.plotOTmax(self.get("ng")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def ngITmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{n_{{g={},max}}^{{IT}}~[m^{{-3}}]}}$".format(species)
+            ylabel=r"$\mathrm{{n_{{g={},max}}^{{IT}}~[m^{{-3}}]}}$".format(species)
         return self.plotITmax(self.get("ng")[:,:,:,species], 
                     ylabel=ylabel, **kwargs)
 
     def tgOTmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{T_{{g={},max}}^{{OT}}~[eV]}}$".format(species)
+            ylabel=r"$\mathrm{{T_{{g={},max}}^{{OT}}~[eV]}}$".format(species)
         return self.plotOTmax(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
     def tgITmax(self, species, ylabel=None, **kwargs):
         if ylabel is None:
-            ylabel="$\mathrm{{T_{{g={},max}}^{{IT}}~[eV]}}$".format(species)
+            ylabel=r"$\mathrm{{T_{{g={},max}}^{{IT}}~[eV]}}$".format(species)
         return self.plotITmax(self.get("tg")[:,:,:,species]/1.602e-19, 
                     ylabel=ylabel, **kwargs)
 
 
-    def tiOMP(self, ylabel="$\mathrm{T_{i,sep}^{OMP}~[eV]}$", **kwargs):
+    def tiOMP(self, ylabel=r"$\mathrm{T_{i,sep}^{OMP}~[eV]}$", **kwargs):
         return self.plotOMP(self.get("ti")/1.602e-19, ylabel=ylabel, **kwargs)
         
-    def teOMP(self, ylabel="$\mathrm{T_{e,sep}^{OMP}~[eV]}$", **kwargs):
+    def teOMP(self, ylabel=r"$\mathrm{T_{e,sep}^{OMP}~[eV]}$", **kwargs):
         return self.plotOMP(self.get("te")/1.602e-19, ylabel=ylabel, **kwargs)
         
     def tgOMP(self, ylabel=None, species=None, **kwargs):
         if ylabel is None:
-            ylabel = "$\mathrm{{T_{{g={},sep}}^{{OMP}}~[eV]}$".format(species)
+            ylabel = r"$\mathrm{{T_{{g={},sep}}^{{OMP}}~[eV]}$".format(species)
         return self.plotOMP(self.get("tg")[:,:,:,species]/1.602e-19, ylabel=ylabel, **kwargs)
 
  
     def niOMP(self, ylabel=None, species=None, **kwargs):
         if ylabel is None:
-            ylabel = "$\mathrm{{n_{{i={},sep}}^{{OMP}}~[m^{{-3}}]}}$".format(species)
+            ylabel = r"$\mathrm{{n_{{i={},sep}}^{{OMP}}~[m^{{-3}}]}}$".format(species)
         return self.plotOMP(self.get("ni")[:,:,:,species], ylabel=ylabel, **kwargs)
         
-    def neOMP(self, ylabel="$\mathrm{n_{e,sep}^{OMP}~[m^{-3}]}}$", **kwargs):
+    def neOMP(self, ylabel=r"$\mathrm{n_{e,sep}^{OMP}~[m^{-3}]}}$", **kwargs):
         return self.plotOMP(self.get("ne"), ylabel=ylabel, **kwargs)
         
     def ngOMP(self, ylabel=None, species=None, **kwargs):
         if ylabel is None:
-            ylabel = "$\mathrm{{n_{{g={},sep}}^{{OMP}}~[m^{{-3}}]}}$".format(species)
+            ylabel = r"$\mathrm{{n_{{g={},sep}}^{{OMP}}~[m^{{-3}}]}}$".format(species)
         return self.plotOMP(self.get("ng")[:,:,:,species], ylabel=ylabel, **kwargs)
 
                

@@ -217,7 +217,7 @@ class GridPlot:
         self.setue = case.setue
         self.reload = case.reload
 
-    def flx(self, ax=None, surfaces=None):
+    def flx(self, ax=None, surfaces=None, zshift=False):
         """Plots flux surfaces from UEDGE memory
 
         Based on plotflx.bas by Rensink, Rognlien & Porter
@@ -265,9 +265,9 @@ class GridPlot:
                 rng = range(0, rng.stop)
         # Plot vessel if present in EQDSK files
         if self.get("nlim") > 0:
-            ax.plot(self.get("xlim"), self.get("ylim")+self.get('zshift'), "k-", linewidth=3)
+            ax.plot(self.get("xlim"), self.get("ylim")+self.get('zshift')*zshift, "k-", linewidth=3)
             ax.plot(
-                self.get("xlim"), self.get("ylim")+self.get('zshift'), "-", linewidth=1.5, color="yellow"
+                self.get("xlim"), self.get("ylim")+self.get('zshift')*zshift, "-", linewidth=1.5, color="yellow"
             )
         # Plot target plates, if specified
         try:
@@ -369,7 +369,7 @@ class GridPlot:
         from numpy import linspace
         from uedge import com, flx
         from os.path import exists
-        from scipy.interpolate import interp2d
+        from scipy.interpolate import RectBivariateSpline
         from Forthon import packageobject
 
         # Backup original pointers
@@ -409,7 +409,7 @@ class GridPlot:
 
         fold = self.get("fold").transpose()
         # Interpolate on EFIT grid to find X-points
-        interp = interp2d(x, y, fold)
+        interp = RectBivariateSpline(x, y, fold)
 
         CS = ax.contour(
             x,
