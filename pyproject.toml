@@ -27,7 +27,7 @@ dependencies = [
     "matplotlib",
     "h5pickle",
     "PyQt5",
-    "bayesian-optimization",
+    "bayesian-optimization >= 3",
 ]
 
 [project.optional-dependencies]
