@@ -630,7 +630,7 @@ class Surface:
         if self.ID == self.ID1: # Remove after testing-- test plots
             #     plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
 
-            # plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
+            plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
             # plotting.plot_line(self.beforeL1, ax, add_points=True, color='blue', linewidth=3) # before adjustment
             # plotting.plot_line(self.beforeL2, ax, add_points=True, color='red', linewidth=3) # before adjustment
             # ax.text(self.beforeL1.centroid.x, self.beforeL1.centroid.y, f"L1", color='blue')
@@ -646,12 +646,12 @@ class Surface:
 
             # plotting.plot_polygon(buffer(self.midpoint, 0.001), ax, add_points=False, color='black')
 
-            l1Pt = Point(self.leg1SmallestPoint)
-            l2Pt = Point(self.leg2SmallestPoint)
-            plotting.plot_points(l1Pt, ax, color='orange')
-            plotting.plot_points(l2Pt, ax, color='orange')
-            ax.text(l1Pt.x, l1Pt.y, "Leg 1 Adj Point", color='orange')
-            ax.text(l2Pt.x, l2Pt.y, "Leg 2 Adj Point", color='orange')
+            # l1Pt = Point(self.leg1End)
+            # l2Pt = Point(self.leg2End)
+            # plotting.plot_points(l1Pt, ax, color='orange')
+            # plotting.plot_points(l2Pt, ax, color='orange')
+            # ax.text(l1Pt.x, l1Pt.y, "Leg 1 Adj Point", color='orange')
+            # ax.text(l2Pt.x, l2Pt.y, "Leg 2 Adj Point", color='orange')
         
 
         return ax
