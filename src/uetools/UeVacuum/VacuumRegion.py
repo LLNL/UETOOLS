@@ -73,6 +73,7 @@ class VacuumTests:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
         #         f.get_axes()[0].set_title(f"Surface {i}")
+        # f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
         f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
         # f = test.plotGeometry(labels=False, testsurf=4)
         return test
@@ -108,8 +109,6 @@ class VacuumRegion:
         if not self.checkContinuity(False): # BRING BACK AFTER TESTING
             print("Warning! Continuity violated for surfaces:", self.errors)
             print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
-        
-
 
     def checkContinuity(self, verbose=True):
         self.errors = []
@@ -129,6 +128,7 @@ class VacuumRegion:
         if isinstance(ax, Figure):
             ax = ax.get_axes()[0]
         elif ax is None:
+            f, ax = subplots(figsize=(5,10))
             f, ax = subplots(figsize=(5,10))
         elif not isinstance(ax, Axes):
             raise Exception('ax not a valid Figure or Axes object')
@@ -260,9 +260,7 @@ class Surface:
 
         # # # Finding radius and center of circle # # #
         self.r_offset = r_offset 
-        radius = self.surfaceLength / 36
-        #if self.r_offset == 1:
-            #r_offset = radius
+        radius = self.surfaceLength / 84
         self.dCircleCenter = self.normal.interpolate(self.r_offset * radius) # the center of the distribution circle along the normal line
 
         # # # for labeling the plots # # #
@@ -396,10 +394,15 @@ class Surface:
 
                     print(f"Triangle intersects S1 normal?: {intersects(triangle, self.normal)}")
                     print(f"Intersection w/ S2 normal: {triangle.intersection(self.normal)}")
+                    print(f"Triangle intersects S1 normal?: {intersects(triangle, self.normal)}")
+                    print(f"Intersection w/ S2 normal: {triangle.intersection(self.normal)}")
 
                     print(f"S1 Midpoint: {self.midpoint}")
                     print(f"S2 Midpoint: {neighbor.midpoint}")
+                    print(f"S1 Midpoint: {self.midpoint}")
+                    print(f"S2 Midpoint: {neighbor.midpoint}")
 
+                    print(" ")
                     print(" ")
 
 
@@ -473,7 +476,7 @@ class Surface:
                                 neighbor.ID
                 )
                 flux, triangle = self.intersectionArea(newS2)
-                if self.ID == self.ID1 and neighid == self.ID2:
+                if self.ID == self.ID1 and neighid == self.ID2: # remove after testing
                     self.adjustedTriangle = triangle
                     self.adjustedL1 = self.leg1
                     self.adjustedL2 = self.leg2
@@ -483,7 +486,6 @@ class Surface:
                         self.neighbors[neighid] = {}
                     self.neighbors[neighid]['flux'] = flux
                     self.neighbors[neighid]['los'] = triangle # Get the new triangle shape and add it here
-
     
     def getSmallestIntersectAngle(self, neighbor, geometry, polygon):
         from shapely import intersects, crosses, contains, buffer, intersection, Point 
@@ -603,7 +605,7 @@ class Surface:
 
     def plotSelf(self, ax=None, color='k', label=False, showCircle=True): # plots just the self surface
         from matplotlib.pyplot import subplots, ioff, Figure, Axes
-        from shapely import plotting, buffer
+        from shapely import plotting, buffer, Point
 
         ioff()
         if ax is None:
@@ -627,26 +629,16 @@ class Surface:
             # plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
             # plotting.plot_line(self.beforeL1, ax, add_points=True, color='blue', linewidth=3) # before adjustment
             # plotting.plot_line(self.beforeL2, ax, add_points=True, color='red', linewidth=3) # before adjustment
-            #plotting.plot_polygon(self.AllIntersections, ax, add_points=False, color='purple', linewidth=2)
-            plotting.plot_polygon(self.adjustedTriangle, ax, add_points=True, color='green', linewidth=2)
-            # plotting.plot_line(self.adjustedL1, ax, add_points=True, color='brown', linewidth=3)
-            # plotting.plot_line(self.adjustedL2, ax, add_points=True, color='cyan', linewidth=3)
-
             # ax.text(self.beforeL1.centroid.x, self.beforeL1.centroid.y, f"L1", color='blue')
             # ax.text(self.beforeL2.centroid.x, self.beforeL2.centroid.y, f"L2", color='red')
 
+            # plotting.plot_polygon(self.AllIntersections, ax, add_points=False, color='purple', linewidth=2)
+
+            # plotting.plot_polygon(self.adjustedTriangle, ax, add_points=True, color='green', linewidth=2)
+            # plotting.plot_line(self.adjustedL1, ax, add_points=True, color='brown', linewidth=3)
+            # plotting.plot_line(self.adjustedL2, ax, add_points=True, color='cyan', linewidth=3)
             # ax.text(self.adjustedL1.centroid.x, self.adjustedL1.centroid.y, f"New L1", color='brown')
             # ax.text(self.adjustedL2.centroid.x, self.adjustedL2.centroid.y, f"New L2", color='cyan')
-
-            # plotting.plot_polygon(buffer(self.midpoint, 0.001), ax, add_points=False, color='black')
-
-            l1Pt = Point(self.leg1SmallestPoint)
-            l2Pt = Point(self.leg2SmallestPoint)
-            plotting.plot_points(l1Pt, ax, color='orange')
-            plotting.plot_points(l2Pt, ax, color='orange')
-            ax.text(l1Pt.x, l1Pt.y, "Leg 1 Adj Point", color='orange')
-            ax.text(l2Pt.x, l2Pt.y, "Leg 2 Adj Point", color='orange')
-        
 
         return ax
 
