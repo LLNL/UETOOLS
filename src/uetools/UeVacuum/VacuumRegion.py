@@ -105,9 +105,9 @@ class VacuumRegion:
         for _, surface in tqdm(self.surfaces.items()):
             surface.getNeighbors(self.surfaces, self.geometry)
 
-        if not self.checkContinuity(False): # BRING BACK AFTER TESTING
-            print("Warning! Continuity violated for surfaces:", self.errors)
-            print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
+        # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
+        #     print("Warning! Continuity violated for surfaces:", self.errors)
+        #     print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
         
 
 
@@ -367,130 +367,130 @@ class Surface:
 
         # # # Fractional Area Calculations # # # 
         for neighid, neighbor in surfaces.items():
-            # if self.ID != self.ID1: # REMOVE AFTER TESTING, JUST TO EXPEDITE THE SURFACE GENERATION WHILE TESTING   
-            #     return
-            # elif self.ID == self.ID1: #and neighid == self.ID2: # REMOVE REMOVE REMOVE AFTER TESTING
-            #     # if neighid != self.ID2: # REMOVE AFTER TESTING
-            #     #     continue # only if wanting to look at 2 surfaces, not all
+            if self.ID != self.ID1: # REMOVE AFTER TESTING, JUST TO EXPEDITE THE SURFACE GENERATION WHILE TESTING   
+                return
+            elif self.ID == self.ID1: #and neighid == self.ID2: # REMOVE REMOVE REMOVE AFTER TESTING
+                if neighid != self.ID2: # REMOVE AFTER TESTING
+                    continue # only if wanting to look at 2 surfaces, not all
 
-            # # if True: #REMOVE AFTER TESTING
-            if self.ID != neighid: # indent backward when done testing
-                flux, triangle = self.intersectionArea(neighbor)
-                if self.ID == self.ID1 and neighid == self.ID2:
-                    self.beforeTriangle = triangle
-                    self.beforeL1 = self.leg1
-                    self.beforeL2 = self.leg2
+            # if True: #REMOVE AFTER TESTING
+                if self.ID != neighid: # indent backward when done testing
+                    flux, triangle = self.intersectionArea(neighbor)
+                    if self.ID == self.ID1 and neighid == self.ID2:
+                        self.beforeTriangle = triangle
+                        self.beforeL1 = self.leg1
+                        self.beforeL2 = self.leg2
 
 
-                # Flux would go to the wrong (back) side of the surface
-                try:
-                    if not intersects(triangle, neighbor.normal) or triangle.intersection(neighbor.normal) == neighbor.midpoint:
-                        self.issues[neighid] = "Wrong side of normal"
+                    # Flux would go to the wrong (back) side of the surface
+                    try:
+                        if not intersects(triangle, neighbor.normal) or triangle.intersection(neighbor.normal) == neighbor.midpoint:
+                            self.issues[neighid] = "Wrong side of normal"
+                            continue
+                    except:
                         continue
-                except:
-                    continue
-            
-                if not intersects(triangle, self.normal):
-                    self.issues[neighid] = "Wrong side of self surface"
-                    continue
+                
+                    if not intersects(triangle, self.normal):
+                        self.issues[neighid] = "Wrong side of self surface"
+                        continue
 
-                if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                    print(f"Surface {self.ID} to Surface {neighid}")
-                    print("Normal Line Intersections (indep of polygon type)")
-                    print(f"Triangle intersects S2 normal?: {intersects(triangle, neighbor.normal)}")
-                    print(f"Intersection w/ S2 normal: {triangle.intersection(neighbor.normal)}")
-
-                    print(f"Triangle intersects S1 normal?: {intersects(triangle, self.normal)}")
-                    print(f"Intersection w/ S2 normal: {triangle.intersection(self.normal)}")
-
-                    print(f"S1 Midpoint: {self.midpoint}")
-                    print(f"S2 Midpoint: {neighbor.midpoint}")
-
-                    print(" ")
-
-
-                # polygon/multipolygon of the intersections of the outside area of the geometry w/ the legs
-                AllIntersections = difference(triangle, geometry) 
-                self.AllIntersections = difference(triangle, geometry)
-
-                self.leg1SmallestPoint = (neighbor.start.x, neighbor.start.y)
-                self.leg2SmallestPoint = (neighbor.end.x, neighbor.end.y)
-
-                self.vNewLeg1 = self.vLeg1
-                self.vNewLeg2 = self.vLeg2
-                self.smallestAngle = self.dotProductAngle(self.vNewLeg1, self.vNewLeg2)
-
-                if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                    print(f"AllIntersections: {self.AllIntersections}")
-
-                # # # Only one area of intersection with the triangle # # #
-                if AllIntersections.geom_type == 'Polygon': # XXXXXXX trying out buffering/not buffering
                     if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                        print(" ")
-                        print("Legs Crossing and not Crossing Geometry (p)")
-                        print(f"Leg 1 crosses geometry (p): {crosses(AllIntersections, buffer(self.leg1, 0.000001))}")
-                        print(f"Leg 2 crosses geometry (p): {crosses(AllIntersections, buffer(self.leg2, 0.000001))}")
-                        print(" ")
-                        print(f"Leg 1 intersects polygon: {intersects(AllIntersections, buffer(self.leg1, 0.000001))}")
-                        print(f"Geometry does not contian Leg 1 (p): {(contains(geometry, self.leg1) == False)}")
-                        print(f"EndPoint check Leg 1 (p): {(contains(self.midpoint, intersection(AllIntersections, buffer(self.leg1, 0.000001))) == False) and (contains(neighbor.start, intersection(AllIntersections, buffer(self.leg1, 0.000001))) == False)}")
-                        print(f"Leg 1 intersection with polygon: {AllIntersections.intersection(buffer(self.leg1, 0.000001))}")
-                        print(" ")
-                        print(f"Leg 2 intersects polygon: {intersects(AllIntersections, buffer(self.leg2, 0.000001))}")
-                        print(f"Geometry does not contain Leg 2 (p): {(contains(geometry, self.leg2) == False)}")
-                        print(f"EndPoint check Leg 2 (p): {(contains(self.midpoint, intersection(AllIntersections, buffer(self.leg2, 0.000001))) == False) and (contains(neighbor.end, intersection(AllIntersections, buffer(self.leg2, 0.000001))) == False)} ")
-                        print(f"Leg 2 intersection with polygon: {AllIntersections.intersection(buffer(self.leg2, 0.000001))}")
-        
-                    if not self.getSmallestIntersectAngle(neighbor, geometry, AllIntersections):
-                        continue
-                    else: # REMOVE AFTER TESTING
-                        if self.ID == self.ID1 and neighid == self.ID2:
-                            print(f"Adjusted Leg 1 p: {self.leg1SmallestPoint}")
-                            print(f"Adjusted Leg 2 p: {self.leg2SmallestPoint}")
+                        print(f"Surface {self.ID} to Surface {neighid}")
+                        print("Normal Line Intersections (indep of polygon type)")
+                        print(f"Triangle intersects S2 normal?: {intersects(triangle, neighbor.normal)}")
+                        print(f"Intersection w/ S2 normal: {triangle.intersection(neighbor.normal)}")
 
-                # # # Multiple intersections with the outside region and the triangle/triangle legs # # #
-                elif AllIntersections.geom_type == 'MultiPolygon' or AllIntersections.geom_type == 'GeometryCollection':
-                    # # # Check all possible polygons # # #
-                    for polygon in AllIntersections.geoms:
+                        print(f"Triangle intersects S1 normal?: {intersects(triangle, self.normal)}")
+                        print(f"Intersection w/ S2 normal: {triangle.intersection(self.normal)}")
+
+                        print(f"S1 Midpoint: {self.midpoint}")
+                        print(f"S2 Midpoint: {neighbor.midpoint}")
+
+                        print(" ")
+
+
+                    # polygon/multipolygon of the intersections of the outside area of the geometry w/ the legs
+                    AllIntersections = difference(triangle, geometry) 
+                    self.AllIntersections = difference(triangle, geometry)
+
+                    self.leg1SmallestPoint = (neighbor.start.x, neighbor.start.y)
+                    self.leg2SmallestPoint = (neighbor.end.x, neighbor.end.y)
+
+                    self.vNewLeg1 = self.vLeg1
+                    self.vNewLeg2 = self.vLeg2
+                    self.smallestAngle = self.dotProductAngle(self.vNewLeg1, self.vNewLeg2)
+
+                    if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
+                        print(f"AllIntersections: {self.AllIntersections}")
+
+                    # # # Only one area of intersection with the triangle # # #
+                    if AllIntersections.geom_type == 'Polygon': # XXXXXXX trying out buffering/not buffering
                         if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                            print(f"Leg 1 crosses geometry (m): {crosses(geometry, buffer(self.leg1, 0.000001))}")      
-                            print(f"Leg 2 crosses geometry (m): {crosses(geometry, buffer(self.leg2, 0.000001))}")                            
                             print(" ")
-                            print(f"Leg 1 intersects multipolygon: {intersects(polygon, buffer(self.leg1, 0.000001))}")
-                            print(f"Geometry does not contain Leg 1 (m): {contains(geometry, self.leg1) == False}")
-                            print(f"EndPoint check Leg 1 (m): {(contains(self.midpoint, intersection(polygon, buffer(self.leg1, 0.000001))) == False) and (contains(neighbor.start, intersection(polygon, buffer(self.leg1, 0.000001))) == False)}")
-                            print(f"Leg 1 intersection with multipolygon: {AllIntersections.intersection(buffer(self.leg1, 0.000001))}")
+                            print("Legs Crossing and not Crossing Geometry (p)")
+                            print(f"Leg 1 crosses geometry (p): {crosses(AllIntersections, buffer(self.leg1, 0.000001))}")
+                            print(f"Leg 2 crosses geometry (p): {crosses(AllIntersections, buffer(self.leg2, 0.000001))}")
                             print(" ")
-                            print(f"Leg 2 crosses geometry (m): {intersects(polygon, buffer(self.leg2, 0.000001))}")
-                            print(f"Geometry does not contain Leg 2 (m): {contains(geometry, self.leg2) == False}")
-                            print(f"EndPoint check Leg 2 (m): {(contains(self.midpoint, intersection(polygon, buffer(self.leg2, 0.000001))) == False) and (contains(neighbor.end, intersection(polygon, buffer(self.leg2, 0.000001))) == False)} ")
-                            print(f"Leg 2 intersection with multipolygon: {AllIntersections.intersection(buffer(self.leg2, 0.000001))}")
-                        if not self.getSmallestIntersectAngle(neighbor, geometry, polygon):
+                            print(f"Leg 1 intersects polygon: {intersects(AllIntersections, buffer(self.leg1, 0.000001))}")
+                            print(f"Geometry does not contian Leg 1 (p): {(contains(geometry, self.leg1) == False)}")
+                            print(f"EndPoint check Leg 1 (p): {(contains(self.midpoint, intersection(AllIntersections, buffer(self.leg1, 0.000001))) == False) and (contains(neighbor.start, intersection(AllIntersections, buffer(self.leg1, 0.000001))) == False)}")
+                            print(f"Leg 1 intersection with polygon: {AllIntersections.intersection(buffer(self.leg1, 0.000001))}")
+                            print(" ")
+                            print(f"Leg 2 intersects polygon: {intersects(AllIntersections, buffer(self.leg2, 0.000001))}")
+                            print(f"Geometry does not contain Leg 2 (p): {(contains(geometry, self.leg2) == False)}")
+                            print(f"EndPoint check Leg 2 (p): {(contains(self.midpoint, intersection(AllIntersections, buffer(self.leg2, 0.000001))) == False) and (contains(neighbor.end, intersection(AllIntersections, buffer(self.leg2, 0.000001))) == False)} ")
+                            print(f"Leg 2 intersection with polygon: {AllIntersections.intersection(buffer(self.leg2, 0.000001))}")
+            
+                        if not self.getSmallestIntersectAngle(neighbor, geometry, AllIntersections):
                             continue
                         else: # REMOVE AFTER TESTING
                             if self.ID == self.ID1 and neighid == self.ID2:
-                                print(f"Adjusted Leg 1: {self.leg1SmallestPoint}")
-                                print(f"Adjusted Leg 2: {self.leg2SmallestPoint}")
-                        
-                # # # Set new S2 Surface and calculate the new flux. Update the total flux out of Surface 1. # # #
-                newS2 = Surface(
-                                (self.leg1SmallestPoint[0], self.leg1SmallestPoint[1]), 
-                                (self.leg2SmallestPoint[0], self.leg2SmallestPoint[1]), 
-                                neighbor.ID
-                )
-                flux, triangle = self.intersectionArea(newS2)
-                if self.ID == self.ID1 and neighid == self.ID2:
-                    self.adjustedTriangle = triangle
-                    self.adjustedL1 = self.leg1
-                    self.adjustedL2 = self.leg2
-                self.totflux += flux
-                if flux > 0:
-                    if neighid not in self.neighbors:
-                        self.neighbors[neighid] = {}
-                    self.neighbors[neighid]['flux'] = flux
-                    self.neighbors[neighid]['los'] = triangle # Get the new triangle shape and add it here
+                                print(f"Adjusted Leg 1 p: {self.leg1SmallestPoint}")
+                                print(f"Adjusted Leg 2 p: {self.leg2SmallestPoint}")
 
+                    # # # Multiple intersections with the outside region and the triangle/triangle legs # # #
+                    elif AllIntersections.geom_type == 'MultiPolygon' or AllIntersections.geom_type == 'GeometryCollection':
+                        # # # Check all possible polygons # # #
+                        for polygon in AllIntersections.geoms:
+                            if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
+                                print(f"Leg 1 crosses geometry (m): {crosses(geometry, buffer(self.leg1, 0.000001))}")      
+                                print(f"Leg 2 crosses geometry (m): {crosses(geometry, buffer(self.leg2, 0.000001))}")                            
+                                print(" ")
+                                print(f"Leg 1 intersects multipolygon: {intersects(polygon, buffer(self.leg1, 0.000001))}")
+                                print(f"Geometry does not contain Leg 1 (m): {contains(geometry, self.leg1) == False}")
+                                print(f"EndPoint check Leg 1 (m): {(contains(self.midpoint, intersection(polygon, buffer(self.leg1, 0.000001))) == False) and (contains(neighbor.start, intersection(polygon, buffer(self.leg1, 0.000001))) == False)}")
+                                print(f"Leg 1 intersection with multipolygon: {AllIntersections.intersection(buffer(self.leg1, 0.000001))}")
+                                print(" ")
+                                print(f"Leg 2 crosses geometry (m): {intersects(polygon, buffer(self.leg2, 0.000001))}")
+                                print(f"Geometry does not contain Leg 2 (m): {contains(geometry, self.leg2) == False}")
+                                print(f"EndPoint check Leg 2 (m): {(contains(self.midpoint, intersection(polygon, buffer(self.leg2, 0.000001))) == False) and (contains(neighbor.end, intersection(polygon, buffer(self.leg2, 0.000001))) == False)} ")
+                                print(f"Leg 2 intersection with multipolygon: {AllIntersections.intersection(buffer(self.leg2, 0.000001))}")
+                            if not self.getSmallestIntersectAngle(neighbor, geometry, polygon):
+                                continue
+                            else: # REMOVE AFTER TESTING
+                                if self.ID == self.ID1 and neighid == self.ID2:
+                                    print(f"Adjusted Leg 1: {self.leg1SmallestPoint}")
+                                    print(f"Adjusted Leg 2: {self.leg2SmallestPoint}")
+                            
+                    # # # Set new S2 Surface and calculate the new flux. Update the total flux out of Surface 1. # # #
+                    newS2 = Surface(
+                                    (self.leg1SmallestPoint[0], self.leg1SmallestPoint[1]), 
+                                    (self.leg2SmallestPoint[0], self.leg2SmallestPoint[1]), 
+                                    neighbor.ID
+                    )
+                    flux, triangle = self.intersectionArea(newS2)
+                    if self.ID == self.ID1 and neighid == self.ID2:
+                        self.adjustedTriangle = triangle
+                        self.adjustedL1 = self.leg1
+                        self.adjustedL2 = self.leg2
+                    self.totflux += flux
+                    if flux > 0:
+                        if neighid not in self.neighbors:
+                            self.neighbors[neighid] = {}
+                        self.neighbors[neighid]['flux'] = flux
+                        self.neighbors[neighid]['los'] = triangle # Get the new triangle shape and add it here
 
+    
     def getSmallestIntersectAngle(self, neighbor, geometry, polygon):
         from shapely import intersects, crosses, contains, buffer, intersection, Point 
         # # # If both legs of the triangle are blocked by the same outside region # # #
@@ -569,7 +569,7 @@ class Surface:
                         self.smallestAngle = newAngle
                         self.leg2SmallestPoint = pair
 
-            return True
+        return True
 
     def drawOuterCircle(self): # creates the distribution circle that will be compared to the analytic cosine (does not show plot)
         from shapely import Point, plotting, Polygon, MultiPoint, is_closed, get_coordinates, LineString
@@ -627,7 +627,7 @@ class Surface:
         if showCircle:
             plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
 
-        # if self.ID == self.ID1: # Remove after testing-- test plots
+        if self.ID == self.ID1: # Remove after testing-- test plots
             #     plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
 
             # plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
@@ -646,12 +646,12 @@ class Surface:
 
             # plotting.plot_polygon(buffer(self.midpoint, 0.001), ax, add_points=False, color='black')
 
-            # l1Pt = Point(self.leg1End)
-            # l2Pt = Point(self.leg2End)
-            # plotting.plot_points(l1Pt, ax, color='orange')
-            # plotting.plot_points(l2Pt, ax, color='orange')
-            # ax.text(l1Pt.x, l1Pt.y, "Leg 1 Adj Point", color='orange')
-            # ax.text(l2Pt.x, l2Pt.y, "Leg 2 Adj Point", color='orange')
+            l1Pt = Point(self.leg1SmallestPoint)
+            l2Pt = Point(self.leg2SmallestPoint)
+            plotting.plot_points(l1Pt, ax, color='orange')
+            plotting.plot_points(l2Pt, ax, color='orange')
+            ax.text(l1Pt.x, l1Pt.y, "Leg 1 Adj Point", color='orange')
+            ax.text(l2Pt.x, l2Pt.y, "Leg 2 Adj Point", color='orange')
         
 
         return ax
