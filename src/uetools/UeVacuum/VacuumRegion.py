@@ -74,7 +74,7 @@ class VacuumTests:
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
         #         f.get_axes()[0].set_title(f"Surface {i}")
         # f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
-        f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
+        f = test.plotGeometry(labels=True, testsurf=108, showCircle=True)
         # f = test.plotGeometry(labels=False, testsurf=4)
         return test
        
@@ -236,12 +236,11 @@ class Surface:
         """ Coupling to surfaces with LOS """
         self.neighbors = {}
         self.totflux = 0
-        self.issues = {}
 
         self.distributionCircle(r_offset)
 
-        self.ID1 = 29 # REMOVE AFTER TESTING
-        self.ID2 = 60
+        self.ID1 = 108 # REMOVE AFTER TESTING
+        self.ID2 = 100
 
         self.beforeTriangle = None # REMOVE AFTER TESTING
         self.beforeL1 = None
@@ -361,11 +360,14 @@ class Surface:
 
         # # # Fractional Area Calculations # # # 
         for neighid, neighbor in surfaces.items():
-            # if self.ID != self.ID1: # REMOVE AFTER TESTING, JUST TO EXPEDITE THE SURFACE GENERATION WHILE TESTING   
-            #     return
-            # elif self.ID == self.ID1: #and neighid == self.ID2: # REMOVE REMOVE REMOVE AFTER TESTING
-                # if neighid != self.ID2: # REMOVE AFTER TESTING
-                #     continue # only if wanting to look at 2 surfaces, not all
+
+            if self.ID != self.ID1: # REMOVE AFTER TESTING, JUST TO EXPEDITE THE SURFACE GENERATION WHILE TESTING   
+                return
+            
+            # ONLY IF LOOKING AT 2 SURFACES, NOT ALL
+            if neighid != self.ID2: # REMOVE AFTER TESTING
+                continue
+
             if self.ID != neighid: # indent adjust while testing
                 flux, triangle = self.intersectionArea(neighbor)
                 if self.ID == self.ID1 and neighid == self.ID2:
@@ -373,17 +375,14 @@ class Surface:
                     self.beforeL1 = self.leg1
                     self.beforeL2 = self.leg2
 
-
                 # Flux would go to the wrong (back) side of the surface
                 try:
                     if not intersects(triangle, neighbor.normal) or triangle.intersection(neighbor.normal) == neighbor.midpoint:
-                        self.issues[neighid] = "Wrong side of normal"
                         continue
                 except:
                     continue
             
                 if not intersects(triangle, self.normal):
-                    self.issues[neighid] = "Wrong side of self surface"
                     continue
 
                 if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
@@ -495,7 +494,6 @@ class Surface:
             return True
 
         if crosses(polygon, buffer(self.leg1, 0.000001)) and crosses(polygon, buffer(self.leg2, 0.000001)): 
-            self.issues[neighbor.ID] = "Intersects both legs of triangle (polygon)"
             return False
 
         
@@ -508,6 +506,7 @@ class Surface:
                 coordinates1 = list(polygon.coords)
             else:
                 coordinates1 = list(polygon.exterior.coords)
+
             leg1Start = buffer(self.midpoint, 0.00001)
             leg1End = buffer(neighbor.start, 0.00001)
 
@@ -515,7 +514,6 @@ class Surface:
                     and (contains(leg1End, intersection(polygon, buffer(self.leg1, 0.000001))) == False)
             ):
                 # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 1 interrupted by polygon.")
-                self.issues[neighbor.ID] = "Leg 1 interrupted by polygon"
                 for pair in coordinates1:
                     if Point(pair) == self.midpoint or contains(buffer(self.midpoint, 0.001), Point(pair)):
                         continue
@@ -541,6 +539,7 @@ class Surface:
                 coordinates2 = list(polygon.coords)
             else:
                 coordinates2 = list(polygon.exterior.coords)
+
             leg2Start = buffer(self.midpoint, 0.00001)
             leg2End = buffer(neighbor.end, 0.00001)
 
@@ -548,7 +547,6 @@ class Surface:
                     and (contains(leg2End, intersection(polygon, buffer(self.leg2, 0.000001))) == False)
             ):
                 # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 2 interrupted by polygon.")
-                self.issues[neighbor.ID] = "Leg 2 interrupted by polygon"
                 for pair in coordinates2:
                     if Point(pair) == self.midpoint or contains(buffer(self.midpoint, 0.001), Point(pair)):
                         continue
@@ -623,10 +621,10 @@ class Surface:
         if showCircle:
             plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
 
-        if self.ID == self.ID1: # Remove after testing-- test plots
-            #     plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
+        # if self.ID == self.ID1: # Remove after testing-- test plots
+        #     #     plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
 
-            # plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
+        #     plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
             # plotting.plot_line(self.beforeL1, ax, add_points=True, color='blue', linewidth=3) # before adjustment
             # plotting.plot_line(self.beforeL2, ax, add_points=True, color='red', linewidth=3) # before adjustment
             # ax.text(self.beforeL1.centroid.x, self.beforeL1.centroid.y, f"L1", color='blue')
@@ -639,7 +637,7 @@ class Surface:
             # plotting.plot_line(self.adjustedL2, ax, add_points=True, color='cyan', linewidth=3)
             # ax.text(self.adjustedL1.centroid.x, self.adjustedL1.centroid.y, f"New L1", color='brown')
             # ax.text(self.adjustedL2.centroid.x, self.adjustedL2.centroid.y, f"New L2", color='cyan')
-
+            
         return ax
 
     def plotConnections(self,  ax=None, linewidth=2, 
