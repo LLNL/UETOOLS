@@ -73,7 +73,7 @@ class VacuumTests:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
         #         f.get_axes()[0].set_title(f"Surface {i}")
-        f = test.plotGeometry(labels=False, testsurf=28, showCircle=False)
+        f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
         # f = test.plotGeometry(labels=False, testsurf=4)
         return test
        
@@ -240,7 +240,7 @@ class Surface:
 
         self.distributionCircle(r_offset)
 
-        self.ID1 = 28 # REMOVE AFTER TESTING
+        self.ID1 = 29 # REMOVE AFTER TESTING
         self.ID2 = 60
 
         self.beforeTriangle = None # REMOVE AFTER TESTING
@@ -260,7 +260,7 @@ class Surface:
 
         # # # Finding radius and center of circle # # #
         self.r_offset = r_offset 
-        radius = self.surfaceLength / 8
+        radius = self.surfaceLength / 36
         #if self.r_offset == 1:
             #r_offset = radius
         self.dCircleCenter = self.normal.interpolate(self.r_offset * radius) # the center of the distribution circle along the normal line
@@ -365,10 +365,10 @@ class Surface:
         for neighid, neighbor in surfaces.items():
             # if self.ID != self.ID1: # REMOVE AFTER TESTING, JUST TO EXPEDITE THE SURFACE GENERATION WHILE TESTING   
             #     return
-            #elif self.ID == self.ID1: #and neighid == self.ID2: # REMOVE REMOVE REMOVE AFTER TESTING
-            # if neighid != self.ID2: # REMOVE AFTER TESTING
-            #     continue
-            if self.ID != neighid:
+            # elif self.ID == self.ID1: #and neighid == self.ID2: # REMOVE REMOVE REMOVE AFTER TESTING
+                # if neighid != self.ID2: # REMOVE AFTER TESTING
+                #     continue # only if wanting to look at 2 surfaces, not all
+            if self.ID != neighid: # indent adjust while testing
                 flux, triangle = self.intersectionArea(neighbor)
                 if self.ID == self.ID1 and neighid == self.ID2:
                     self.beforeTriangle = triangle
@@ -515,7 +515,7 @@ class Surface:
                 # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 1 interrupted by polygon.")
                 self.issues[neighbor.ID] = "Leg 1 interrupted by polygon"
                 for pair in coordinates1:
-                    if Point(pair) == self.midpoint:
+                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, 0.001), Point(pair)):
                         continue
                     self.vNewLeg1 = self.vectorHelper(
                                 (self.midpoint.x, self.midpoint.y),
@@ -548,6 +548,8 @@ class Surface:
                 # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 2 interrupted by polygon.")
                 self.issues[neighbor.ID] = "Leg 2 interrupted by polygon"
                 for pair in coordinates2:
+                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, 0.001), Point(pair)):
+                        continue
                     self.vNewLeg1 = self.vectorHelper(
                             (self.midpoint.x, self.midpoint.y), 
                             (self.leg1SmallestPoint[0], self.leg1SmallestPoint[1])
@@ -601,7 +603,7 @@ class Surface:
 
     def plotSelf(self, ax=None, color='k', label=False, showCircle=True): # plots just the self surface
         from matplotlib.pyplot import subplots, ioff, Figure, Axes
-        from shapely import plotting
+        from shapely import plotting, buffer
 
         ioff()
         if ax is None:
@@ -619,21 +621,23 @@ class Surface:
         if showCircle:
             plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
 
-        if self.ID == self.ID1:
+        if self.ID == self.ID1: # Remove after testing-- test plots
             plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
-            # plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
+            #plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
             # plotting.plot_line(self.beforeL1, ax, add_points=True, color='blue', linewidth=3) # before adjustment
             # plotting.plot_line(self.beforeL2, ax, add_points=True, color='red', linewidth=3) # before adjustment
-            # plotting.plot_polygon(self.AllIntersections, ax, add_points=False, color='purple', linewidth=2)
+            #plotting.plot_polygon(self.AllIntersections, ax, add_points=False, color='purple', linewidth=2)
             plotting.plot_polygon(self.adjustedTriangle, ax, add_points=True, color='green', linewidth=2)
-            plotting.plot_line(self.adjustedL1, ax, add_points=True, color='brown', linewidth=3)
-            plotting.plot_line(self.adjustedL2, ax, add_points=True, color='cyan', linewidth=3)
+            # plotting.plot_line(self.adjustedL1, ax, add_points=True, color='brown', linewidth=3)
+            # plotting.plot_line(self.adjustedL2, ax, add_points=True, color='cyan', linewidth=3)
 
-            ax.text(self.beforeL1.centroid.x, self.beforeL1.centroid.y, f"L1", color='blue')
-            ax.text(self.beforeL2.centroid.x, self.beforeL2.centroid.y, f"L2", color='red')
+            # ax.text(self.beforeL1.centroid.x, self.beforeL1.centroid.y, f"L1", color='blue')
+            # ax.text(self.beforeL2.centroid.x, self.beforeL2.centroid.y, f"L2", color='red')
 
-            ax.text(self.adjustedL1.centroid.x, self.adjustedL1.centroid.y, f"New L1", color='brown')
-            ax.text(self.adjustedL2.centroid.x, self.adjustedL2.centroid.y, f"New L2", color='cyan')
+            # ax.text(self.adjustedL1.centroid.x, self.adjustedL1.centroid.y, f"New L1", color='brown')
+            # ax.text(self.adjustedL2.centroid.x, self.adjustedL2.centroid.y, f"New L2", color='cyan')
+
+            plotting.plot_polygon(buffer(self.midpoint, 0.001), ax, add_points=False, color='black')
         
 
         return ax
