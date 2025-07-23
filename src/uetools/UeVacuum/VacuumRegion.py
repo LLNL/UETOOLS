@@ -257,6 +257,8 @@ class Surface:
 
         self.distributionCircle(r_offset)
 
+        self.epsilon = 1e-5 # use as a reference for buffering works when epsilon = 0.00001 (1e-5)
+
         self.ID1 = 108 # REMOVE AFTER TESTING
         self.ID2 = 115
 
@@ -358,7 +360,7 @@ class Surface:
         # # # Getting the correct area of the distribution circle on one side of the normal line # # #
         overlapArea = self.overlapShape.area
         if (0 <= self.r_offset and self.r_offset < 1) and self.circle.intersects(self.segment): # if we're dealing with a circle shifted between uniform and cosine
-            buffLine = self.segment.buffer(0.000000000001)
+            buffLine = self.segment.buffer(self.epsilon * 1e-7) #0.000000000001)
             splitdCircle = self.circle.difference(buffLine) # split the distribution circle and the surface line
             if splitdCircle.geoms[0].intersects(self.normal): 
                 self.totalAreaCircle = splitdCircle.geoms[0]
@@ -507,15 +509,15 @@ class Surface:
         # if self.ID == self.ID1 and neighbor.ID == self.ID2: # REMOVE AFTER TESTING!
         #     print(f"Geometry buffer contains polygon: {contains(buffer(geometry, 0.00001), polygon)}")
 
-        if contains(buffer(geometry, 0.00001), polygon): # when polygon is on the border and not at all outside
+        if contains(buffer(geometry, self.epsilon), polygon): # when polygon is on the border and not at all outside 0.00001
             return True
 
-        if crosses(polygon, buffer(self.leg1, 0.000001)) and crosses(polygon, buffer(self.leg2, 0.000001)): 
+        if crosses(polygon, buffer(self.leg1, self.epsilon * 1e-1)) and crosses(polygon, buffer(self.leg2, self.epsilon * 1e-1)): #0.000001
             return False
 
         
-        # # # If Leg 1 (from S1 midpoint to S2 start) intersects the outside region # # #
-        if (    intersects(polygon, buffer(self.leg1, 0.000001)) \
+        # # # If Leg 1 (from S1 midpoint to S2 start) intersects the outside region # # # 0.000001
+        if (    intersects(polygon, buffer(self.leg1, self.epsilon * 1e-1)) \
                 and (contains(geometry, self.leg1) == False)
         ):
 
@@ -524,15 +526,15 @@ class Surface:
             else:
                 coordinates1 = list(polygon.exterior.coords)
 
-            leg1Start = buffer(self.midpoint, 0.00001)
-            leg1End = buffer(neighbor.start, 0.00001)
+            leg1Start = buffer(self.midpoint, self.epsilon) #0.00001
+            leg1End = buffer(neighbor.start, self.epsilon) #0.00001
 
-            if (    (contains(leg1Start, intersection(polygon, buffer(self.leg1, 0.0000001))) == False) \
-                    and (contains(leg1End, intersection(polygon, buffer(self.leg1, 0.0000001))) == False)
+            if (    (contains(leg1Start, intersection(polygon, buffer(self.leg1, self.epsilon * 1e-2))) == False) \
+                    and (contains(leg1End, intersection(polygon, buffer(self.leg1, self.epsilon * 1e-2))) == False)
             ):
-                # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 1 interrupted by polygon.")
+                # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 1 interrupted by polygon.") 0.0000001^
                 for pair in coordinates1:
-                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, 0.001), Point(pair)):
+                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, self.epsilon * 1e2), Point(pair)): # 0.001
                         continue
                     self.vNewLeg1 = self.vectorHelper(
                                 (self.midpoint.x, self.midpoint.y),
@@ -553,8 +555,8 @@ class Surface:
                         self.smallestAngle = newAngle
                         self.leg1SmallestPoint = pair
             
-        # # # If Leg 2 (S1 midpoint to S2 end) intersects the outside region # # #
-        if (    intersects(polygon, buffer(self.leg2, 0.000001)) \
+        # # # If Leg 2 (S1 midpoint to S2 end) intersects the outside region # # # 0.000001
+        if (    intersects(polygon, buffer(self.leg2, self.epsilon * 1e-1)) \
                 and (contains(geometry, self.leg2) == False)
         ):
             if polygon.geom_type == 'LineString':
@@ -562,15 +564,15 @@ class Surface:
             else:
                 coordinates2 = list(polygon.exterior.coords)
 
-            leg2Start = buffer(self.midpoint, 0.00001)
-            leg2End = buffer(neighbor.end, 0.00001)
+            leg2Start = buffer(self.midpoint, self.epsilon) #0.00001
+            leg2End = buffer(neighbor.end, self.epsilon)
 
-            if (    (contains(leg2Start, intersection(polygon, buffer(self.leg2, 0.0000001))) == False) \
-                    and (contains(leg2End, intersection(polygon, buffer(self.leg2, 0.0000001))) == False)
+            if (    (contains(leg2Start, intersection(polygon, buffer(self.leg2, self.epsilon * 1e-2))) == False) \
+                    and (contains(leg2End, intersection(polygon, buffer(self.leg2, self.epsilon * 1e-2))) == False)
             ):
-                # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 2 interrupted by polygon.")
+                # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 2 interrupted by polygon.") 0.0000001^
                 for pair in coordinates2:
-                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, 0.001), Point(pair)):
+                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, self.epsilon * 1e2), Point(pair)): # 0.001
                         continue
                     self.vNewLeg1 = self.vectorHelper(
                             (self.midpoint.x, self.midpoint.y), 
@@ -615,7 +617,7 @@ class Surface:
     
         self.fullCircle = Polygon(outerCirclePoints) # polygon object of the full outer circle, before splitting to correct side of normal
 
-        buffLine = self.segment.buffer(0.000000000001)
+        buffLine = self.segment.buffer(self.epsilon * 1e-7) # 0.000000000001
         splitCircles = self.fullCircle.difference(buffLine)
         if splitCircles.geoms[0].intersects(self.normal):
             self.outerCircle = splitCircles.geoms[0] # desired circle
