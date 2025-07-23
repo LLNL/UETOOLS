@@ -249,7 +249,7 @@ class DEGAS2Coupling:
         the vessel, and intersects the coordinates of the first/last
         vessel points.
         '''
-        from shapely import LinearRing, LineString
+        from shapely import LinearRing, LineString, Point
         from numpy import array, roll, unique, sort
         from matplotlib.pyplot import subplots
         # Get shifts and switches for upper-single null geometries
@@ -264,6 +264,9 @@ class DEGAS2Coupling:
             vessel_orig = LinearRing( zip(self.get('xlim'), self.get('ylim')))
         else:
             vessel_orig = LinearRing( limiter )
+        
+
+
         if usn:
             limiter = array(list(zip(
                 vessel_orig.coords.xy[0],
@@ -275,7 +278,8 @@ class DEGAS2Coupling:
             ))
         else:
             vessel_orig_plot = vessel_orig
-                
+        
+
         # Get the nodes for the north and south plasma boundaries
         northpoints = array(list(zip(
                 self.get('rm')[:-1,-1,2],
@@ -331,6 +335,31 @@ class DEGAS2Coupling:
             ax.plot(main[0,0], main[0,1], 'r*')
             ax.plot(main[nmain_vessel,0], main[nmain_vessel,1], 'bo')
             ax.set_aspect('equal')
+
+        # Check whether lines have self-tangents
+        if not LinearRing(main).is_simple:
+            tangents = []
+            for i in range(len(main)-2):
+                if LineString([main[i],main[i+1]]).distance(Point(main[i+2]))<1e-8:
+                    tangents.append(i+2)
+            main = list(main)
+            for i in tangents:
+                main.pop(i)
+                nmain_vessel -= (i<nmain_vessel)
+            main = array(main)
+
+        if not LinearRing(pf).is_simple:
+            tangents = []
+            for i in range(len(pf)-2):
+                if LineString([pf[i],pf[i+1]]).distance(Point(pf[i+2]))<1e-8:
+                    tangents.append(i+2)
+            pf = list(pf)
+            for i in tangents:
+                pf.pop(i)
+                npf_vessel -= (i<npf_vessel)
+            pf = array(pf)
+
+
 
         return (main, nmain_vessel), (pf, npf_vessel)
 
