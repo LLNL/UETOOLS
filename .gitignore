@@ -112,3 +112,6 @@ src/testScript.py
 src/testScript.py
 src/uetools/geometryTest.py
 src/uetools/threePlots.py
+src/uetools/fullGeometry62.svg
+src/uetools/reference_lores.hdf5
+src/uetools/test1.pkl
