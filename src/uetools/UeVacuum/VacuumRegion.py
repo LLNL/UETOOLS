@@ -120,17 +120,17 @@ class VacuumRegion:
             print("Warning! Continuity violated for surfaces:", self.errors)
             print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
 
-    def matrices(self, P):
+    def matrices(self):
         from numpy import zeros, identity
         from scipy.sparse import csr_array, block_array
 
-        N = len(self.surfaces) # N = number of surfaces in geometry
+        self.numSurfaces = len(self.surfaces) # N = number of surfaces in geometry
 
-        R_array = zeros((N, N))
-        C_array = zeros((N, N))
+        R_array = zeros((self.numSurfaces, self.numSurfaces))
+        C_array = zeros((self.numSurfaces, self.numSurfaces))
 
-        for i in range(N):
-            if i > P:
+        for i in range(self.numSurfaces):
+            if i > self.P:
                 R_array[i][i] = 1 # Reflection constant (?) emissivity(?) absorption(?)
 
         for surfaceID in self.surfaces.keys(): # self.surfaces.items()
@@ -141,13 +141,51 @@ class VacuumRegion:
         self.R_matrix = csr_array(R_array) # sparse matrix
         self.C_matrix = csr_array(C_array)
 
-        Zero_matrix = csr_array(zeros((N, N)))
-        Identity_matrix = csr_array(identity(N))
+        Zero_matrix = csr_array(zeros((self.numSurfaces, self.numSurfaces)))
+        Identity_matrix = csr_array(identity(self.numSurfaces))
 
         self.A_matrix = block_array([[self.C_matrix, Zero_matrix], [Zero_matrix, Identity_matrix]])
         self.B_matrix = block_array([[self.R_matrix, Zero_matrix], [Identity_matrix - self.R_matrix, Identity_matrix]])
 
+        self.AB_matrix = self.A_matrix @ self.B_matrix # A * B
+
         return
+
+    def matrixPower(self, matrix, power):
+        from numpy import zeros, identity
+        from scipy.sparse import csr_array, block_array
+
+        resultMatrix = linalg.matrix_power(matrix, power)
+
+        return resultMatrix
+
+    def outputMatrix(self, AB, power):
+        from numpy import zeros, identity
+        from scipy.sparse import csr_array, block_array
+
+        AB_power = self.matrixPower(self.AB_matrix, power) # (AB)^M
+
+        vector_array = zeros(self.N)
+        for i in range(0, self.P):
+            vector_array[i] = 1
+            vector = csr_array(vector_array) # sparse matrix/vector
+
+            calculation = AB_power @ self.A_matrix @ vector
+
+            #
+            # further operations --> how to store the values for final output? 
+            #
+            vector_array[i] = 0
+        
+
+        return
+            
+
+        
+
+
+
+
     
     def saveVacuumRegion(self, savename):
         from pickle import dump
