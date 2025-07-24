@@ -52,6 +52,7 @@ class VacuumTests:
         geometryVertices = [(3, 1), (1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3)]
 
         test = VacuumRegion(geometryVertices, P=1)
+        test.saveVacuumRegion("SavedVacuumRegion")
         # for i in test.errors:
         #     f = test.plotGeometry(labels=True, testsurf=i)
         #     test.surfaces[i].plotSelf(ax=f)
@@ -64,7 +65,7 @@ class VacuumTests:
         from uetools import Case
         from numpy import zeros
         c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.03)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 1)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
         # nobug[:66] = main[0][:66]
         # nobug[66:] = main[0][67:]
@@ -73,8 +74,8 @@ class VacuumTests:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
         #         f.get_axes()[0].set_title(f"Surface {i}")
-        # f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
-        f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
+        f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
+        #f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
         # f = test.plotGeometry(labels=False, testsurf=4)
         return test
        
@@ -118,6 +119,35 @@ class VacuumRegion:
         if not self.checkContinuity(False): # BRING BACK AFTER TESTING
             print("Warning! Continuity violated for surfaces:", self.errors)
             print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
+
+    def matrices(self, P):
+        from numpy import zeros, identity
+        from scipy.sparse import csr_array, block_array
+
+        N = len(self.surfaces) # N = number of surfaces in geometry
+
+        R_array = zeros((N, N))
+        C_array = zeros((N, N))
+
+        for i in range(N):
+            if i > P:
+                R_array[i][i] = 1 # Reflection constant (?) emissivity(?) absorption(?)
+
+        for surfaceID in self.surfaces.keys(): # self.surfaces.items()
+            surface = self.surfaces[surfaceID] # Surface Object
+            for outputID in surface.neighbors.keys():
+                C_array[surfaceID][outputID] = surface.neighbors[outputID]['flux']
+
+        self.R_matrix = csr_array(R_array) # sparse matrix
+        self.C_matrix = csr_array(C_array)
+
+        Zero_matrix = csr_array(zeros((N, N)))
+        Identity_matrix = csr_array(identity(N))
+
+        self.A_matrix = block_array([[self.C_matrix, Zero_matrix], [Zero_matrix, Identity_matrix]])
+        self.B_matrix = block_array([[self.R_matrix, Zero_matrix], [Identity_matrix - self.R_matrix, Identity_matrix]])
+
+        return
     
     def saveVacuumRegion(self, savename):
         from pickle import dump
