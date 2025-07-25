@@ -65,7 +65,7 @@ class VacuumTests:
         from uetools import Case
         from numpy import zeros
         c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 1)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
         # nobug[:66] = main[0][:66]
         # nobug[66:] = main[0][67:]
@@ -121,7 +121,8 @@ class VacuumRegion:
             print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
 
     def matrices(self):
-        from numpy import zeros, identity
+        import numpy
+        from numpy import zeros, identity, percentile, log
         from scipy.sparse import csr_array, block_array
         import seaborn as sns
         import matplotlib.pyplot as plt
@@ -145,6 +146,7 @@ class VacuumRegion:
                 C_array[surfaceID][outputID] = surface.neighbors[outputID]['flux']
 
         # R and C into sparse matrices
+        C_array = C_array.transpose()
         self.R_matrix = csr_array(R_array) # sparse matrix
         self.C_matrix = csr_array(C_array)
 
@@ -158,15 +160,22 @@ class VacuumRegion:
 
         self.AB_matrix = self.A_matrix @ self.B_matrix # A * B
 
+
+
+
+
         # TESTING # 
-        self.outputMatrix(self.AB_matrix, 5000) # generate output matrix
+        self.outputMatrix(self.AB_matrix, 1000000) # generate output matrix
+        # print(f"Sums: {numpy.sum(C_array, axis=0)} and {numpy.sum(C_array, axis=1)}")
+        print(f"sum(sum(output)): {sum(sum(self.output))}")
+        print(f"P: {self.P}")
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
         matricesToPlot = [C_array, R_array, self.output]
         matricesToPlotNames = ["C", "R", "Output"]
         for i, ax in enumerate(axes):
-            sns.heatmap(matricesToPlot[i], cmap='plasma', annot=False, ax=ax)
+            sns.heatmap(matricesToPlot[i], cmap='plasma', annot=False, ax=ax, vmax=percentile(matricesToPlot[i], 95))
             ax.set_title(matricesToPlotNames[i])
 
         plt.tight_layout()
@@ -207,17 +216,20 @@ class VacuumRegion:
                 self.output[i, j] = gammaFinal[j]
 
 
-        print(f"Dimensions of AB_power: {AB_power_A.shape}")
-        print(f"Dimensions of A_matrix: {self.A_matrix.shape}")
-        # print(f"Dimensions of gamma_vector: {gamma_vector.shape}")
 
 
-        # print(f"Calculation: {calculation}")
-        print(f"Dimensions of Calculation: {rowCalculation.shape}")
-        print(f"Dimensions of gammaOut: {gammaOut.shape}")
-        print(f"Dimensions of gammaFinal: {gammaFinal.shape}")
-        print(sum(sum(self.output)), self.P)
-        print(sum(rowCalculation[0 : self.numSurfaces]), sum(rowCalculation[self.numSurfaces + 1 :])) # should sum to 1
+        # TESTING
+        # print(f"Dimensions of AB_power: {AB_power_A.shape}")
+        # print(f"Dimensions of A_matrix: {self.A_matrix.shape}")
+        # # print(f"Dimensions of gamma_vector: {gamma_vector.shape}")
+
+
+        # # print(f"Calculation: {calculation}")
+        # print(f"Dimensions of Calculation: {rowCalculation.shape}")
+        # print(f"Dimensions of gammaOut: {gammaOut.shape}")
+        # print(f"Dimensions of gammaFinal: {gammaFinal.shape}")
+        # print(sum(sum(self.output)), self.P)
+        # print(sum(rowCalculation[0 : self.numSurfaces]), sum(rowCalculation[self.numSurfaces + 1 :])) # should sum to 1
 
 
         return

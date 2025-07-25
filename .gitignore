@@ -115,3 +115,6 @@ src/uetools/threePlots.py
 src/uetools/fullGeometry62.svg
 src/uetools/reference_lores.hdf5
 src/uetools/test1.pkl
+src/uetools/HighRes2cm.pkl
+src/uetools/HighRes5mm.pkl
+src/uetools/LowRes2cm.pkl
