@@ -123,37 +123,62 @@ class VacuumRegion:
     def matrices(self):
         from numpy import zeros, identity
         from scipy.sparse import csr_array, block_array
+        import seaborn as sns
+        import matplotlib.pyplot as plt
 
-        self.numSurfaces = len(self.surfaces) # N = number of surfaces in geometry
+        '''Creates R, C, A, B, and AB matrices.'''
 
+        self.numSurfaces = len(self.surfaces)
+
+        # Array representations of R and C
         R_array = zeros((self.numSurfaces, self.numSurfaces))
         C_array = zeros((self.numSurfaces, self.numSurfaces))
 
+        # Populate R array
         for i in range(self.numSurfaces):
             if i > self.P:
                 R_array[i][i] = 1 # Reflection constant (?) emissivity(?) absorption(?)
 
-        for surfaceID in self.surfaces.keys(): # self.surfaces.items()
-            surface = self.surfaces[surfaceID] # Surface Object
+        # Populate C array
+        for surfaceID, surface in self.surfaces.items(): # self.surfaces.items()
             for outputID in surface.neighbors.keys():
                 C_array[surfaceID][outputID] = surface.neighbors[outputID]['flux']
 
+        # R and C into sparse matrices
         self.R_matrix = csr_array(R_array) # sparse matrix
         self.C_matrix = csr_array(C_array)
 
+        # Zero and identity sparse matrices
         Zero_matrix = csr_array(zeros((self.numSurfaces, self.numSurfaces)))
         Identity_matrix = csr_array(identity(self.numSurfaces))
 
+        # Create A, B, and AB sparse matrices
         self.A_matrix = block_array([[self.C_matrix, Zero_matrix], [Zero_matrix, Identity_matrix]])
         self.B_matrix = block_array([[self.R_matrix, Zero_matrix], [Identity_matrix - self.R_matrix, Identity_matrix]])
 
         self.AB_matrix = self.A_matrix @ self.B_matrix # A * B
 
+        # TESTING # 
+        self.outputMatrix(self.AB_matrix, 5000) # generate output matrix
+
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+        matricesToPlot = [C_array, R_array, self.output]
+        matricesToPlotNames = ["C", "R", "Output"]
+        for i, ax in enumerate(axes):
+            sns.heatmap(matricesToPlot[i], cmap='plasma', annot=False, ax=ax)
+            ax.set_title(matricesToPlotNames[i])
+
+        plt.tight_layout()
+        plt.show(block=False)  
+
         return
 
     def matrixPower(self, matrix, power):
         from numpy import zeros, identity
-        from scipy.sparse import csr_array, block_array
+        from scipy.sparse import csr_array, block_array, linalg
+
+        '''Raises a given matrix to the specified power.'''
 
         resultMatrix = linalg.matrix_power(matrix, power)
 
@@ -163,30 +188,41 @@ class VacuumRegion:
         from numpy import zeros, identity
         from scipy.sparse import csr_array, block_array
 
-        AB_power = self.matrixPower(self.AB_matrix, power) # (AB)^M
+        AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix # (AB)^M * A
 
-        vector_array = zeros(self.N)
+        self.output = zeros((self.P, self.P)) # final teletransport matrix
+
+        gamma_array = zeros((self.numSurfaces * 2, 1))
         for i in range(0, self.P):
-            vector_array[i] = 1
-            vector = csr_array(vector_array) # sparse matrix/vector
+            gamma_array[i, 0] = 1
 
-            calculation = AB_power @ self.A_matrix @ vector
+            rowCalculation = AB_power_A @ gamma_array
 
-            #
-            # further operations --> how to store the values for final output? 
-            #
-            vector_array[i] = 0
-        
+            gamma_array[i, 0] = 0
+
+            gammaOut = rowCalculation[self.numSurfaces + 1 :]
+            gammaFinal = gammaOut[0:self.P]
+
+            for j in range(self.P):
+                self.output[i, j] = gammaFinal[j]
+
+
+        print(f"Dimensions of AB_power: {AB_power_A.shape}")
+        print(f"Dimensions of A_matrix: {self.A_matrix.shape}")
+        # print(f"Dimensions of gamma_vector: {gamma_vector.shape}")
+
+
+        # print(f"Calculation: {calculation}")
+        print(f"Dimensions of Calculation: {rowCalculation.shape}")
+        print(f"Dimensions of gammaOut: {gammaOut.shape}")
+        print(f"Dimensions of gammaFinal: {gammaFinal.shape}")
+        print(sum(sum(self.output)), self.P)
+        print(sum(rowCalculation[0 : self.numSurfaces]), sum(rowCalculation[self.numSurfaces + 1 :])) # should sum to 1
+
 
         return
             
 
-        
-
-
-
-
-    
     def saveVacuumRegion(self, savename):
         from pickle import dump
 
@@ -714,7 +750,7 @@ class Surface:
 
         plotting.plot_line(self.segment, ax, color=color, linewidth=2) # plots surface
         if label:
-            ax.text(self.midpoint.x, self.midpoint.y, f"Surface {self.ID}", color='black')
+            ax.text(self.midpoint.x, self.midpoint.y, f"Surface {self.ID}", fontsize=8, color='black')
 
         if showCircle:
             plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
