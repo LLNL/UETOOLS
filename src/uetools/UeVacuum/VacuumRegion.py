@@ -74,8 +74,9 @@ class VacuumTests:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
         #         f.get_axes()[0].set_title(f"Surface {i}")
-        f = test.plotGeometry(labels=True, testsurf=29, showCircle=True)
-        #f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
+        f = test.plotGeometry(labels=False, testsurf=31, showCircle=True)
+        m = test.matrices() # TO PLOT MATRIX HEATMAPS
+        # f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
         # f = test.plotGeometry(labels=False, testsurf=4)
         return test
        
@@ -137,7 +138,7 @@ class VacuumRegion:
 
         # Populate R array
         for i in range(self.numSurfaces):
-            if i > self.P:
+            if i >= self.P:
                 R_array[i][i] = 1 # Reflection constant (?) emissivity(?) absorption(?)
 
         # Populate C array
@@ -162,9 +163,10 @@ class VacuumRegion:
 
 
 
-
-
+        ###
         # TESTING # 
+        ###
+
         self.outputMatrix(self.AB_matrix, 1000000) # generate output matrix
         # print(f"Sums: {numpy.sum(C_array, axis=0)} and {numpy.sum(C_array, axis=1)}")
         print(f"sum(sum(output)): {sum(sum(self.output))}")
@@ -172,13 +174,19 @@ class VacuumRegion:
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
+        fig.suptitle("Uniform Distribution", fontsize=16)
+
         matricesToPlot = [C_array, R_array, self.output]
         matricesToPlotNames = ["C", "R", "Output"]
         for i, ax in enumerate(axes):
             sns.heatmap(matricesToPlot[i], cmap='plasma', annot=False, ax=ax, vmax=percentile(matricesToPlot[i], 95))
             ax.set_title(matricesToPlotNames[i])
+            ax.set_xlabel("Receiving Surfaces")  # label for x-axis
+            ax.set_ylabel("Source Surfaces")  # label for y-axis
+
 
         plt.tight_layout()
+        #plt.savefig('CosineDist_highres0087.svg', dpi=300)
         plt.show(block=False)  
 
         return
@@ -209,13 +217,11 @@ class VacuumRegion:
 
             gamma_array[i, 0] = 0
 
-            gammaOut = rowCalculation[self.numSurfaces + 1 :]
+            gammaOut = rowCalculation[self.numSurfaces:]
             gammaFinal = gammaOut[0:self.P]
 
             for j in range(self.P):
                 self.output[i, j] = gammaFinal[j]
-
-
 
 
         # TESTING
@@ -302,7 +308,7 @@ class VacuumRegion:
    
 class Surface:
 
-    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=1): # creates the surface
+    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=0): # creates the surface
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
@@ -375,7 +381,7 @@ class Surface:
 
         self.epsilon = 1e-5 # use as a reference for buffering works when epsilon = 0.00001 (1e-5)
 
-        self.ID1 = 108 # REMOVE AFTER TESTING
+        self.ID1 = 331 # REMOVE AFTER TESTING
         self.ID2 = 115
 
         self.beforeTriangle = None # REMOVE AFTER TESTING
@@ -510,6 +516,7 @@ class Surface:
                     self.beforeTriangle = triangle
                     self.beforeL1 = self.leg1
                     self.beforeL2 = self.leg2
+                    #print(f"Dist btwn: {math.sqrt((neighbor.midpoint.x - self.midpoint.x)**2 + (neighbor.midpoint.y - self.midpoint.y)**2)}")
 
                 # Flux would go to the wrong (back) side of the surface
                 try:
