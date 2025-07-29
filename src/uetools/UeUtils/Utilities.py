@@ -307,3 +307,31 @@ class Utilities:
                     self.tools.hdf5search(dump2, variable))
             print(20*"=")
         return variables 
+
+    def get_fngy_north(self, species=0, fluxdensity=False, reverse=False):
+        from numpy import pi
+        n = self.get('ng')
+        n = 2*((n[:,-2]*n[:,-1])/(n[:,-2]+n[:,-1]))[:,species]
+        outflux = n*(self.get('sy')[:,-2]**(not fluxdensity))* \
+                0.25*( 8*self.get('tg')[:,-1,species]/(pi*self.get('mg')[species]))**0.5
+        if reverse:
+            outflux = outflux[::-1]
+        return outflux[1:-1]
+ 
+    def get_fngy_south(self, species=0, fluxdensity=False, reverse=False):
+        from numpy import pi, concatenate
+        n = self.get('ng')
+        n = 2*((n[:,1]*n[:,0])/(n[:,1]+n[:,0]))[:,species]
+        alloutflux = n*(self.get('sy')[:,0]**(not fluxdensity))* \
+                0.25*( 8*self.get('tg')[:,0,species]/(pi*self.get('mg')[species]))**0.5
+        # Cut out core cells 
+        outflux = concatenate((
+                        alloutflux[:self.get('ixpt1')[0]+1], 
+                        alloutflux[self.get('ixpt2')[0]+1:])
+        )
+
+        if reverse:
+            outflux = outflux[::-1]
+        return outflux[1:-1]
+               
+               
