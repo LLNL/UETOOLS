@@ -1087,7 +1087,10 @@ class CaseDashboard(QWidget):
         self.lastfunc = self.plot_phi
 
     def plot_prad(self):
-        var = self.get('prad')+self.get('pradhyd')
+        if self.get('prad').shape == self.get('pradhyd').shape:
+            var = self.get('prad')+self.get('pradhyd')
+        else:
+            var = self.get('pradhyd')
         if self.buttonsetup:
             return var
         self.plot_driver(
