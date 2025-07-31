@@ -133,23 +133,23 @@ class VacuumRegion:
         self.numSurfaces = len(self.surfaces)
 
         # Array representations of R and C
-        R_array = zeros((self.numSurfaces, self.numSurfaces))
-        C_array = zeros((self.numSurfaces, self.numSurfaces))
+        self.R_array = zeros((self.numSurfaces, self.numSurfaces))
+        self.C_array = zeros((self.numSurfaces, self.numSurfaces))
 
         # Populate R array
         for i in range(self.numSurfaces):
             if i >= self.P:
-                R_array[i][i] = 1 # Reflection constant (?) emissivity(?) absorption(?)
+                self.R_array[i][i] = 1 # Reflection constant (?) emissivity(?) absorption(?)
 
         # Populate C array
         for surfaceID, surface in self.surfaces.items(): # self.surfaces.items()
             for outputID in surface.neighbors.keys():
-                C_array[surfaceID][outputID] = surface.neighbors[outputID]['flux']
+                self.C_array[surfaceID][outputID] = surface.neighbors[outputID]['flux']
 
-        # R and C into sparse matrices
-        C_array = C_array.transpose()
-        self.R_matrix = csr_array(R_array) # sparse matrix
-        self.C_matrix = csr_array(C_array)
+        # R and C into sparse matrices and transpose C array
+        self.C_array = self.C_array.transpose()
+        self.R_matrix = csr_array(self.R_array) # sparse matrix
+        self.C_matrix = csr_array(self.C_array)
 
         # Zero and identity sparse matrices
         Zero_matrix = csr_array(zeros((self.numSurfaces, self.numSurfaces)))
@@ -162,34 +162,45 @@ class VacuumRegion:
         self.AB_matrix = self.A_matrix @ self.B_matrix # A * B
 
 
+    def heatmapPlot(self):
+        import numpy
+        from numpy import zeros, identity, percentile, log
+        from scipy.sparse import csr_array, block_array
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LogNorm
 
+        self.matrices()
         ###
-        # TESTING # 
+        # TESTING--Plot matrices # 
         ###
 
-        self.outputMatrix(self.AB_matrix, 1000000) # generate output matrix
+        self.getOutputMatrix(self.AB_matrix, 1000000) # generate output matrix
         # print(f"Sums: {numpy.sum(C_array, axis=0)} and {numpy.sum(C_array, axis=1)}")
         print(f"sum(sum(output)): {sum(sum(self.output))}")
         print(f"P: {self.P}")
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-        fig.suptitle("Uniform Distribution", fontsize=16)
+        fig.suptitle("Cosine Distribution", fontsize=16)
 
-        matricesToPlot = [C_array, R_array, self.output]
+        matricesToPlot = [self.C_array, self.R_array, self.output]
         matricesToPlotNames = ["C", "R", "Output"]
+
         for i, ax in enumerate(axes):
-            sns.heatmap(matricesToPlot[i], cmap='plasma', annot=False, ax=ax, vmax=percentile(matricesToPlot[i], 95))
+            sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
             ax.set_title(matricesToPlotNames[i])
+            ax.set_aspect('equal')
             ax.set_xlabel("Receiving Surfaces")  # label for x-axis
             ax.set_ylabel("Source Surfaces")  # label for y-axis
 
 
         plt.tight_layout()
-        #plt.savefig('CosineDist_highres0087.svg', dpi=300)
-        plt.show(block=False)  
+        plt.show(block=False) 
 
-        return
+        return self.output
+
+
 
     def matrixPower(self, matrix, power):
         from numpy import zeros, identity
@@ -201,7 +212,7 @@ class VacuumRegion:
 
         return resultMatrix
 
-    def outputMatrix(self, AB, power):
+    def getOutputMatrix(self, AB, power):
         from numpy import zeros, identity
         from scipy.sparse import csr_array, block_array
 
@@ -238,7 +249,7 @@ class VacuumRegion:
         # print(sum(rowCalculation[0 : self.numSurfaces]), sum(rowCalculation[self.numSurfaces + 1 :])) # should sum to 1
 
 
-        return
+        return self.output
             
 
     def saveVacuumRegion(self, savename):
@@ -281,7 +292,7 @@ class VacuumRegion:
         for _, surface in self.surfaces.items():
             color = 'k'
             if (surface.ID <  self.P):
-                color = 'gray'
+                color = 'red'
             surface.plotSelf(color=color, ax=ax, label=labels, showCircle=showCircle)
 
         for itest in testsurf:
@@ -308,7 +319,7 @@ class VacuumRegion:
    
 class Surface:
 
-    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=0): # creates the surface
+    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=1): # creates the surface
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
