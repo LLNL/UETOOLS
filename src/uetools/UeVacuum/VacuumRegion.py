@@ -69,13 +69,13 @@ class VacuumTests:
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
         # nobug[:66] = main[0][:66]
         # nobug[66:] = main[0][67:]
-        test = VacuumRegion(main[0], P=main[1])
+        test = VacuumRegion(pf[0], P=pf[1])
         # for i in test.errors:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
         #         f.get_axes()[0].set_title(f"Surface {i}")
-        f = test.plotGeometry(labels=False, testsurf=31, showCircle=True)
-        m = test.matrices() # TO PLOT MATRIX HEATMAPS
+        f = test.plotGeometry(labels=False, testsurf=27, showCircle=True)
+        m = test.heatmapPlot() # TO PLOT MATRIX HEATMAPS
         # f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
         # f = test.plotGeometry(labels=False, testsurf=4)
         return test
@@ -121,6 +121,17 @@ class VacuumRegion:
             print("Warning! Continuity violated for surfaces:", self.errors)
             print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
 
+        self.numSurfaces = len(self.surfaces)
+        self.R_dictionary = {} # dictionary of surface reflection coefficients
+        for i in range(self.numSurfaces):
+            if i >= self.P: # non-plasma surfaces
+                self.R_dictionary[i] = 1
+            else:
+                self.R_dictionary[i] = 0
+
+
+
+
     def matrices(self):
         import numpy
         from numpy import zeros, identity, percentile, log
@@ -130,16 +141,13 @@ class VacuumRegion:
 
         '''Creates R, C, A, B, and AB matrices.'''
 
-        self.numSurfaces = len(self.surfaces)
-
         # Array representations of R and C
         self.R_array = zeros((self.numSurfaces, self.numSurfaces))
         self.C_array = zeros((self.numSurfaces, self.numSurfaces))
 
         # Populate R array
-        for i in range(self.numSurfaces):
-            if i >= self.P:
-                self.R_array[i][i] = 1 # Reflection constant (?) emissivity(?) absorption(?)
+        for surfaceID, rVal in self.R_dictionary.items():
+            self.R_array[surfaceID][surfaceID] = rVal
 
         # Populate C array
         for surfaceID, surface in self.surfaces.items(): # self.surfaces.items()
@@ -176,9 +184,9 @@ class VacuumRegion:
         ###
 
         self.getOutputMatrix(self.AB_matrix, 1000000) # generate output matrix
-        # print(f"Sums: {numpy.sum(C_array, axis=0)} and {numpy.sum(C_array, axis=1)}")
-        print(f"sum(sum(output)): {sum(sum(self.output))}")
-        print(f"P: {self.P}")
+
+        # print(f"sum(sum(output)): {sum(sum(self.output))}")
+        # print(f"P: {self.P}")
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
