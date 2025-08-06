@@ -124,3 +124,6 @@ src/uetools/CosineDist_highres0087.svg
 src/uetools/HighRes5mmUNIFORM.pkl
 src/uetools/fluxComparison.py
 src/uetools/reflectionsPlot.py
+src/uetools/PFHighRes0087.pkl
+src/uetools/PFHighRes6mm.pkl
+src/uetools/PFHighRes6mmFIX.pkl

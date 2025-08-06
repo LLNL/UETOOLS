@@ -65,11 +65,12 @@ class VacuumTests:
         from uetools import Case
         from numpy import zeros
         c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.006)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
         # nobug[:66] = main[0][:66]
         # nobug[66:] = main[0][67:]
-        test = VacuumRegion(pf[0], P=pf[1])
+        test = VacuumRegion(main[0], P=main[1]) # main geometry
+        # test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
         # for i in test.errors:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
@@ -190,7 +191,7 @@ class VacuumRegion:
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-        fig.suptitle("Cosine Distribution", fontsize=16)
+        fig.suptitle("Uniform Distribution", fontsize=16)
 
         matricesToPlot = [self.C_array, self.R_array, self.output]
         matricesToPlotNames = ["C", "R", "Output"]
@@ -199,8 +200,8 @@ class VacuumRegion:
             sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
             ax.set_title(matricesToPlotNames[i])
             ax.set_aspect('equal')
-            ax.set_xlabel("Receiving Surfaces")  # label for x-axis
-            ax.set_ylabel("Source Surfaces")  # label for y-axis
+            ax.set_xlabel("Source Surfaces")  # label for x-axis
+            ax.set_ylabel("Receiving Surfaces")  # label for y-axis
 
 
         plt.tight_layout()
@@ -221,7 +222,7 @@ class VacuumRegion:
         return resultMatrix
 
     def getOutputMatrix(self, AB, power):
-        from numpy import zeros, identity
+        from numpy import zeros, identity, transpose
         from scipy.sparse import csr_array, block_array
 
         AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix # (AB)^M * A
@@ -256,7 +257,7 @@ class VacuumRegion:
         # print(sum(sum(self.output)), self.P)
         # print(sum(rowCalculation[0 : self.numSurfaces]), sum(rowCalculation[self.numSurfaces + 1 :])) # should sum to 1
 
-
+        self.output = transpose(self.output)
         return self.output
             
 
