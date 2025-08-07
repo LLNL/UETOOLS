@@ -340,25 +340,28 @@ class DEGAS2Coupling:
         if not LinearRing(main).is_simple:
             tangents = []
             for i in range(len(main)-2):
-                if LineString([main[i],main[i+1]]).distance(Point(main[i+2]))<1e-8:
+                if LineString(main[:i+2]).distance(Point(main[i+2]))<1e-8:
                     tangents.append(i+2)
             main = list(main)
+            d = 0
             for i in tangents:
-                main.pop(i)
+                del(main[i-d])
+                d += 1
                 nmain_vessel -= (i<nmain_vessel)
             main = array(main)
 
         if not LinearRing(pf).is_simple:
             tangents = []
             for i in range(len(pf)-2):
-                if LineString([pf[i],pf[i+1]]).distance(Point(pf[i+2]))<1e-8:
+                if LineString(pf[:i+2]).distance(Point(pf[i+2]))<1e-8:
                     tangents.append(i+2)
             pf = list(pf)
+            d = 0
             for i in tangents:
-                pf.pop(i)
+                del(pf[i-d])
+                d += 1
                 npf_vessel -= (i<npf_vessel)
             pf = array(pf)
-
 
 
         return (main, nmain_vessel), (pf, npf_vessel)
