@@ -65,12 +65,10 @@ class VacuumTests:
         from uetools import Case
         from numpy import zeros
         c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.006)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
-        # nobug[:66] = main[0][:66]
-        # nobug[66:] = main[0][67:]
-        test = VacuumRegion(main[0], P=main[1]) # main geometry
-        # test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
+        # test = VacuumRegion(main[0], P=main[1]) # main geometry
+        test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
         # for i in test.errors:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
@@ -200,8 +198,12 @@ class VacuumRegion:
             sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
             ax.set_title(matricesToPlotNames[i])
             ax.set_aspect('equal')
-            ax.set_xlabel("Source Surfaces")  # label for x-axis
-            ax.set_ylabel("Receiving Surfaces")  # label for y-axis
+            if matricesToPlotNames[i] == "Output": # to account for output
+                ax.set_xlabel("Source Surfaces")  # label for x-axis
+                ax.set_ylabel("Receiving Surfaces")  # label for y-axis
+            else:
+                ax.set_xlabel("Receiving Surfaces")  # label for x-axis
+                ax.set_ylabel("Source Surfaces")  # label for y-axis
 
 
         plt.tight_layout()
@@ -259,7 +261,25 @@ class VacuumRegion:
 
         self.output = transpose(self.output)
         return self.output
-            
+
+    def getPuffingOutput(self, AB, power, surfaceIndex, sourceStrength):
+        from numpy import zeros, identity, transpose
+        from scipy.sparse import csr_array, block_array
+
+        "1-D array equivalent of self.output when puffing at one source surface."
+
+        AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix # (AB)^M * A
+
+        gamma_array = zeros((self.numSurfaces * 2, 1))
+
+        gamma_array[surfaceIndex, 0] = sourceStrength
+
+        rowCalculation = AB_power_A @ gamma_array
+        gammaOut = rowCalculation[self.numSurfaces:]
+        self.puffingOutput = gammaOut[0:self.P]
+
+        return self.puffingOutput
+        
 
     def saveVacuumRegion(self, savename):
         from pickle import dump
@@ -320,7 +340,7 @@ class VacuumRegion:
         plt.ylabel("Z [m]")
     
         # plt.savefig('fullGeometry62.svg', dpi=300)
-        print(f"Total Flux Out: {self.surfaces[testsurf[0]].totflux}") # REMOVE AFTER TESTING
+        # print(f"Total Flux Out: {self.surfaces[testsurf[0]].totflux}") # REMOVE AFTER TESTING
         plt.show(block=False)
     
 
@@ -328,7 +348,7 @@ class VacuumRegion:
    
 class Surface:
 
-    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=1): # creates the surface
+    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=0): # creates the surface
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
@@ -793,23 +813,6 @@ class Surface:
 
         if showCircle:
             plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
-
-        # if self.ID == self.ID1: # Remove after testing-- test plots
-        # # #     plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
-
-        #     plotting.plot_polygon(self.beforeTriangle, ax, add_points=False, color='orange', linewidth=2)
-        # #     # plotting.plot_line(self.beforeL1, ax, add_points=True, color='blue', linewidth=3) # before adjustment
-        # #     # plotting.plot_line(self.beforeL2, ax, add_points=True, color='red', linewidth=3) # before adjustment
-        #     ax.text(self.beforeL1.centroid.x, self.beforeL1.centroid.y, f"L1", color='blue')
-        #     ax.text(self.beforeL2.centroid.x, self.beforeL2.centroid.y, f"L2", color='red')
-
-        #     # plotting.plot_polygon(self.AllIntersections, ax, add_points=False, color='purple', linewidth=2)
-
-            # plotting.plot_polygon(self.adjustedTriangle, ax, add_points=True, color='green', linewidth=2)
-        #     plotting.plot_line(self.adjustedL1, ax, add_points=True, color='brown', linewidth=3)
-        #     plotting.plot_line(self.adjustedL2, ax, add_points=True, color='cyan', linewidth=3)
-        #     ax.text(self.adjustedL1.centroid.x, self.adjustedL1.centroid.y, f"New L1", color='brown')
-        #     ax.text(self.adjustedL2.centroid.x, self.adjustedL2.centroid.y, f"New L2", color='cyan')
             
         return ax
 

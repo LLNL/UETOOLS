@@ -125,3 +125,13 @@ src/uetools/reflectionsPlot.py
 src/uetools/PFHighRes0087.pkl
 src/uetools/PFHighRes6mm.pkl
 src/uetools/PFHighRes6mmFIX.pkl
+src/uetools/MainHRCosine0087.pkl
+src/uetools/MainHRUniform0087.pkl
+src/uetools/MainLRCosine0087.pkl
+src/uetools/MainLRUniform0087.pkl
+src/uetools/pf_HRCosine0087.pkl
+src/uetools/pf_HRUniform0087.pkl
+src/uetools/pf_LRCosine0087.pkl
+src/uetools/pf_LRUniform0087.pkl
+src/uetools/PFfluxComparison.py
+src/uetools/PFHighRes6mmUNIFORM.pkl
