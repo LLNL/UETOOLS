@@ -116,9 +116,9 @@ class VacuumRegion:
             for _, surface in tqdm(self.surfaces.items()):
                 surface.getNeighbors(self.surfaces, self.geometry)
 
-        if not self.checkContinuity(False): # BRING BACK AFTER TESTING
-            print("Warning! Continuity violated for surfaces:", self.errors)
-            print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
+        # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
+        #     print("Warning! Continuity violated for surfaces:", self.errors)
+        #     print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
 
         self.numSurfaces = len(self.surfaces)
         self.R_dictionary = {} # dictionary of surface reflection coefficients
@@ -276,9 +276,9 @@ class VacuumRegion:
 
         rowCalculation = AB_power_A @ gamma_array
         gammaOut = rowCalculation[self.numSurfaces:]
-        self.puffingOutput = gammaOut[0:self.P]
+        puffing = gammaOut[0:self.P]
 
-        return self.puffingOutput
+        return puffing
         
 
     def saveVacuumRegion(self, savename):
