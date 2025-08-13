@@ -90,6 +90,7 @@ class VacuumRegion:
         from itertools import islice
         from numpy import array, array_split
         from time import time
+        from copy import deepcopy
         # Generate all surfaces and create dictionary
         # Create neigbors dictionaries by checking LOS for each surface
         # Dictionary containing all surfaces making up the geometry
@@ -150,7 +151,7 @@ class VacuumRegion:
                     subprocesses[-1].start()
                 for subprocess in subprocesses:
                     subprocess.join()
-                self.surfaces = surface_chunks
+                self.surfaces = deepcopy(surface_chunks)
                 environ['UETOOLS_SILENT'] = "0"
 
             else:
