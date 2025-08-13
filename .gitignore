@@ -138,3 +138,10 @@ src/uetools/pf_LRUniform0087.pkl
 src/uetools/PFfluxComparison.py
 src/uetools/PFHighRes6mmUNIFORM.pkl
 src/uetools/Puffing.py
+src/uetools/distributionVariationMain.pkl
+src/uetools/fluxComparisonMULTIPLOT.py
+src/uetools/HRdistributionVariationMain.pkl
+src/uetools/HRdistributionVariationMain0087.pkl
+src/uetools/PFandMain.svg
+src/uetools/PFregion31.svg
+src/uetools/uedgegrid.svg
