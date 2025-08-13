@@ -65,7 +65,7 @@ class VacuumTests:
         from uetools import Case
         from numpy import zeros
         c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.005)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.1)#005)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
         test = VacuumRegion(main[0], P=main[1]) # main geometry
         # test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
@@ -81,7 +81,7 @@ class VacuumTests:
        
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, variation=True, multiprocess=True, ncores=None):
+    def __init__(self, nodeList, P=0, variation=True, multiprocess=True, ncores=None, verbose=True):
         from shapely import Point, Polygon
         from tqdm import tqdm
         from pickle import load
@@ -140,12 +140,12 @@ class VacuumRegion:
                 sublist = array_split(array(range(len(self.surfaces))), ncores)
                 # Spawn subprocesses
                 subprocesses = []
-                print(f"Calculating surface coupling on {ncores} threads...")
+                print(f"Calculating {len(self.surfaces)} surface couplings on {ncores} threads...")
                 for subprocess in sublist:
                     subprocesses.append(Process(
                         target=self.subprocess_execute,
                         args=(surface_chunks, child_conn, list(subprocess), self.surfaces, self.geometry),
-                        kwargs=()
+                        kwargs=({"verbose": verbose})
                     ))
                     subprocesses[-1].start()
                 for subprocess in subprocesses:
@@ -176,13 +176,21 @@ class VacuumRegion:
 
 
     @staticmethod
-    def subprocess_execute(output, conn, surflist, surfaces, geometry):
+    def subprocess_execute(output, conn, surflist, surfaces, geometry, verbose=True):
         from os import getpid
+        count = 0
+        msg = [.25, .50, .75, 1]
         # Iterate Process surfaces
         for surfid in surflist:
+            if verbose:
+                if count/len(surflist) > msg[0]:
+                    print(f"Process {getpid()} {msg[0]*100}% completed.")
+                    msg.pop(0)
             surfaces[surfid].getNeighbors(surfaces, geometry)
             output[surfid] = surfaces[surfid]
-        print(f"Process {getpid()} completed surfaces {surflist[0]}-{surflist[-1]}.")
+            count += 1
+        if verbose:
+            print(f"Process {getpid()} completed surfaces {surflist[0]}-{surflist[-1]}.")
 
     def matrices(self):
         import numpy
