@@ -41,6 +41,8 @@ class Config:
 
         # True if succeeds
         self.configured = False
+        if 'UETOOLS_SILENT' in environ:
+            verbose = not bool(int(environ['UETOOLS_SILENT']))
 
         if int(environ.get("UETOOLS_SILENT", 0)):
             verbose = False
