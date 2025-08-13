@@ -81,15 +81,21 @@ class VacuumTests:
        
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, variation=True):
+    def __init__(self, nodeList, P=0, variation=True, multiprocess=True, ncores=None):
         from shapely import Point, Polygon
         from tqdm import tqdm
         from pickle import load
+        from multiprocessing import Process, Pipe, Manager
+        from os import cpu_count, environ
+        from itertools import islice
+        from numpy import array, array_split
+        from time import time
         # Generate all surfaces and create dictionary
         # Create neigbors dictionaries by checking LOS for each surface
         # Dictionary containing all surfaces making up the geometry
         self.surfaces = {}
 
+        starttime = time()
         if isinstance(nodeList, str):
             with open(nodeList, 'rb') as f:
                 save = load(f)
@@ -120,15 +126,45 @@ class VacuumRegion:
  
             # Create Polygon of Vacuum region for intersect checks
             self.geometry = Polygon(nodeList) 
-            # self.P = P # Number of plasma surfaces UNCOMMENT THIS
-        
-            # Iterate surfaces to identify surface neigbors
-            for _, surface in tqdm(self.surfaces.items()):
-                surface.getNeighbors(self.surfaces, self.geometry)
+
+            if multiprocess:
+                if ncores is None:
+                    ncores = cpu_count()
+                else:
+                    ncores = min(cpu_count(), ncores)
+                environ['UETOOLS_SILENT'] = "1"
+                parent_conn, child_conn = Pipe()
+                manager = Manager()
+                surface_chunks = manager.dict()
+                # Create list of surfaces to be calculated by each subprocess
+                sublist = array_split(array(range(len(self.surfaces))), ncores)
+                # Spawn subprocesses
+                subprocesses = []
+                print(f"Calculating surface coupling on {ncores} threads...")
+                for subprocess in sublist:
+                    subprocesses.append(Process(
+                        target=self.subprocess_execute,
+                        args=(surface_chunks, child_conn, list(subprocess), self.surfaces, self.geometry),
+                        kwargs=()
+                    ))
+                    subprocesses[-1].start()
+                for subprocess in subprocesses:
+                    subprocess.join()
+                self.surfaces = surface_chunks
+                environ['UETOOLS_SILENT'] = "0"
+
+            else:
+                # Iterate surfaces to identify surface neigbors
+                for _, surface in tqdm(self.surfaces.items()):
+                    surface.getNeighbors(self.surfaces, self.geometry)
+
+        self.time = time() - starttime
 
         # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
         #     print("Warning! Continuity violated for surfaces:", self.errors)
         #     print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
+
+
 
         self.numSurfaces = len(self.surfaces)
         self.R_dictionary = {} # dictionary of surface reflection coefficients
@@ -139,7 +175,14 @@ class VacuumRegion:
                 self.R_dictionary[i] = 0
 
 
-
+    @staticmethod
+    def subprocess_execute(output, conn, surflist, surfaces, geometry):
+        from os import getpid
+        # Iterate Process surfaces
+        for surfid in surflist:
+            surfaces[surfid].getNeighbors(surfaces, geometry)
+            output[surfid] = surfaces[surfid]
+        print(f"Process {getpid()} completed surfaces {surflist[0]}-{surflist[-1]}.")
 
     def matrices(self):
         import numpy

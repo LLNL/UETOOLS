@@ -35,12 +35,14 @@ class Config:
         -------
         None
         """
-        from os import path
+        from os import path, environ
         from yaml import safe_load
         from pathlib import Path
 
         # True if succeeds
         self.configured = False
+        if 'UETOOLS_SILENT' in environ:
+            verbose = not bool(int(environ['UETOOLS_SILENT']))
 
         searchpath = path.expanduser("~")
         try:
