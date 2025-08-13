@@ -65,10 +65,10 @@ class VacuumTests:
         from uetools import Case
         from numpy import zeros
         c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.005)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
-        # test = VacuumRegion(main[0], P=main[1]) # main geometry
-        test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
+        test = VacuumRegion(main[0], P=main[1]) # main geometry
+        # test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
         # for i in test.errors:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
@@ -81,7 +81,7 @@ class VacuumTests:
        
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0):
+    def __init__(self, nodeList, P=0, variation=True):
         from shapely import Point, Polygon
         from tqdm import tqdm
         from pickle import load
@@ -98,19 +98,29 @@ class VacuumRegion:
         
         else:
             # # # Set up surfaces of geometry and the polygon object # # #
+            self.P = P
             for i in range(len(nodeList)):
                 startNode = Point(nodeList[i])
                 if i == len(nodeList) - 1:
                     endNode = Point(nodeList[0])
                 else:
                     endNode = Point(nodeList[i + 1])
-                self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
+
+                # have plasma surfaces use a uniform distribution, while wall surfaces use a cosine
+                if variation:
+                    if i >= self.P: # non-plasma surfaces
+                        offset = 1
+                    else:
+                        offset = 0
+                    self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i, r_offset=offset)
+                else:
+                    self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
 
                 # later if n < i < m: s.reflecting = 0, something like this
  
             # Create Polygon of Vacuum region for intersect checks
             self.geometry = Polygon(nodeList) 
-            self.P = P # Number of plasma surfaces
+            # self.P = P # Number of plasma surfaces UNCOMMENT THIS
         
             # Iterate surfaces to identify surface neigbors
             for _, surface in tqdm(self.surfaces.items()):
@@ -189,7 +199,7 @@ class VacuumRegion:
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-        fig.suptitle("Uniform Distribution", fontsize=16)
+        fig.suptitle("Cosine Distribution", fontsize=16)
 
         matricesToPlot = [self.C_array, self.R_array, self.output]
         matricesToPlotNames = ["C", "R", "Output"]
