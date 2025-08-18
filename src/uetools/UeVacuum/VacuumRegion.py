@@ -1,9 +1,9 @@
 class VacuumTests:
  
     def twoSurfacePlot(self):
-        S1 = Surface((2, 5), (4, 2), 0)
-        S2 = Surface((2, 1), (3, 2), 1)
-        S1.showTwoSurfacePlot(S2, r_offset=1)
+        S1 = Surface((4, 2), (1, 6), 0)
+        S2 = Surface((5, 9), (6, 8), 1)
+        S1.showTwoSurfacePlot(S2, r_offset=0)
     
     def outerCirclePlot(self):
         S1 = Surface((2, 5), (4, 1,), 0)
@@ -65,10 +65,10 @@ class VacuumTests:
         from uetools import Case
         from numpy import zeros
         c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.1)#005)
+        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
-        test = VacuumRegion(main[0], P=main[1]) # main geometry
-        # test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
+        # test = VacuumRegion(main[0], P=main[1]) # main geometry
+        test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
         # for i in test.errors:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
@@ -410,7 +410,7 @@ class VacuumRegion:
    
 class Surface:
 
-    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=0): # creates the surface
+    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=1): # creates the surface
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
@@ -1135,7 +1135,7 @@ class Surface:
         return
 
 
-    def showTwoSurfacePlot(self, s2, r_offset=1):
+    def showTwoSurfacePlot(self, s2, r_offset=0):
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots, ioff
         import matplotlib.pyplot as plt
@@ -1158,7 +1158,9 @@ class Surface:
         ax.text(self.dCircleCenter.x, self.dCircleCenter.y, self.distType, color='green')
 
         plotting.plot_polygon(self.triangle, ax, color='orange', linewidth=2) # plots the triangle connecting to another surface
-        ax.text(self.triangle.centroid.x, self.triangle.centroid.y, "Surface 2", color='orange')
+
+        plotting.plot_line(s2.segment, ax, color='black', linewidth=2) # plot surface2
+        ax.text(s2.midpoint.x, s2.midpoint.y, "Surface 2", color='orange')
 
         plotting.plot_polygon(self.overlapShape, ax, add_points=False, color='black', linewidth=2) # displays the overlapping area
         ax.text(self.overlapShape.centroid.x, self.overlapShape.centroid.y, "Overlap Area", color='black')
