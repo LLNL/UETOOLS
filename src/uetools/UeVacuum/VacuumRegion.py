@@ -3,7 +3,7 @@ class VacuumTests:
     def twoSurfacePlot(self):
         S1 = Surface((4, 2), (1, 6), 0)
         S2 = Surface((5, 9), (6, 8), 1)
-        S1.showTwoSurfacePlot(S2, r_offset=0)
+        S1.showTwoSurfacePlot(S2, r_offset=1)
     
     def outerCirclePlot(self):
         S1 = Surface((2, 5), (4, 1,), 0)
@@ -26,10 +26,11 @@ class VacuumTests:
         height = math.sqrt(3) * S1.surfaceLength / 2 # height of the et
         vertex = S1.normal.interpolate(height)
         test = VacuumRegion( [
-            (self.start.x, self.start.y), 
-            (self.end.x, self.end.y), 
+            (S1.start.x, S1.start.y), 
+            (S1.end.x, S1.end.y), 
             (vertex.x, vertex.y)
-        ])
+        ], multiprocess=False)
+        f = test.plotGeometry(labels=True, showCircle=True)
 
     def squarePlot(self):
         from shapely import Point, LineString
@@ -39,9 +40,10 @@ class VacuumTests:
         side1End = S1.normalHelper(abs(S1.dx), abs(S1.dy), side1Start[0], side1Start[1], False)
 
         side3End = (S1.start.x, S1.start.y)
-        side3Start = self.normalHelper(abs(S1.dx), abs(S1.dy), side3End[0], side3End[1], False)
+        side3Start = S1.normalHelper(abs(S1.dx), abs(S1.dy), side3End[0], side3End[1], False)
 
-        test = VacuumRegion([side1Start, side1End, side3Start, side3End])
+        test = VacuumRegion([side1Start, side1End, side3Start, side3End], multiprocess=False)
+        f = test.plotGeometry(labels=True, showCircle=True)
 
     def shadedSquarePlot(self):
         from shapely import Point, LineString
@@ -51,13 +53,13 @@ class VacuumTests:
 
         geometryVertices = [(3, 1), (1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3)]
 
-        test = VacuumRegion(geometryVertices, P=1)
+        test = VacuumRegion(geometryVertices, P=1, multiprocess=False)
         test.saveVacuumRegion("SavedVacuumRegion")
         # for i in test.errors:
         #     f = test.plotGeometry(labels=True, testsurf=i)
         #     test.surfaces[i].plotSelf(ax=f)
         #     test.surfaces[i].printReport()
-        f = test.plotGeometry(labels=True, testsurf=6)
+        f = test.plotGeometry(labels=True, testsurf=6, showCircle=True)
         return test
 
 
@@ -104,7 +106,7 @@ class VacuumRegion:
                 self.P = save['P']
         
         else:
-            # # # Set up surfaces of geometry and the polygon object # # #
+            # Set up surfaces of geometry and the polygon object 
             self.P = P
             for i in range(len(nodeList)):
                 startNode = Point(nodeList[i])
@@ -113,7 +115,7 @@ class VacuumRegion:
                 else:
                     endNode = Point(nodeList[i + 1])
 
-                # have plasma surfaces use a uniform distribution, while wall surfaces use a cosine
+                # Have plasma surfaces use a uniform dist., while wall surfaces use a cosine dist.
                 if variation:
                     if i >= self.P: # non-plasma surfaces
                         offset = 1
@@ -122,8 +124,6 @@ class VacuumRegion:
                     self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i, r_offset=offset)
                 else:
                     self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
-
-                # later if n < i < m: s.reflecting = 0, something like this
  
             # Create Polygon of Vacuum region for intersect checks
             self.geometry = Polygon(nodeList) 
@@ -161,6 +161,7 @@ class VacuumRegion:
 
         self.time = time() - starttime
 
+        '''Print statements to use if surfaces are not conserving flux via line of sight.'''
         # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
         #     print("Warning! Continuity violated for surfaces:", self.errors)
         #     print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
@@ -168,7 +169,9 @@ class VacuumRegion:
 
 
         self.numSurfaces = len(self.surfaces)
-        self.R_dictionary = {} # dictionary of surface reflection coefficients
+
+        # Dictionary of surface reflection coefficients
+        self.R_dictionary = {}
         for i in range(self.numSurfaces):
             if i >= self.P: # non-plasma surfaces
                 self.R_dictionary[i] = 1
@@ -200,7 +203,7 @@ class VacuumRegion:
         import seaborn as sns
         import matplotlib.pyplot as plt
 
-        '''Creates R, C, A, B, and AB matrices.'''
+        '''Creates R (self.R_matrix), C (self.C_matrix), A (self.A_matrix), B (self.B_matrix), and AB (self.AB_matrix) matrices.'''
 
         # Array representations of R and C
         self.R_array = zeros((self.numSurfaces, self.numSurfaces))
@@ -210,14 +213,14 @@ class VacuumRegion:
         for surfaceID, rVal in self.R_dictionary.items():
             self.R_array[surfaceID][surfaceID] = rVal
 
-        # Populate C array
+        # Populate C array and take transpose
         for surfaceID, surface in self.surfaces.items(): # self.surfaces.items()
             for outputID in surface.neighbors.keys():
                 self.C_array[surfaceID][outputID] = surface.neighbors[outputID]['flux']
-
-        # R and C into sparse matrices and transpose C array
         self.C_array = self.C_array.transpose()
-        self.R_matrix = csr_array(self.R_array) # sparse matrix
+
+        # R and C into sparse matrices
+        self.R_matrix = csr_array(self.R_array)
         self.C_matrix = csr_array(self.C_array)
 
         # Zero and identity sparse matrices
@@ -228,7 +231,8 @@ class VacuumRegion:
         self.A_matrix = block_array([[self.C_matrix, Zero_matrix], [Zero_matrix, Identity_matrix]])
         self.B_matrix = block_array([[self.R_matrix, Zero_matrix], [Identity_matrix - self.R_matrix, Identity_matrix]])
 
-        self.AB_matrix = self.A_matrix @ self.B_matrix # A * B
+        # A * B
+        self.AB_matrix = self.A_matrix @ self.B_matrix 
 
 
     def heatmapPlot(self):
@@ -239,23 +243,22 @@ class VacuumRegion:
         import matplotlib.pyplot as plt
         from matplotlib.colors import LogNorm
 
+        # Get A, B, AB
         self.matrices()
-        ###
-        # TESTING--Plot matrices # 
-        ###
 
-        self.getOutputMatrix(self.AB_matrix, 1000000) # generate output matrix
+        # Generate output (transport) matrix
+        self.getOutputMatrix(self.AB_matrix, 1000000)
 
+        '''Print statements to check for unity of transport matrix.'''
         # print(f"sum(sum(output)): {sum(sum(self.output))}")
         # print(f"P: {self.P}")
 
+        # Plotting heatmaps of C, R, and Output (Transport)
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-
         fig.suptitle("Cosine Distribution", fontsize=16)
 
         matricesToPlot = [self.C_array, self.R_array, self.output]
         matricesToPlotNames = ["C", "R", "Output"]
-
         for i, ax in enumerate(axes):
             sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
             ax.set_title(matricesToPlotNames[i])
@@ -272,8 +275,6 @@ class VacuumRegion:
         plt.show(block=False) 
 
         return self.output
-
-
 
     def matrixPower(self, matrix, power):
         from numpy import zeros, identity
@@ -308,13 +309,11 @@ class VacuumRegion:
                 self.output[i, j] = gammaFinal[j]
 
 
-        # TESTING
+        '''Print statements to test the shape and flux conservation of the matrices.'''
         # print(f"Dimensions of AB_power: {AB_power_A.shape}")
         # print(f"Dimensions of A_matrix: {self.A_matrix.shape}")
-        # # print(f"Dimensions of gamma_vector: {gamma_vector.shape}")
+        # # print(f"Dimensions of gamma_array: {gamma_array.shape}")
 
-
-        # # print(f"Calculation: {calculation}")
         # print(f"Dimensions of Calculation: {rowCalculation.shape}")
         # print(f"Dimensions of gammaOut: {gammaOut.shape}")
         # print(f"Dimensions of gammaFinal: {gammaFinal.shape}")
@@ -328,9 +327,10 @@ class VacuumRegion:
         from numpy import zeros, identity, transpose
         from scipy.sparse import csr_array, block_array
 
-        "1-D array equivalent of self.output when puffing at one source surface."
+        "1-D array (geometric output flux vector) when puffing at one source surface."
 
-        AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix # (AB)^M * A
+        # Control number of reflections
+        AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix
 
         gamma_array = zeros((self.numSurfaces * 2, 1))
 
@@ -345,6 +345,8 @@ class VacuumRegion:
 
     def saveVacuumRegion(self, savename):
         from pickle import dump
+        '''Use to save a Vacuum Region to avoid having to generate a new one every time. Be sure to set pf/main (tokamakPlot), 
+            r_offset (Surface constructor), and variation (Vacuum Region constructor).'''
 
         save = {
             'surfaces': self.surfaces,
@@ -354,6 +356,7 @@ class VacuumRegion:
             dump(save, f)
 
     def checkContinuity(self, verbose=True):
+        '''For identifying errors in flux unity for surfaces in the geometry.'''
         self.errors = []
         for surfid, surface in self.surfaces.items():
             if abs(surface.totflux - 1) > 1e-6:
@@ -362,11 +365,12 @@ class VacuumRegion:
                 self.errors.append(surfid)
         return len(self.errors)==0
 
-
     def plotGeometry(self, ax=None, labels=False, testsurf=[], 
         showCircle=False, markers=None, connectionLineWidth=0.5,**kwargs):
         from matplotlib.pyplot import subplots, Figure, Axes, ioff
         import matplotlib.pyplot as plt
+
+        '''Plot the full geometrical representation of the VacuumRegion.'''
 
         if isinstance(ax, Figure):
             ax = ax.get_axes()[0]
@@ -402,7 +406,7 @@ class VacuumRegion:
         plt.ylabel("Z [m]")
     
         # plt.savefig('fullGeometry62.svg', dpi=300)
-        # print(f"Total Flux Out: {self.surfaces[testsurf[0]].totflux}") # REMOVE AFTER TESTING
+        
         plt.show(block=False)
     
 
@@ -410,7 +414,7 @@ class VacuumRegion:
    
 class Surface:
 
-    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=1): # creates the surface
+    def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=1):
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
@@ -422,9 +426,10 @@ class Surface:
 
         """Start and end passed into the constructor are tuples (x, y)"""
 
-        # # # Start and end points of the surface and a segment representation of the surface # # # 
+        # Start and end points of the surface and a segment representation of the surface 
         self.start = Point(start[0], start[1])
         self.end = Point(end[0], end[1])
+
         # LineString representing the surface
         self.segment = LineString([start, end]) 
         self.ID = ID 
@@ -434,28 +439,18 @@ class Surface:
                                 + (self.end.y - self.start.y)**2
                             )
 
-        # # # Midpoint of surface # # #
+        # Midpoint of surface
         self.midpoint = self.segment.centroid
 
-        # # # Construct normal vector # # #
-            # slope of normal vector = -slope of line segment
-            # add x and y components of the line segment to the midpoint to get the correct
-                # x and y for the normal
-            # need to make sure that we set the normal in the right direction:
-                # if end.Y > start.Y --> positive x direction
-                # if end.X < start.X --> positive y direction
-        
-        # ending x coordinate for normal (don't use for reference, only to 
-        # determine which direction the normal vector should point in the 
-        # normal helper method)
+        # End point of the normal vector
         self.normalEndX = self.midpoint.x 
-        # ending y coordinate for normal
         self.normalEndY = self.midpoint.y 
 
-        # # # In order to get the correct slope for the normal vector # # #
+        # Getting the correct slope for the normal vector 
         self.dx = self.end.x - self.start.x
         self.dy = self.end.y - self.start.y
 
+        # Creating the normal vector
         self.normalHelper(
                 abs(self.dx), 
                 abs(self.dy),
@@ -464,31 +459,32 @@ class Surface:
                 True
         )
 
-        # # # Start and end points, and the normal line itself (use these for reference) # # #
+        # Start and end points, and the normal line itself (use these for reference)
         self.normalStart = Point(self.midpoint.x, self.midpoint.y)
         self.normalEnd = Point(self.normalEndX, self.normalEndY)
         self.normal = LineString([self.normalStart, self.normalEnd])
 
-        # # # Properties of the surface # # #
+        # Additional of the surface 
         self.circle = None 
         self.material = material
         self.emitting = emitting
         self.absorbing = absorbing
 
-        """ Coupling to surfaces with LOS """
+        # Coupling to surfaces with LOS
         self.neighbors = {}
         self.totflux = 0
 
+        # Creating the distribution circle given an offset (r_offset = 1 for cosine, 0 for uniform)
         self.distributionCircle(r_offset)
 
         self.epsilon = 1e-5 # use as a reference for buffering works when epsilon = 0.00001 (1e-5)
 
-        self.ID1 = 331 # REMOVE AFTER TESTING
-        self.ID2 = 115
+        # self.ID1 = 331 # REMOVE AFTER TESTING
+        # self.ID2 = 115
 
-        self.beforeTriangle = None # REMOVE AFTER TESTING
-        self.beforeL1 = None
-        self.beforeL2 = None
+        # self.beforeTriangle = None # REMOVE AFTER TESTING
+        # self.beforeL1 = None
+        # self.beforeL2 = None
 
         return
 
@@ -501,33 +497,26 @@ class Surface:
         self.dCircleCenter (Point), self.circle (Polygon), self.r_offset
         """
 
-        # # # Finding radius and center of circle # # #
+        # Finding radius and center of circle
         self.r_offset = r_offset 
         radius = self.surfaceLength / 84
-        self.dCircleCenter = self.normal.interpolate(self.r_offset * radius) # the center of the distribution circle along the normal line
+        self.dCircleCenter = self.normal.interpolate(self.r_offset * radius)
 
-        # # # for labeling the plots # # #
+        # Plot labeling
         if r_offset == 0:
             self.distType = "Uniform Distribution"
         elif r_offset == 1:
             self.distType = "Cosine Distribution"
         else:
             self.distType = "Distribution"
-        
 
+        # Getting the Points of the circle
         numPoints = 500
         circlePoints = []
-
-        # # # Getting the Points of the circle # # #
-        ''' at pi, none of the x values for the circle will have been repeated,
-            so we can add the point and then sort based on x values, descending
-            order for the surfaces that have the normal going from the bottom 
-            to top: if endX > startX, angle is negative '''
-        # builds circle clockwise rather than counter clockwise
-        if self.end.x < self.start.x: 
+    
+        if self.end.x < self.start.x: # builds circle clockwise rather than counter clockwise
             for i in range(numPoints, -1, -1):
-                # calculates every angle from 0-2pi, placing 500 points to 
-                # create the circle
+                # Calculates every angle from 0-2pi, placing 500 points to create the circle
                 angle = (2 * math.pi) * (i / numPoints) 
                 x = self.dCircleCenter.x + radius * math.cos(angle)
                 y = self.dCircleCenter.y + radius * math.sin(angle)
@@ -547,7 +536,7 @@ class Surface:
                     i += 1
                 circlePoints.append((x, y))
 
-        # # # Object representation of the distribution circle # # #
+        # Object representation of the distribution circle
         self.circle = Polygon(circlePoints) 
 
         return
@@ -557,35 +546,42 @@ class Surface:
         for neighid, neighbor in self.neighbors.items():
             print("    -> {}: {}".format(f"{neighid}".rjust(4), neighbor['flux']))
 
-    def intersectionArea(self, s2): # finds the overlapping area (flux) between two surfaces, given that self has a distribution circle generated
+    def intersectionArea(self, s2):
         from shapely import Point, LineString, plotting, Polygon, is_closed
         import math
+
+        '''Finds the overlapping area (flux) between two surfaces, given that self has a distribution circle generated.
+            Creates/draws the relevant shapes for finding the flux (fractional area) and other reference.'''
 
         """Reference Variables/Important:
         self.triangle, self.leg1, self.leg2, self.overlapShape, overlapArea, fractionalArea
         """
 
         if self.circle == None:
-            print("Call distributionCircle on self before finding intersection area!")
+            print("Call distributionCircle on Surface before finding intersection area!")
             return
 
-        # # # Creates/draws the relevant shapes for finding the flux (fractional area) and other reference # # #
+        # Triangle of flux
         triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # triangle from midpoint of self to the endpoints of the other surface, s2
-        self.triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # REMOVE AFTER TESTING
-        self.leg1 = LineString([self.midpoint, s2.start]) # legs of the triangle
+        # self.triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # REMOVE AFTER TESTING
+
+        # Legs of the triangle
+        self.leg1 = LineString([self.midpoint, s2.start])
         self.leg2 = LineString([self.midpoint, s2.end])
+
+        # Overlap of triangle and distribution circle
         self.overlapShape = triangle.intersection(self.circle)
 
-        self.vLeg1 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.start.x, s2.start.y)) #vector representation
-
-        self.vLeg2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.end.x, s2.end.y)) #vector representation
+        # Vector representations of triangle legs
+        self.vLeg1 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.start.x, s2.start.y))
+        self.vLeg2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.end.x, s2.end.y))
         
         
-        # # # Getting the correct area of the distribution circle on one side of the normal line # # #
+        # Getting the correct area of the distribution circle on one side of the normal line 
         overlapArea = self.overlapShape.area
-        if (0 <= self.r_offset and self.r_offset < 1) and self.circle.intersects(self.segment): # if we're dealing with a circle shifted between uniform and cosine
-            buffLine = self.segment.buffer(self.epsilon * 1e-7) #0.000000000001)
-            splitdCircle = self.circle.difference(buffLine) # split the distribution circle and the surface line
+        if (0 <= self.r_offset and self.r_offset < 1) and self.circle.intersects(self.segment): # A circle shifted between uniform and cosine
+            buffLine = self.segment.buffer(self.epsilon * 1e-7)
+            splitdCircle = self.circle.difference(buffLine) # Split the distribution circle and the surface line
             if splitdCircle.geoms[0].intersects(self.normal): 
                 self.totalAreaCircle = splitdCircle.geoms[0]
             else:
@@ -594,7 +590,7 @@ class Surface:
         else:
             circleArea = self.circle.area
 
-        # # # Calculate the flux (fractional area) # # #
+        # Calculate the flux (fractional area)
         fractionalArea = overlapArea / circleArea
 
         return fractionalArea, triangle 
@@ -602,24 +598,12 @@ class Surface:
     def getNeighbors(self, surfaces, geometry):
         from shapely import intersects, difference, crosses, buffer, contains, intersection
 
-        # # # Fractional Area Calculations # # # 
+        #  Fractional Area Calculations
         for neighid, neighbor in surfaces.items():
 
-            # if self.ID != self.ID1: # REMOVE AFTER TESTING, JUST TO EXPEDITE THE SURFACE GENERATION WHILE TESTING   
-            #     return
-            
-            # # ONLY IF LOOKING AT 2 SURFACES, NOT ALL
-            # if neighid != self.ID2: # REMOVE AFTER TESTING
-            #     continue
-
-            if self.ID != neighid: # indent adjust while testing
+            if self.ID != neighid:
                 flux, triangle = self.intersectionArea(neighbor)
-                if self.ID == self.ID1 and neighid == self.ID2:
-                    self.beforeTriangle = triangle
-                    self.beforeL1 = self.leg1
-                    self.beforeL2 = self.leg2
-                    #print(f"Dist btwn: {math.sqrt((neighbor.midpoint.x - self.midpoint.x)**2 + (neighbor.midpoint.y - self.midpoint.y)**2)}")
-
+                    
                 # Flux would go to the wrong (back) side of the surface
                 try:
                     if not intersects(triangle, neighbor.normal) or triangle.intersection(neighbor.normal) == neighbor.midpoint:
@@ -630,22 +614,7 @@ class Surface:
                 if not intersects(triangle, self.normal):
                     continue
 
-                # if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                #     print(f"Surface {self.ID} to Surface {neighid}")
-                #     print("Normal Line Intersections (indep of polygon type)")
-                #     print(f"Triangle intersects S2 normal?: {intersects(triangle, neighbor.normal)}")
-                #     print(f"Intersection w/ S2 normal: {triangle.intersection(neighbor.normal)}")
-
-                #     print(f"Triangle intersects S1 normal?: {intersects(triangle, self.normal)}")
-                #     print(f"Intersection w/ S2 normal: {triangle.intersection(self.normal)}")
-                
-                #     print(f"S1 Midpoint: {self.midpoint}")
-                #     print(f"S2 Midpoint: {neighbor.midpoint}")
-
-                #     print(" ")
-                #     print(" ")
-
-                # polygon/multipolygon of the intersections of the outside area of the geometry w/ the legs
+                # Polygon/multipolygon of the intersections of the outside area of the geometry w/ the triangle legs
                 AllIntersections = difference(triangle, geometry) 
                 self.AllIntersections = difference(triangle, geometry)
 
@@ -654,72 +623,33 @@ class Surface:
 
                 self.vNewLeg1 = self.vLeg1
                 self.vNewLeg2 = self.vLeg2
-                self.smallestAngle = self.dotProductAngle(self.vNewLeg1, self.vNewLeg2)
 
-                # if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                #     print(f"AllIntersections: {self.AllIntersections}")
+                # Angle between the legs used for line of sight calculations
+                self.smallestAngle = self.dotProductAngle(self.vNewLeg1, self.vNewLeg2) 
 
-                # # # Only one area of intersection with the triangle # # #
+                #  Only one area of intersection with the triangle
                 if AllIntersections.geom_type == 'Polygon':
-                    # if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                    #     print(" ")
-                    #     print("Legs Crossing and not Crossing Geometry (p)")
-                    #     print(f"Leg 1 crosses geometry (p): {crosses(AllIntersections, buffer(self.leg1, 0.000001))}")
-                    #     print(f"Leg 2 crosses geometry (p): {crosses(AllIntersections, buffer(self.leg2, 0.000001))}")
-                    #     print(" ")
-                    #     print(f"Leg 1 intersects polygon: {intersects(AllIntersections, buffer(self.leg1, 0.000001))}")
-                    #     print(f"Geometry does not contian Leg 1 (p): {(contains(geometry, self.leg1) == False)}")
-                    #     print(f"EndPoint check Leg 1 (p): {(contains(self.midpoint, intersection(AllIntersections, buffer(self.leg1, 0.000001))) == False) and (contains(neighbor.start, intersection(AllIntersections, buffer(self.leg1, 0.000001))) == False)}")
-                    #     print(f"Leg 1 intersection with polygon: {AllIntersections.intersection(buffer(self.leg1, 0.000001))}")
-                    #     print(" ")
-                    #     print(f"Leg 2 intersects polygon: {intersects(AllIntersections, buffer(self.leg2, 0.000001))}")
-                    #     print(f"Geometry does not contain Leg 2 (p): {(contains(geometry, self.leg2) == False)}")
-                    #     print(f"EndPoint check Leg 2 (p): {(contains(self.midpoint, intersection(AllIntersections, buffer(self.leg2, 0.000001))) == False) and (contains(neighbor.end, intersection(AllIntersections, buffer(self.leg2, 0.000001))) == False)} ")
-                    #     print(f"Leg 2 intersection with polygon: {AllIntersections.intersection(buffer(self.leg2, 0.000001))}")
-        
                     if not self.getSmallestIntersectAngle(neighbor, geometry, AllIntersections):
                         continue
-                    # else: # REMOVE AFTER TESTING
-                    #     if self.ID == self.ID1 and neighid == self.ID2:
-                    #         print(f"Adjusted Leg 1 p: {self.leg1SmallestPoint}")
-                    #         print(f"Adjusted Leg 2 p: {self.leg2SmallestPoint}")
 
-                # # # Multiple intersections with the outside region and the triangle/triangle legs # # #
+                # Multiple intersections with the outside region and the triangle/triangle legs
                 elif AllIntersections.geom_type == 'MultiPolygon' or AllIntersections.geom_type == 'GeometryCollection':
-                    # # # Check all possible polygons # # #
+                    # Check all possible polygons
                     for polygon in AllIntersections.geoms:
-                        # if self.ID == self.ID1 and neighid == self.ID2: # REMOVE AFTER TESTING
-                        #     print(f"Polygon Coords: {polygon.exterior.coords}")
-                        #     print(f"Leg 1 crosses geometry (m): {crosses(geometry, buffer(self.leg1, 0.000001))}")      
-                        #     print(f"Leg 2 crosses geometry (m): {crosses(geometry, buffer(self.leg2, 0.000001))}")                            
-                        #     print(" ")
-                        #     print(f"Leg 1 intersects multipolygon: {intersects(polygon, buffer(self.leg1, 0.000001))}")
-                        #     print(f"Geometry does not contain Leg 1 (m): {contains(geometry, self.leg1) == False}")
-                        #     print(f"EndPoint check Leg 1 (m): {(contains(self.midpoint, intersection(polygon, buffer(self.leg1, 0.000001))) == False) and (contains(neighbor.start, intersection(polygon, buffer(self.leg1, 0.000001))) == False)}")
-                        #     print(f"Leg 1 intersection with multipolygon: {AllIntersections.intersection(buffer(self.leg1, 0.000001))}")
-                        #     print(" ")
-                        #     print(f"Leg 2 crosses geometry (m): {intersects(polygon, buffer(self.leg2, 0.000001))}")
-                        #     print(f"Geometry does not contain Leg 2 (m): {contains(geometry, self.leg2) == False}")
-                        #     print(f"EndPoint check Leg 2 (m): {(contains(self.midpoint, intersection(polygon, buffer(self.leg2, 0.000001))) == False) and (contains(neighbor.end, intersection(polygon, buffer(self.leg2, 0.000001))) == False)} ")
-                        #     print(f"Leg 2 intersection with multipolygon: {AllIntersections.intersection(buffer(self.leg2, 0.000001))}")
                         if not self.getSmallestIntersectAngle(neighbor, geometry, polygon):
                             continue
-                        # else: # REMOVE AFTER TESTING
-                        #     if self.ID == self.ID1 and neighid == self.ID2:
-                        #         print(f"Adjusted Leg 1: {self.leg1SmallestPoint}")
-                        #         print(f"Adjusted Leg 2: {self.leg2SmallestPoint}")
                         
-                # # # Set new S2 Surface and calculate the new flux. Update the total flux out of Surface 1. # # #
+                # Set new S2 Surface after line of sight adjustments and calculate the new flux. Update the total flux out of Surface 1. 
                 newS2 = Surface(
                                 (self.leg1SmallestPoint[0], self.leg1SmallestPoint[1]), 
                                 (self.leg2SmallestPoint[0], self.leg2SmallestPoint[1]), 
                                 neighbor.ID
                 )
                 flux, triangle = self.intersectionArea(newS2)
-                if self.ID == self.ID1 and neighid == self.ID2: # remove after testing
-                    self.adjustedTriangle = triangle
-                    self.adjustedL1 = self.leg1
-                    self.adjustedL2 = self.leg2
+                # if self.ID == self.ID1 and neighid == self.ID2: # remove after testing
+                #     self.adjustedTriangle = triangle
+                #     self.adjustedL1 = self.leg1
+                #     self.adjustedL2 = self.leg2
                 self.totflux += flux
                 if flux > 0:
                     if neighid not in self.neighbors:
@@ -729,19 +659,16 @@ class Surface:
     
     def getSmallestIntersectAngle(self, neighbor, geometry, polygon):
         from shapely import intersects, crosses, contains, buffer, intersection, Point 
-        # # # If both legs of the triangle are blocked by the same outside region # # #
 
-        # if self.ID == self.ID1 and neighbor.ID == self.ID2: # REMOVE AFTER TESTING!
-        #     print(f"Geometry buffer contains polygon: {contains(buffer(geometry, 0.00001), polygon)}")
+        '''Adjust the legs of the flux triangle in accordance with flux calculations.'''
 
-        if contains(buffer(geometry, self.epsilon), polygon): # when polygon is on the border and not at all outside 0.00001
+        if contains(buffer(geometry, self.epsilon), polygon): # When polygon is on the border and not at all outside the geometry
             return True
 
-        if crosses(polygon, buffer(self.leg1, self.epsilon * 1e-1)) and crosses(polygon, buffer(self.leg2, self.epsilon * 1e-1)): #0.000001
+        if crosses(polygon, buffer(self.leg1, self.epsilon * 1e-1)) and crosses(polygon, buffer(self.leg2, self.epsilon * 1e-1)):
             return False
 
-        
-        # # # If Leg 1 (from S1 midpoint to S2 start) intersects the outside region # # # 0.000001
+        # If Leg 1 (from S1 midpoint to S2 start) intersects the outside region
         if (    intersects(polygon, buffer(self.leg1, self.epsilon * 1e-1)) \
                 and (contains(geometry, self.leg1) == False)
         ):
@@ -751,15 +678,14 @@ class Surface:
             else:
                 coordinates1 = list(polygon.exterior.coords)
 
-            leg1Start = buffer(self.midpoint, self.epsilon) #0.00001
-            leg1End = buffer(neighbor.start, self.epsilon) #0.00001
+            leg1Start = buffer(self.midpoint, self.epsilon) 
+            leg1End = buffer(neighbor.start, self.epsilon)
 
             if (    (contains(leg1Start, intersection(polygon, buffer(self.leg1, self.epsilon * 1e-2))) == False) \
                     and (contains(leg1End, intersection(polygon, buffer(self.leg1, self.epsilon * 1e-2))) == False)
             ):
-                # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 1 interrupted by polygon.") 0.0000001^
                 for pair in coordinates1:
-                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, self.epsilon * 1e2), Point(pair)): # 0.001
+                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, self.epsilon * 1e2), Point(pair)):
                         continue
                     self.vNewLeg1 = self.vectorHelper(
                                 (self.midpoint.x, self.midpoint.y),
@@ -771,7 +697,8 @@ class Surface:
                     )
                     newAngle = self.dotProductAngle(self.vNewLeg1, self.vNewLeg2)
 
-                    if (abs(newAngle * self.smallestAngle) > 0) and (newAngle * self.smallestAngle < 0): # if the legs cross over during adjustment
+                     # If the legs cross over during adjustment
+                    if (abs(newAngle * self.smallestAngle) > 0) and (newAngle * self.smallestAngle < 0):
                         self.leg1SmallestPoint = self.leg2SmallestPoint
                         self.smallestAngle = 0
                         return False
@@ -780,7 +707,7 @@ class Surface:
                         self.smallestAngle = newAngle
                         self.leg1SmallestPoint = pair
             
-        # # # If Leg 2 (S1 midpoint to S2 end) intersects the outside region # # # 0.000001
+        # If Leg 2 (S1 midpoint to S2 end) intersects the outside region
         if (    intersects(polygon, buffer(self.leg2, self.epsilon * 1e-1)) \
                 and (contains(geometry, self.leg2) == False)
         ):
@@ -789,15 +716,14 @@ class Surface:
             else:
                 coordinates2 = list(polygon.exterior.coords)
 
-            leg2Start = buffer(self.midpoint, self.epsilon) #0.00001
+            leg2Start = buffer(self.midpoint, self.epsilon)
             leg2End = buffer(neighbor.end, self.epsilon)
 
             if (    (contains(leg2Start, intersection(polygon, buffer(self.leg2, self.epsilon * 1e-2))) == False) \
                     and (contains(leg2End, intersection(polygon, buffer(self.leg2, self.epsilon * 1e-2))) == False)
             ):
-                # print(f"Surface {surface1.ID} to Surface {surface2.ID} leg 2 interrupted by polygon.") 0.0000001^
                 for pair in coordinates2:
-                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, self.epsilon * 1e2), Point(pair)): # 0.001
+                    if Point(pair) == self.midpoint or contains(buffer(self.midpoint, self.epsilon * 1e2), Point(pair)):
                         continue
                     self.vNewLeg1 = self.vectorHelper(
                             (self.midpoint.x, self.midpoint.y), 
@@ -809,7 +735,8 @@ class Surface:
                     )
                     newAngle = self.dotProductAngle(self.vNewLeg1, self.vNewLeg2)
 
-                    if (abs(newAngle * self.smallestAngle) > 0) and (newAngle * self.smallestAngle < 0): # if legs cross over each other during adjustment
+                    # If legs cross over each other during adjustment
+                    if (abs(newAngle * self.smallestAngle) > 0) and (newAngle * self.smallestAngle < 0): 
                         self.leg2SmallestPoint = self.leg1SmallestPoint
                         self.smallestAngle = 0
                         return False
@@ -820,15 +747,16 @@ class Surface:
 
         return True
 
-    def drawOuterCircle(self): # creates the distribution circle that will be compared to the analytic cosine (does not show plot)
+    def drawOuterCircle(self):
         from shapely import Point, plotting, Polygon, MultiPoint, is_closed, get_coordinates, LineString
         import math
         
+        '''Creates the distribution circle that will be compared to the analytic cosine (does not show plot).'''
         """Reference Variables/Important:
             self.outerCircle (Polygon)
         """
 
-        # # # Creating the outer circle of S2 surfaces # # #
+        # Creating the outer circle of S2 surfaces
         outerRadius = self.surfaceLength / 2 # outer circle has diameter equal to the length of self surface (S1)
         outerCenter = self.midpoint 
         outerCirclePoints = []
@@ -840,9 +768,10 @@ class Surface:
                 y = outerCenter.y + outerRadius * math.sin(angle)
                 outerCirclePoints.append((x, y))
     
-        self.fullCircle = Polygon(outerCirclePoints) # polygon object of the full outer circle, before splitting to correct side of normal
+        # Polygon object of the full outer circle, before splitting to correct side of normal
+        self.fullCircle = Polygon(outerCirclePoints) 
 
-        buffLine = self.segment.buffer(self.epsilon * 1e-7) # 0.000000000001
+        buffLine = self.segment.buffer(self.epsilon * 1e-7)
         splitCircles = self.fullCircle.difference(buffLine)
         if splitCircles.geoms[0].intersects(self.normal):
             self.outerCircle = splitCircles.geoms[0] # desired circle
@@ -856,9 +785,11 @@ class Surface:
     # PLOTTING FUNCTIONS #
     # # # # # # # # # # # 
 
-    def plotSelf(self, ax=None, color='k', label=False, showCircle=True): # plots just the self surface
+    def plotSelf(self, ax=None, color='k', label=False, showCircle=True):
         from matplotlib.pyplot import subplots, ioff, Figure, Axes
         from shapely import plotting, buffer, Point
+
+        '''Plots a surface.'''
 
         ioff()
         if ax is None:
@@ -918,14 +849,13 @@ class Surface:
 
         """The 'comparison' variable determines if we are comparing the plotted distribution to the known cosine distribution or not. 
         True means yes, do the comparison and plot both the generated and plot for comparison.
-        False means only plot the points being generated by my code, and not the cosine equation.
+        False means only plot the points being generated by the code, and not the cosine equation.
         Only set 'comparison' equal to true if you are modeling a COSINE distribution (offset = 1) 
         and you want to compare it to the standard."""
 
         """Set showBothDist to True if want to display both uniform and cosine (geometric and analytic) on the same plot).
         to do this, set r_offset to 1. Set comparison to True if also want to display analytic cosine distribution."""
 
-        # # # Plotting setup # # #
         ioff()
         fig = subplots()
         ax.set_aspect('auto')
@@ -935,38 +865,35 @@ class Surface:
         self.distributionCircle(r_offset)
         self.drawOuterCircle()
         
-        # # # CREATING THE PLOT OF ANGLE VS AREA # # #
+        # CREATING THE PLOT OF ANGLE VS AREA
         s2Points = get_coordinates(self.outerCircle) # points defining the outer circle of S2 surfaces
         s2Start = s2Points[0] # The starting point of the first S2 surface
         plotPoints = [] # Points to plot for the outer circle plot
         pdfArea = 0 # "C" for the outer circle plot
 
         for i in range(1, len(s2Points), 1):
-            # # # End point of S2 # # # 
-            s2End = s2Points[i]
 
-            # # # S2 # # #
+            # S2 Surface
+            s2End = s2Points[i]
             s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1]), i)
 
-            # # # Removes some outlier points # # #
+            # Removes some outlier points 
             if (s2Surface.segment.length >= (self.surfaceLength - 1)) and (s2Surface.segment.length <= (self.surfaceLength + 1)): 
                 s2Start = s2End
                 continue
             
-            # # # Edge case outliers (mainly for uniform distribution) # # #
+            # Edge case outliers (mainly for uniform distribution)
             startTuple = (s2Start[0], s2Start[1])
             endTuple = (s2End[0], s2End[1])
             if startTuple not in list(self.fullCircle.exterior.coords) or endTuple not in list(self.fullCircle.exterior.coords):
-                #print("Removal", startTuple, endTuple)
                 s2Start = s2End
                 continue
 
-            # # # Vector representations of the normal and the line from the midpoint of S2 to the midpoint of S1 # # #
+            # Vector representations of the normal and the line from the midpoint of S2 to the midpoint of S1
             vNormal = self.vectorHelper((self.normalStart.x, self.normalStart.y), (self.normalEnd.x, self.normalEnd.y))
-
             vS2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2Surface.midpoint.x, s2Surface.midpoint.y))
 
-            # # # Call helper function that uses dot product to calculate angle between vectors # # #
+            # Call helper function that uses dot product to calculate angle between vectors
             angle = self.dotProductAngle(vNormal, vS2) # Plot on x-axis
 
             areaValue, _ = self.intersectionArea(s2Surface) # Plot on y-axis
@@ -981,33 +908,28 @@ class Surface:
             dTheta = self.dotProductAngle(self.vLeg1, self.vLeg2)
             pdfArea += areaValue * dTheta
 
-            #if areaValue < 0.003: # single out the points for the outliers
-                #print(s2Start, s2End)
-
-            # # # Add the point and continue to the next iteration of the loop # # #
+            # Add the point and continue to the next iteration of the loop
             plotPoints.append(Point(angle, areaValue))
             s2Start = s2End
-            # # # End of for loop # # #
 
-        # # # Just plotting the outer circle plot points-- no need to normalize # # #
+        # Just plotting the outer circle plot points-- no need to normalize
         if comparison == False:
             for point in plotPoints:
                 plot_points(point, ax, color='black')
              
-        # # # Plotting the analytic cosine distribution from the equation y = (1/2pi) * (1 + cos(x)), scaled to be from -pi/2 to pi/2 # # #
-        # # # Normalizing the outer circle area value points as well using pdfArea # # #
-        else: # if comparison == True
+        # Plotting the analytic cosine distribution from the equation y = (1/2pi) * (1 + cos(x)), scaled to be from -pi/2 to pi/2
+        # Normalizing the outer circle area value points as well using pdfArea
+        else: # if compariosn == True
             cosPoints = []
             adjustedPlotPoints = []
             for plotPoint in plotPoints:
-                # # # Red points (not normalized) # # #
+                # Red points (analytic)
                 cosXval = plotPoint.x
-                cosYval = (1/math.pi)*(1 + math.cos(cosXval*2)) #(normalized from solving integral to be = to 1 -- see notebook)
+                cosYval = (1/math.pi)*(1 + math.cos(cosXval*2)) 
 
-                #cosYval = (1/(2*math.pi))*(1 + math.cos(cosXval*2)) (integrated this from -pi/2 to pi/2, C = 1/2)
                 cosPoints.append(Point(cosXval, cosYval))
 
-                # # # Normalized outer circle points # # #
+                # Normalized outer circle points
                 adjustedArea = plotPoint.y / abs(pdfArea)
                 adjustedPlotPoints.append(Point(plotPoint.x, adjustedArea))
             
@@ -1018,15 +940,15 @@ class Surface:
                 plot_points(cosPoint, ax, color='red', marker='1')
         
 
-        # # # Sanity check of total fractional Area and the PDF Area # # #
-        total = 0
-        for point in plotPoints:
-            total += point.y 
+        '''Print statements for sanity check of total fractional area and the PDF Area.'''
+        # total = 0
+        # for point in plotPoints:
+        #     total += point.y 
 
-        print("Total Fractional Area: ", total)
-        print("PDF Area: ", pdfArea)
+        # print("Total Fractional Area: ", total)
+        # print("PDF Area: ", pdfArea)
 
-        # # # Generate the plot # # #
+        # Generate the plot
         if self.r_offset == 0:
             yUpperLim = plotPoints[-1].y + plotPoints[-1].y * 0.1
             ax.set_ylim(bottom=0, top=yUpperLim)
@@ -1048,47 +970,41 @@ class Surface:
         Only set 'comparison' equal to true if you are modeling a COSINE distribution (offset = 1) 
         and you want to compare it to the standard."""
 
-        # # # Plotting setup # # #
         ioff()
         fig = subplots()
 
-        self.distributionCircle(0)
+        self.distributionCircle(0) # uniform distribution
         self.drawOuterCircle()
         
-        # # # CREATING THE PLOT OF ANGLE VS AREA # # #
+        # Creating the plot of angle vs. flux
         s2Points = get_coordinates(self.outerCircle) # points defining the outer circle of S2 surfaces
         s2Start = s2Points[0] # The starting point of the first S2 surface
         plotPoints = [] # Points to plot for the outer circle plot
         pdfArea = 0 # "C" for the outer circle plot
 
         for i in range(1, len(s2Points), 1):
-            # # # End point of S2 # # # 
+            # S2 Surface
             s2End = s2Points[i]
-
-            # # # S2 # # #
             s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1]), i)
 
-            # # # Removes some outlier points # # #
+            # Removes some outlier points
             if (s2Surface.segment.length >= (self.surfaceLength - 1)) and (s2Surface.segment.length <= (self.surfaceLength + 1)): 
                 s2Start = s2End
                 continue
             
-            # # # Edge case outliers (mainly for uniform distribution) # # #
+            # Edge case outliers
             startTuple = (s2Start[0], s2Start[1])
             endTuple = (s2End[0], s2End[1])
             if startTuple not in list(self.fullCircle.exterior.coords) or endTuple not in list(self.fullCircle.exterior.coords):
-                #print("Removal", startTuple, endTuple)
                 s2Start = s2End
                 continue
 
-            # # # Vector representations of the normal and the line from the midpoint of S2 to the midpoint of S1 # # #
+            #Vector representations of the normal and the line from the midpoint of S2 to the midpoint of S1
             vNormal = self.vectorHelper((self.normalStart.x, self.normalStart.y), (self.normalEnd.x, self.normalEnd.y))
-
             vS2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2Surface.midpoint.x, s2Surface.midpoint.y))
 
-            # # # Call helper function that uses dot product to calculate angle between vectors # # #
+            # Call helper function that uses dot product to calculate angle between vectors
             angle = self.dotProductAngle(vNormal, vS2) # Plot on x-axis
-
             areaValue, _ = self.intersectionArea(s2Surface) # Plot on y-axis
 
             # # # If making a comparison to the formula plot, need to normalize the areaValue values with pdfArea and dTheta # # #
@@ -1101,19 +1017,14 @@ class Surface:
             dTheta = self.dotProductAngle(self.vLeg1, self.vLeg2)
             pdfArea += areaValue * dTheta
 
-            #if areaValue < 0.003: # single out the points for the outliers
-                #print(s2Start, s2End)
-
-            # # # Add the point and continue to the next iteration of the loop # # #
+            # Add the point and continue to the next iteration of the loop
             plotPoints.append(Point(angle, areaValue))
             s2Start = s2End
-            # # # End of for loop # # #
 
         
         adjustedPlotPoints = []
         for plotPoint in plotPoints:
-
-            # # # Normalized outer circle points # # #
+            # Normalized outer circle points
             adjustedArea = plotPoint.y / abs(pdfArea)
             adjustedPlotPoints.append(Point(plotPoint.x, adjustedArea))
         
@@ -1121,15 +1032,15 @@ class Surface:
             plot_points(adjPoint, ax, color='green')
         
 
-        # # # Sanity check of total fractional Area and the PDF Area # # #
-        total = 0
-        for point in plotPoints:
-            total += point.y 
+        '''Print statements for sanity check of total fractional area and the PDF Area.''' # # #'''
+        # total = 0
+        # for point in plotPoints:
+        #     total += point.y 
 
-        print("Total Fractional Area: ", total)
-        print("PDF Area: ", pdfArea)
+        # print("Total Fractional Area: ", total)
+        # print("PDF Area: ", pdfArea)
 
-        # # # Generate the plot # # #
+        # Generate the plot
         plt.show(block=False)
 
         return
@@ -1202,8 +1113,11 @@ class Surface:
     # # # # # # # # # # # #
     # # HELPER FUNCTIONS # # 
     # # # # # # # # # # # #
-    def normalHelper(self, dx, dy, endX, endY, init): # helper function to find normal direction
-        if self.end.y > self.start.y:
+    def normalHelper(self, dx, dy, endX, endY, init): 
+
+        '''Helper function to find the normal direction.'''
+
+        if self.end.y > self.start.y: # +x
             endX += dy
             if self.end.x > self.start.x:
                 endY -= dx # (+x, -y)
@@ -1221,11 +1135,12 @@ class Surface:
         else:
             return (endX, endY)
 
-    def vectorHelper(self, start, end): # Finds the vector representation of a segment (surface object)
+    def vectorHelper(self, start, end):
         from shapely import Point, LineString
         import numpy as np
 
-        """Takes in tuples (x, y) that represent the start and end points of a surface."""
+        """Finds the vector representation of a segment (surface object). 
+            Takes in tuples (x, y) that represent the start and end points of a surface."""
 
         iSurface = end[0] - start[0]
         jSurface = end[1] - start[1]
@@ -1233,11 +1148,12 @@ class Surface:
 
         return vSurface
     
-    def dotProductAngle(self, v1, v2): # Calculates the angle between two vectors using the dot product
+    def dotProductAngle(self, v1, v2):
         import numpy as np
 
-        """v1 and v2 must be np.array objects that represent the surfaces: [iSurface, jSurface]. Use vectorHelper on the start and end points
-        of a surface before passing anything into dotProductAngle."""
+        """Calculates the angle between two vectors using the dot product. 
+        v1 and v2 must be np.array objects that represent the surfaces: [iSurface, jSurface]. 
+        Use vectorHelper on the start and end points of a surface before passing anything into dotProductAngle."""
 
         dotProduct = np.dot(v1, v2)
         magnitude1 = np.linalg.norm(v1)
