@@ -1,19 +1,28 @@
 class VacuumTests:
  
     def twoSurfacePlot(self):
+        '''Plots a source and a receivng surface, including 
+            the flux triangle, normal vector, and distribution circle.'''
         S1 = Surface((4, 2), (1, 6), 0)
         S2 = Surface((5, 9), (6, 8), 1)
         S1.showTwoSurfacePlot(S2, r_offset=1)
     
     def outerCirclePlot(self):
+        '''Plots the source surface and the outer circle 
+            used for obtaining the plot for comparison to 
+            analytic distributions.'''
         S1 = Surface((2, 5), (4, 1,), 0)
         S1.showOuterCirclePlot(r_offset=1)
 
     def analyticPlot(self, ax):
+        '''Generates the flux v. angle plot for analytic 
+            comparison of the distributions.'''
         S1 = Surface((2, 5), (4, 1), 0)
-        S1.showAnalyticPlot(True, ax, r_offset=1, showBothDist=True)
+        S1.showAnalyticPlot(ax, comparison=True, r_offset=1, showBothDist=True)
     
     def UanalyticPlot(self, ax):
+        '''Generates the flux v. angle plot for a uniform 
+            distribution.'''
         S1 = Surface((2, 5), (4, 1), 0)
         S1.analyticUniform(ax)    
 
@@ -22,6 +31,7 @@ class VacuumTests:
         import math
         import numpy as np
 
+        '''Plots a triangle geometry.'''
         S1 = Surface((1, 3), (2, 6), 0)
         height = math.sqrt(3) * S1.surfaceLength / 2 # height of the et
         vertex = S1.normal.interpolate(height)
@@ -34,6 +44,8 @@ class VacuumTests:
 
     def squarePlot(self):
         from shapely import Point, LineString
+
+        '''Plots a square geometry.'''
         S1 = Surface((1, 2), (3, 6), 0)
         # # # Make the sides of the square perpendicular to self # # #
         side1Start = (S1.end.x, S1.end.y)
@@ -48,8 +60,9 @@ class VacuumTests:
     def shadedSquarePlot(self):
         from shapely import Point, LineString
 
-        """To be used alongside the source surface S1-- Surface((2, 1), (1, 1))-- which is defined in the lineOfSightPlot function
-        in the test functions."""
+        """Plots a shaded square geometry. 
+            To be used alongside the source surface S1-- Surface((2, 1), (1, 1))-- 
+            which is defined in the lineOfSightPlot function in the test functions."""
 
         geometryVertices = [(3, 1), (1, 1), (1, 5), (2, 6), (1, 7), (7, 7), (7, 1), (5, 1), (5, 3), (3, 3)]
 
@@ -66,11 +79,13 @@ class VacuumTests:
     def tokamakPlot(self, savefile):
         from uetools import Case
         from numpy import zeros
+        '''Plots the full tokamak geometry.'''
         c = Case(savefile, inplace=True)
         (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
         # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
         # test = VacuumRegion(main[0], P=main[1]) # main geometry
         test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
+        '''To plot surfaces that aren't meeting unity:'''
         # for i in test.errors:
         #     if (i > 50) and (i<90):
         #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
@@ -93,9 +108,7 @@ class VacuumRegion:
         from numpy import array, array_split
         from time import time
         from copy import deepcopy
-        # Generate all surfaces and create dictionary
-        # Create neigbors dictionaries by checking LOS for each surface
-        # Dictionary containing all surfaces making up the geometry
+    
         self.surfaces = {}
 
         starttime = time()
@@ -161,13 +174,6 @@ class VacuumRegion:
 
         self.time = time() - starttime
 
-        '''Print statements to use if surfaces are not conserving flux via line of sight.'''
-        # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
-        #     print("Warning! Continuity violated for surfaces:", self.errors)
-        #     print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
-
-
-
         self.numSurfaces = len(self.surfaces)
 
         # Dictionary of surface reflection coefficients
@@ -178,6 +184,10 @@ class VacuumRegion:
             else:
                 self.R_dictionary[i] = 0
 
+        '''Print statements to use if surfaces are not conserving flux via line of sight.'''
+        # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
+        #     print("Warning! Continuity violated for surfaces:", self.errors)
+        #     print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
 
     @staticmethod
     def subprocess_execute(output, conn, surflist, surfaces, geometry, verbose=True):
@@ -203,7 +213,8 @@ class VacuumRegion:
         import seaborn as sns
         import matplotlib.pyplot as plt
 
-        '''Creates R (self.R_matrix), C (self.C_matrix), A (self.A_matrix), B (self.B_matrix), and AB (self.AB_matrix) matrices.'''
+        '''Creates R (self.R_matrix), C (self.C_matrix), A (self.A_matrix), 
+            B (self.B_matrix), and AB (self.AB_matrix) matrices.'''
 
         # Array representations of R and C
         self.R_array = zeros((self.numSurfaces, self.numSurfaces))
@@ -243,6 +254,8 @@ class VacuumRegion:
         import matplotlib.pyplot as plt
         from matplotlib.colors import LogNorm
 
+        '''Creates a heatmap of C, R, and Transport matrices.'''
+
         # Get A, B, AB
         self.matrices()
 
@@ -263,12 +276,12 @@ class VacuumRegion:
             sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
             ax.set_title(matricesToPlotNames[i])
             ax.set_aspect('equal')
-            if matricesToPlotNames[i] == "Output": # to account for output
-                ax.set_xlabel("Source Surfaces")  # label for x-axis
-                ax.set_ylabel("Receiving Surfaces")  # label for y-axis
+            if matricesToPlotNames[i] == "Output":
+                ax.set_xlabel("Source Surfaces")
+                ax.set_ylabel("Receiving Surfaces") 
             else:
-                ax.set_xlabel("Receiving Surfaces")  # label for x-axis
-                ax.set_ylabel("Source Surfaces")  # label for y-axis
+                ax.set_xlabel("Receiving Surfaces") 
+                ax.set_ylabel("Source Surfaces")
 
 
         plt.tight_layout()
@@ -292,7 +305,8 @@ class VacuumRegion:
 
         AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix # (AB)^M * A
 
-        self.output = zeros((self.P, self.P)) # final teletransport matrix
+        # Final transport matrix
+        self.output = zeros((self.P, self.P))
 
         gamma_array = zeros((self.numSurfaces * 2, 1))
         for i in range(0, self.P):
@@ -308,18 +322,6 @@ class VacuumRegion:
             for j in range(self.P):
                 self.output[i, j] = gammaFinal[j]
 
-
-        '''Print statements to test the shape and flux conservation of the matrices.'''
-        # print(f"Dimensions of AB_power: {AB_power_A.shape}")
-        # print(f"Dimensions of A_matrix: {self.A_matrix.shape}")
-        # # print(f"Dimensions of gamma_array: {gamma_array.shape}")
-
-        # print(f"Dimensions of Calculation: {rowCalculation.shape}")
-        # print(f"Dimensions of gammaOut: {gammaOut.shape}")
-        # print(f"Dimensions of gammaFinal: {gammaFinal.shape}")
-        # print(sum(sum(self.output)), self.P)
-        # print(sum(rowCalculation[0 : self.numSurfaces]), sum(rowCalculation[self.numSurfaces + 1 :])) # should sum to 1
-
         self.output = transpose(self.output)
         return self.output
 
@@ -327,7 +329,8 @@ class VacuumRegion:
         from numpy import zeros, identity, transpose
         from scipy.sparse import csr_array, block_array
 
-        "1-D array (geometric output flux vector) when puffing at one source surface."
+        '''1-D array (geometric output flux vector) when puffing at one source surface given a
+            source strength/.'''
 
         # Control number of reflections
         AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix
@@ -345,8 +348,9 @@ class VacuumRegion:
 
     def saveVacuumRegion(self, savename):
         from pickle import dump
-        '''Use to save a Vacuum Region to avoid having to generate a new one every time. Be sure to set pf/main (tokamakPlot), 
-            r_offset (Surface constructor), and variation (Vacuum Region constructor).'''
+        '''Use to save a Vacuum Region to avoid having to generate a new one every time. 
+            Be sure to set pf/main (tokamakPlot), r_offset (Surface constructor), and 
+            variation (Vacuum Region constructor).'''
 
         save = {
             'surfaces': self.surfaces,
@@ -419,12 +423,12 @@ class Surface:
         from matplotlib.pyplot import subplots
         import math
 
-        """Reference Variables/Important:
-        self.start (Point), self.end (Point), self.ID, self.segment (LineString), self.surfaceLength, self.midpoint (Point), self.normalStart (Point), 
-        self.normalEnd (Point), self.normal (LineString), self.material, self.emitting, self.absorbing
-        """
+        '''Reference Variables/Important:
+            self.start (Point), self.end (Point), self.ID, self.segment (LineString), 
+            self.surfaceLength, self.midpoint (Point), self.normalStart (Point), 
+            self.normalEnd (Point), self.normal (LineString).'''
 
-        """Start and end passed into the constructor are tuples (x, y)"""
+        '''Start and end passed into the constructor are tuples (x, y)'''
 
         # Start and end points of the surface and a segment representation of the surface 
         self.start = Point(start[0], start[1])
@@ -464,11 +468,8 @@ class Surface:
         self.normalEnd = Point(self.normalEndX, self.normalEndY)
         self.normal = LineString([self.normalStart, self.normalEnd])
 
-        # Additional of the surface 
+        # Additional aspects of the surface 
         self.circle = None 
-        self.material = material
-        self.emitting = emitting
-        self.absorbing = absorbing
 
         # Coupling to surfaces with LOS
         self.neighbors = {}
@@ -477,14 +478,7 @@ class Surface:
         # Creating the distribution circle given an offset (r_offset = 1 for cosine, 0 for uniform)
         self.distributionCircle(r_offset)
 
-        self.epsilon = 1e-5 # use as a reference for buffering works when epsilon = 0.00001 (1e-5)
-
-        # self.ID1 = 331 # REMOVE AFTER TESTING
-        # self.ID2 = 115
-
-        # self.beforeTriangle = None # REMOVE AFTER TESTING
-        # self.beforeL1 = None
-        # self.beforeL2 = None
+        self.epsilon = 1e-5 # use as a reference for buffering works when epsilon = 0.00001 (1e-5) --> Use for adjusting line of sight
 
         return
 
@@ -499,10 +493,10 @@ class Surface:
 
         # Finding radius and center of circle
         self.r_offset = r_offset 
-        radius = self.surfaceLength / 84
+        radius = self.surfaceLength / 84 
         self.dCircleCenter = self.normal.interpolate(self.r_offset * radius)
 
-        # Plot labeling
+        # Visual plot labeling
         if r_offset == 0:
             self.distType = "Uniform Distribution"
         elif r_offset == 1:
@@ -553,29 +547,26 @@ class Surface:
         '''Finds the overlapping area (flux) between two surfaces, given that self has a distribution circle generated.
             Creates/draws the relevant shapes for finding the flux (fractional area) and other reference.'''
 
-        """Reference Variables/Important:
-        self.triangle, self.leg1, self.leg2, self.overlapShape, overlapArea, fractionalArea
-        """
+        '''Reference Variables/Important:
+        self.triangle, self.leg1, self.leg2, self.overlapShape, overlapArea, fractionalArea'''
 
         if self.circle == None:
             print("Call distributionCircle on Surface before finding intersection area!")
             return
 
         # Triangle of flux
-        triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # triangle from midpoint of self to the endpoints of the other surface, s2
-        # self.triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # REMOVE AFTER TESTING
+        self.triangle = Polygon([s2.start, s2.end, self.midpoint, s2.start]) # from midpoint of self to the endpoints of s2
 
         # Legs of the triangle
         self.leg1 = LineString([self.midpoint, s2.start])
         self.leg2 = LineString([self.midpoint, s2.end])
 
         # Overlap of triangle and distribution circle
-        self.overlapShape = triangle.intersection(self.circle)
+        self.overlapShape = self.triangle.intersection(self.circle)
 
         # Vector representations of triangle legs
         self.vLeg1 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.start.x, s2.start.y))
         self.vLeg2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.end.x, s2.end.y))
-        
         
         # Getting the correct area of the distribution circle on one side of the normal line 
         overlapArea = self.overlapShape.area
@@ -593,7 +584,7 @@ class Surface:
         # Calculate the flux (fractional area)
         fractionalArea = overlapArea / circleArea
 
-        return fractionalArea, triangle 
+        return fractionalArea, self.triangle 
 
     def getNeighbors(self, surfaces, geometry):
         from shapely import intersects, difference, crosses, buffer, contains, intersection
@@ -646,10 +637,6 @@ class Surface:
                                 neighbor.ID
                 )
                 flux, triangle = self.intersectionArea(newS2)
-                # if self.ID == self.ID1 and neighid == self.ID2: # remove after testing
-                #     self.adjustedTriangle = triangle
-                #     self.adjustedL1 = self.leg1
-                #     self.adjustedL2 = self.leg2
                 self.totflux += flux
                 if flux > 0:
                     if neighid not in self.neighbors:
@@ -837,9 +824,8 @@ class Surface:
                     linewidth=linewidth,
                     **kwargs
             )
-    
 
-    def showAnalyticPlot(self, comparison, ax, r_offset=1, showBothDist=False): # Plots the curve from the outer circle and compares it to the analytic equation plot
+    def showAnalyticPlot(self, ax, comparison=True, r_offset=1, showBothDist=False): 
         from shapely import Point, plotting, Polygon, MultiPoint, is_closed, get_coordinates, LineString
         from shapely.plotting import plot_points
         from matplotlib.pyplot import subplots, ioff
@@ -847,14 +833,14 @@ class Surface:
         import math
         import numpy as np
 
-        """The 'comparison' variable determines if we are comparing the plotted distribution to the known cosine distribution or not. 
-        True means yes, do the comparison and plot both the generated and plot for comparison.
-        False means only plot the points being generated by the code, and not the cosine equation.
-        Only set 'comparison' equal to true if you are modeling a COSINE distribution (offset = 1) 
-        and you want to compare it to the standard."""
+        '''Plots the curve from the outer circle and compares it to the analytic equation plot.'''
 
-        """Set showBothDist to True if want to display both uniform and cosine (geometric and analytic) on the same plot).
-        to do this, set r_offset to 1. Set comparison to True if also want to display analytic cosine distribution."""
+        '''The 'comparison' variable determines if we are comparing to the analytic cosine distribution.
+            Only set to true if modeling a COSINE distribution (offset = 1) 
+            and you want to compare it to the analytic.'''
+
+        '''Set showBothDist to True to display both uniform and cosine (geometric and analytic) on the same plot.
+            to do this, set r_offset to 1. Also be sure to call analyticUniform on self.'''
 
         ioff()
         fig = subplots()
@@ -898,13 +884,6 @@ class Surface:
 
             areaValue, _ = self.intersectionArea(s2Surface) # Plot on y-axis
 
-            # # # If making a comparison to the formula plot, need to normalize the areaValue values with pdfArea and dTheta # # #
-            # # # This section updates the pdfArea, not the areaValue yet # # #
-            # # # Vector representations of the borders of the segments being swept out by S2 # # #
-            #self.vLeg1 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2Start[0], s2Start[1]))
-
-            #self.vLeg2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2End[0], s2End[1]))
-
             dTheta = self.dotProductAngle(self.vLeg1, self.vLeg2)
             pdfArea += areaValue * dTheta
 
@@ -919,7 +898,7 @@ class Surface:
              
         # Plotting the analytic cosine distribution from the equation y = (1/2pi) * (1 + cos(x)), scaled to be from -pi/2 to pi/2
         # Normalizing the outer circle area value points as well using pdfArea
-        else: # if compariosn == True
+        else: # if comparison == True
             cosPoints = []
             adjustedPlotPoints = []
             for plotPoint in plotPoints:
@@ -964,12 +943,6 @@ class Surface:
         import math
         import numpy as np
 
-        """The 'comparison' variable determines if we are comparing the plotted distribution to the known cosine distribution or not. 
-        True means yes, do the comparison and plot both the generated and plot for comparison.
-        False means only plot the points being generated by my code, and not the cosine equation.
-        Only set 'comparison' equal to true if you are modeling a COSINE distribution (offset = 1) 
-        and you want to compare it to the standard."""
-
         ioff()
         fig = subplots()
 
@@ -1006,13 +979,6 @@ class Surface:
             # Call helper function that uses dot product to calculate angle between vectors
             angle = self.dotProductAngle(vNormal, vS2) # Plot on x-axis
             areaValue, _ = self.intersectionArea(s2Surface) # Plot on y-axis
-
-            # # # If making a comparison to the formula plot, need to normalize the areaValue values with pdfArea and dTheta # # #
-            # # # This section updates the pdfArea, not the areaValue yet # # #
-            # # # Vector representations of the borders of the segments being swept out by S2 # # #
-            #self.vLeg1 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2Start[0], s2Start[1]))
-
-            #self.vLeg2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2End[0], s2End[1]))
 
             dTheta = self.dotProductAngle(self.vLeg1, self.vLeg2)
             pdfArea += areaValue * dTheta
