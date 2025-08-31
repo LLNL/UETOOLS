@@ -275,10 +275,8 @@ class Input:
                     ]:
                         if isinstance(dictobj, (bytes, bytearray)):
                             dictobj = dictobj.decode("UTF-8")
-                        if dictobj is not False:
-                            self.info[group[-1]] = "/".join(
-                                [self.info["location"], dictobj]
-                        )
+                        if dictobj != False:
+                            self.info[group[-1]] = os.path.join(self.info["location"], dictobj)
                     elif group[-1] in self.variables["omit"]:# ["lynix", "lyphix", "lytex", "lytix"]:
                         pass
                     else:
