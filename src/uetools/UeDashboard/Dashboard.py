@@ -500,6 +500,7 @@ class CaseDashboard(QWidget):
         ==========================="""
     def _createVarButtons(self):
         from numpy import sum, ndarray
+        self.buttonsetup = True
         self.buttons = {
             'layout': QGridLayout(),
             'title': QLabel(self.title("Plots")),
@@ -537,8 +538,8 @@ class CaseDashboard(QWidget):
             cols[int(i/maxbuttons)].addWidget(
                 self.buttons['items'][key], 
             )
-            # TODO: Implement smarter check to deactivat buttons
-            buttonvar = self.get(key)
+            test = True
+            buttonvar = self.__getattribute__(f'plot_{key}')()
             if buttonvar is not None:
                 vis = True
                 if len(buttonvar.shape) == 3:
@@ -548,11 +549,12 @@ class CaseDashboard(QWidget):
                     if varsum == 0:
                         self.buttons['items'][key].setEnabled(False)
                 else:
-                    if sum(self.get(key)) == 0:
+                    if sum(buttonvar) == 0:
                         self.buttons['items'][key].setEnabled(False)
                 i += 1
         self.checkedButton = self.buttongroup.button(0)
         self.checkedButton.setChecked(True)
+        test = False
 
         # Add drop-down
         self.buttons['items']['dropdown'] = QComboBox()
@@ -592,6 +594,7 @@ class CaseDashboard(QWidget):
         for i in range(len(cols)):
             self.buttons['layout'].addLayout(cols[i], 1, i, 1, 1)
         self.buttons['layout'].addLayout(custom, 2,0,1,len(cols))
+        self.buttonsetup = False
 
 
 
@@ -1010,114 +1013,162 @@ class CaseDashboard(QWidget):
         self.enable_ionradio(False)
         self.uncheck_buttons()
 
-    def plot_te(self):
+    def plot_te(self):  
+        var = self.get('te')/1.602e-19
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('te')/1.602e-19,
+            var,
             'Electron temperature [eV]',
         )
         self.lastfunc = self.plot_te
 
     def plot_ti(self):
+        var = self.get('ti')/1.602e-19
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('ti')/1.602e-19,
+            var,
             'Ion temperature [eV]',
         )
         self.lastfunc = self.plot_ti
 
     def plot_tg(self):
+        var = self.get('tg')/1.602e-19
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('tg')/1.602e-19,
+            var,
             'Gas temperature [eV]',
             'gas'
         )
         self.lastfunc = self.plot_tg
 
     def plot_ne(self):
+        var = self.get('ne')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('ne'),
+            var,
             r'Electron density [m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_ne
 
     def plot_ni(self):
+        var = self.get('ni')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('ni'),
+            var,
             r'Ion density [m$\mathrm{{}^{-3}}$]',
             'ion'
         )
         self.lastfunc = self.plot_ni
 
     def plot_ng(self):
+        var = self.get('ng')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('ng'),
+            var,
             r'Gas density [m$\mathrm{{}^{-3}}$]',
             'gas'
         )
         self.lastfunc = self.plot_ng
 
     def plot_phi(self):
+        var = self.get('phi')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('phi'),
+            var,
             'Electrical potential [V]',
         )
         self.lastfunc = self.plot_phi
 
     def plot_prad(self):
+        if self.get('prad').shape == self.get('pradhyd').shape:
+            var = self.get('prad')+self.get('pradhyd')
+        else:
+            var = self.get('pradhyd')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('prad')+self.get('pradhyd'),
+            var,
             r'Total radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_prad
 
     def plot_pradhyd(self):
+        var = self.get('pradhyd')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('pradhyd'),
+            var,
             r'Hydrogenic radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_pradhyd
 
     def plot_pradimp(self):
+        var = self.get('prad')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('prad'),
+            var,
             r'Impurity radiated power [W/m$\mathrm{{}^{-3}}$]',
         )
         self.lastfunc = self.plot_pradimp
 
     def plot_psorc(self):
+        var = self.get('psorc')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('psorc'),
+            var,
             'Ion ionization source [parts/s]',
             'ion'
         )
         self.lastfunc = self.plot_psorc
 
     def plot_psorgc(self):
+        var = self.get('psorgc')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('psorgc'),
+            var,
             'Gas ionization sink [parts/s]',
             'gas'
         )
         self.lastfunc = self.plot_psorgc
 
     def plot_psorxrc(self):
+        var = self.get('psorxrc')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('psorxrc'),
+            var,
             'Ion recombination + CX sink [parts/s]',
             'ion'
         )
         self.lastfunc = self.plot_psorxrc
 
     def plot_psorrgc(self):
+        var = self.get('psorrgc')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('psorrgc'),
+            var,
             'Gas recombination source [parts/s]',
             'gas'
         )
         self.lastfunc = self.plot_psorrgc
 
     def plot_psorcxg(self):
+        var = self.get('psorcxg')
+        if self.buttonsetup:
+            return var
         self.plot_driver(
-            self.get('psorcxg'),
+            var,
             'Gas CX source [parts/s]',
             'gas'
         )
@@ -1656,10 +1707,11 @@ class MainMenu(QMainWindow):
     def openHDF5(self):#, caseobj=None):
         from uetools import Case
         # Logic for opening an existing file goes here...
-        if 1==0:
+        if 1==1:
             file = QFileDialog.getOpenFileName(self, 'Open UETOOLS save', 
-            self.lastpath, "All files (*.*)")[0]
-            self.lastpath = "/".join(file.split("/")[:-1])
+            self.lastpath, "All files (*.*)",  options=QFileDialog.DontUseNativeDialog)[0]
+            self.lastpath = "/".join(file.split("/")[:-1],
+            )
         else:
             file = "/Users/holm10/Documents/fusion/uedge/src/"+\
                     "UETOOLS/dashboard_test/testcase_hires/nc20.hdf5"
@@ -1691,7 +1743,9 @@ class MainMenu(QMainWindow):
             )
             print("USING TEST DATABASE")
         else:
-            path = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
+            path = str(QFileDialog.getExistingDirectory(self, "Select Directory",
+                 options=QFileDialog.DontUseNativeDialog
+            ))
             if len(path) == 0:
                 return
             name = path.split('/')[-1]
@@ -1856,7 +1910,7 @@ if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
     app = QApplication(sys.argv)
     win = MainMenu()
-    win.openHDF5()
+#    win.openHDF5()
     win.show()
     sys.exit(app.exec_())
 #else:

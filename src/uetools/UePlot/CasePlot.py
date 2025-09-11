@@ -603,19 +603,21 @@ class Caseplot(Plot):
             ax.plot((ixpt1[ixpt]+0.5,ixpt1[ixpt]+0.5), (-0.5,iysptrx1[ixpt]+.5), 'k-', linewidth=1.5)
             ax.plot((ixpt2[ixpt]+0.5,ixpt2[ixpt]+0.5), (-0.5,iysptrx2[ixpt]+.5), 'k-', linewidth=1.5)
 
+        for xpatch in self.get('rangechunk'):
+            ax.add_patch(Polygon( [(xpatch[0]-.5,xpatch[2]-.5),(xpatch[0]-.5,xpatch[3]+.5),(xpatch[1]+.5, xpatch[3]+.5),(xpatch[1]+.5, xpatch[2]-0.5)],
+                 closed=True, edgecolor='k', alpha=0.3, linestyle='--', linewidth=2, color=next(colors)))
+
         for ixpt in range(nxpt):
             for icut in range(self.get('Nxptchunks')[ixpt]):
                 for ii in range(2):
                     xpatch = rangexptchunk[ixpt, ii, icut]
                     ax.add_patch(Polygon( [(xpatch[0]-.5,xpatch[2]-.5),(xpatch[0]-.5,xpatch[3]+.5),(xpatch[1]+.5, xpatch[3]+.5),(xpatch[1]+.5, xpatch[2]-0.5)],
-                    closed=True, edgecolor='k', facecolor='red'))
+                    closed=True, edgecolor='k', facecolor='red', linestyle='-', linewidth=1))
 
-        for xpatch in self.get('rangechunk'):
-            ax.add_patch(Polygon( [(xpatch[0]-.5,xpatch[2]-.5),(xpatch[0]-.5,xpatch[3]+.5),(xpatch[1]+.5, xpatch[3]+.5),(xpatch[1]+.5, xpatch[2]-0.5)],
-                 closed=True, edgecolor='k', alpha=0.3, linestyle='--', linewidth=2, color=next(colors)))
 
 
         f.show()
+        return f
 
 
     def variablemesh(self, z=None, **kwargs):

@@ -111,7 +111,7 @@ class AboutSetup:
         ionarray = []
         for i in range(nisp):
             charge = "{}".format(
-                ("+" + str(int(zi[i]))) * (zi[i] > 0) + "0" * (zi[i] == 0)
+                ("+" + str(int(zi[i]))) * bool(zi[i] > 0) + "0" * bool(zi[i] == 0)
             )
             sign = "".join(
                 (x for x in elements[znuclin[i]][minu[i]] if not x.isdigit())

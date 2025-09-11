@@ -760,6 +760,13 @@ class Spectrometer:
             # Associate list to dict key
             self.emission[l] = emission_chord
 
+    def chord_integral_field(self, field):
+        integrals = []
+        for chord in self.chords:
+            integrals.append(chord.integrate_field(field))
+        return integrals
+        
+
     def plot_chord_integral(
         self, field, ax=None, linestyle="-", marker="o", color="k", x=None
     ):
@@ -798,10 +805,8 @@ class Spectrometer:
         if x is None:
             x = range(1, len(self.chords) + 1)
         # TODO: Figure out what to use as X-axis
-        integrals = []
-        for chord in self.chords:
-            integrals.append(chord.integrate_field(field))
 
+        integrals = self.chord_integral_field(field)
         ax.plot(x, integrals, linestyle=linestyle, marker=marker, color=color)
 
         return ax.get_figure()
@@ -1209,7 +1214,12 @@ class Grid:
         self.area = coverage_union_all(geometries)
         # Create and store Polygon for core
         corepts = []
-        for nxpt in range(case.get("nxpt")):
+        nnxpt = case.get('nxpt', verbose=False)
+        if nnxpt is None:
+            nnxpt = 1
+            if case.plot.dnull:
+                nnxpt = 2
+        for nxpt in range(nnxpt):
             for ix in range(case.get("ixpt1")[nxpt] + 1, case.get("ixpt2")[nxpt] + 1):
                 corepts.append(
                     [
