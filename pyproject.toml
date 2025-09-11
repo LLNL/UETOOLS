@@ -25,6 +25,7 @@ dependencies = [
     "pyaml",
     "Forthon",
     "matplotlib",
+    "shapely",
     "h5pickle",
     "PyQt5",
     "bayesian-optimization >= 3",
