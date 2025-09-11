@@ -60,11 +60,9 @@ class Input:
 
         def recursive_readhdf5(ret, setup, group=[], root=None):
             if len(group) > 0:
-                lastgroup=group[0]
+                lastgroup = group[0]
                 # Conditional to avoid unnecessary nesting
-                if ((len(group) > 1) and \
-                    (group[-1] == group[-2]) \
-                ):
+                if (len(group) > 1) and (group[-1] == group[-2]):
                     group.pop(-1)
                 else:
                     for subgroup in group:
@@ -256,7 +254,9 @@ class Input:
                         try:
                             self.setue(group[-1], dictobj)
                         except KeyError as e:
-                            print(f"WARNING Could not set '{group[-1]}' to '{dictobj}'. Reason: {e}")
+                            print(
+                                f"WARNING Could not set '{group[-1]}' to '{dictobj}'. Reason: {e}"
+                            )
 
                 else:  # Set calls to restore diffusivities
                     if (group[-1] == "savefile") and (
@@ -264,28 +264,32 @@ class Input:
                     ):
                         pass
                     elif group[-1] in ["casename", "commands", "chgstate_format"]:
-                        if group[-1]=="casename":
+                        if group[-1] == "casename":
                             self.casename_set = True
                         self.info[group[-1]] = dictobj
                     elif group[-1] in [
-                            "userdifffname", 
-                            "radialdifffname",
-                            "diff_file",
-                            "savefile",
+                        "userdifffname",
+                        "radialdifffname",
+                        "diff_file",
+                        "savefile",
                     ]:
                         if isinstance(dictobj, (bytes, bytearray)):
                             dictobj = dictobj.decode("UTF-8")
-                        if dictobj is not False:
-                            self.info[group[-1]] = "/".join(
-                                [self.info["location"], dictobj]
-                        )
-                    elif group[-1] in self.variables["omit"]:# ["lynix", "lyphix", "lytex", "lytix"]:
+                        if dictobj != False:
+                            self.info[group[-1]] = os.path.join(
+                                self.info["location"], dictobj
+                            )
+                    elif (
+                        group[-1] in self.variables["omit"]
+                    ):  # ["lynix", "lyphix", "lytex", "lytix"]:
                         pass
                     else:
                         if isinstance(dictobj, (bytes, bytearray)):
                             dictobj = dictobj.decode("UTF-8")
                         try:
-                            self.info[group[-1]] = os.path.join(self.info["location"], dictobj)
+                            self.info[group[-1]] = os.path.join(
+                                self.info["location"], dictobj
+                            )
                         except TypeError:
                             # dictobj may be e.g. bool that can't be joined with path
                             self.info[group[-1]] = self.info["location"]
@@ -347,19 +351,22 @@ class Input:
             if isinstance(self.info["savefile"], bytes):
                 self.info["savefile"] = self.info["savefile"].decode("UTF-8")
             if self.info["restored_from_hdf5"] is True:
-
                 prfile = setupfile
-                if len(prfile.split('/'))>3:
-                    prfile = ".../{}".format('/'.join(prfile.split('/')[-3:]))
+                if len(prfile.split("/")) > 3:
+                    prfile = ".../{}".format("/".join(prfile.split("/")[-3:]))
                 print("=================================================")
                 print("Restoring case from HDF5 file:")
                 print("  Rate dirs read from .uedgerc")
                 print("  Grid read from {}".format(prfile))
-                self.info["diffusivity_file"] = os.path.join(self.info["location"], setupfile)
+                self.info["diffusivity_file"] = os.path.join(
+                    self.info["location"], setupfile
+                )
 
             # Override with diff_file maually defined diff_file upon
             if diff_file is not None:
-                self.info["diffusivity_file"] = os.path.join(self.info["location"], diff_file)
+                self.info["diffusivity_file"] = os.path.join(
+                    self.info["location"], diff_file
+                )
             # Otherwise, try setting accoridng to input
             else:
                 # diff_file takes precedence
@@ -371,15 +378,13 @@ class Input:
                         if (self.info["radialdifffname"] is not None) and (
                             self.info["radialdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = \
-                                    self.info['radialdifffname']
+                            self.info["diffusivity_file"] = self.info["radialdifffname"]
                         del self.info["radialdifffname"]
                     if "userdifffname" in self.info:
                         if (self.info["userdifffname"] is not None) and (
                             self.info["userdifffname"] is not False
                         ):
-                            self.info["diffusivity_file"] = \
-                                    self.info["userdifffname"]
+                            self.info["diffusivity_file"] = self.info["userdifffname"]
                         del self.info["userdifffname"]
             if (self.info["diffusivity_file"] is None) and (
                 self.getue("isbohmcalc") in [0, 2]
@@ -387,8 +392,8 @@ class Input:
                 self.info["diffusivity_file"] = self.info["savefile"]
 
                 prfile = self.info["diffusivity_file"]
-                if len(prfile.split('/'))>3:
-                    prfile = ".../{}".format('/'.join(prfile.split('/')[-3:]))
+                if len(prfile.split("/")) > 3:
+                    prfile = ".../{}".format("/".join(prfile.split("/")[-3:]))
                 print(
                     "No diffusivity-file supplied: reading from "
                     + 'save-file "{}"'.format(prfile)
@@ -396,8 +401,8 @@ class Input:
             # Set diffusivities based on file if model requires profiles
             if self.getue("isbohmcalc") == 0:
                 prfile = self.info["diffusivity_file"]
-                if len(prfile.split('/'))>3:
-                    prfile = ".../{}".format('/'.join(prfile.split('/')[-3:]))
+                if len(prfile.split("/")) > 3:
+                    prfile = ".../{}".format("/".join(prfile.split("/")[-3:]))
                 print(
                     "  User-specified diffusivities read from HDF5 "
                     + 'file "{}"'.format(prfile)
@@ -433,7 +438,7 @@ class Input:
         if restoresave is True:
             if (self.info["savefile"] is None) and (self.get("restart") == 1):
                 if self.info["casename"] is not None:
-                    for suffix in ["h5","hdf5"]:
+                    for suffix in ["h5", "hdf5"]:
                         savefile = ".".join([self.info["casename"], suffix])
                         if exists(savefile):
                             self.info["savefile"] = savefile
@@ -442,8 +447,9 @@ class Input:
             if exists(self.info["savefile"]):
                 self.savefuncs.load_state(self.info["savefile"], **kwargs)
             else:
-                raise ValueError("Could not open save-file '{}'".format(\
-                    self.info["savefile"]))
+                raise ValueError(
+                    "Could not open save-file '{}'".format(self.info["savefile"])
+                )
         if uedge_is_installed and not self.info["inplace"]:
             self.tracker.get_uevars()
         # NOTE: Get the hashes before running any commands. This way,
