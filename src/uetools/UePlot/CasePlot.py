@@ -32,8 +32,9 @@ class Caseplot(Plot):
         else:
             raise TypeError("Geometry {} not recognized! Aborting.".format(\
                 self.get('geometry')[0].decode('UTF-8').strip()))
+        slab = (self.get('mhdgeo') == -1)
 
-        super().__init__(*args, snull=snull, dnull=dnull, usn=usn, **kwargs)
+        super().__init__(*args, snull=snull, dnull=dnull, usn=usn, slab=slab, **kwargs)
     
     def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
         """Adds metadata to figure"""

@@ -6,7 +6,7 @@ ion()
 # TODO: implement divergence plotting/calculation
 
 class Plot:
-    def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, dnull=False, **kwargs):
+    def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, dnull=False, slab=False, **kwargs):
         """Constructs patches objects
         rm - UEDGE R-node object
         zm - UEDGE Z-node object
@@ -18,6 +18,7 @@ class Plot:
                 zm = self.get("zm")
             except:
                 return
+        self.slab = slab
         self.snull = snull
         self.dnull = dnull
         self.usn = usn
@@ -514,7 +515,8 @@ class Plot:
         ax.set_ylim(ylim)
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
-        ax.set_aspect(aspect)
+        if not self.slab:
+            ax.set_aspect(aspect)
         if (z is not None) or (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")

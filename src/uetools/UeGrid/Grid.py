@@ -200,6 +200,106 @@ class Grid:
         # TODO: Set UEDGE variables based on detected variable
         # ( rseps, zseps, rseps, zseps2,) rvsin, rvsout, zvsin, zvsout
 
+    def write_efit2goat(
+        self,
+        geqdsk,
+        aeqdsk=None,
+        fname="",
+        **kwargs):
+        """Function to plot EFIT contours
+
+        Arguments
+        ---------
+        geqdsk - path to EFIT file to read
+
+        Keyword arguments
+        -----------------
+        aeqdsk : str (default = None)
+            Path to aeqdsk file. If None, does not read any aeqdsk
+        ax : matplotlib.pyplot.Figure or Axes (default = None)
+            axis to plot on. If None, creates new figure
+        ncontour : int (default = 80)
+            number of contours to plot for EFIT psis
+        color : str (default = 'grey')
+            color of plot contours
+        linestyle : str (default = 'solid')
+            line style for plot contours
+        sepcolor : str (default = 'k')
+            color of separatrices
+        linewidth : float (default = 0.5)
+            line width of contours
+
+        Returns
+        -------
+        matplotlib.pyplot.Figure
+        """
+        from matplotlib.pyplot import subplots, Figure, Axes
+        from copy import deepcopy
+        from numpy import linspace, savetxt, array
+        from uedge import com, flx
+        from os.path import exists
+        from Forthon import packageobject
+
+        # Backup original pointers
+        oldaeqdskfname = deepcopy(self.get("aeqdskfname"))
+        oldgeqdskfname = deepcopy(self.get("geqdskfname"))
+        # Set new file paths
+        self.setue("geqdskfname", geqdsk)
+
+        # Check whether the aeqdsk file can be located: if not, do not execute aeqdsk()
+        if aeqdsk is not None:
+            if exists(aeqdsk):
+                self.setue("aeqdskfname", aeqdsk)
+                packageobject("flx").__getattribute__("aeqdsk")()
+
+        if exists(geqdsk):
+            packageobject("flx").__getattribute__("neqdsk")()
+        else:
+            raise FileNotFoundError(
+                'EFIT geqdsk file "{}" not found.\nAborting...'.format(geqdsk)
+            )
+        self.plot.reload()
+
+        # Reconstruct EFIT grid
+        x = linspace(0, self.get("xdim"), self.get("nxefit")) + self.get("rgrid1")
+        y = linspace(0, self.get("zdim"), self.get("nyefit")) - (
+            self.get("zdim") * 0.5 - self.get("zmid")
+        )
+
+        fold = self.get("fold").transpose()
+
+        with open(f'rzpsi{fname}.dat', 'w') as f:
+            f.write(f"  {len(x):<4}  {len(y):<4}\n")
+            f.write(f" $r\n")
+            f.write(f" nr={len(x):<4}\n")
+            for lines in [x[i:i + 6] for i in range(0, len(x), 6)]:
+                f.write("  "+" ".join([f"{xx:>12.5E}" for xx in lines])+"\n")
+
+            f.write(f" $z\n")
+            f.write(f" nz={len(y):<4}\n")
+            for lines in [y[i:i + 6] for i in range(0, len(y), 6)]:
+                f.write("  "+" ".join([f"{xx:>12.5E}" for xx in lines])+"\n")
+    
+            f.write(f" $psi\n")
+            for lines in [fold.reshape(len(x)*len(y))[i:i + 6] for i in range(0, len(x)*len(y), 6)]:
+                f.write("  "+" ".join([f"{xx:>12.5E}" for xx in lines])+"\n")
+
+    
+        nstruct = 1
+        xlim = self.get('xlim')
+        ylim = self.get('ylim')
+        with open(f'structure{fname}.dat', 'w') as f:
+            f.write(f"{nstruct:>12}\n")
+            f.write("$structures\n")
+            for i in range(nstruct):
+                f.write(f"Structure{i+1:>5}\n")
+                f.write(f"{len(xlim):>12}\n")
+                for i in range(len(xlim)):
+                    f.write(f"{xlim[i]:>19.14f}{ylim[i]:>24.14f}     \n")
+    
+        return 
+
+
 
 class GridPlot:
     """Class providing grid generation plotting routines
@@ -329,14 +429,7 @@ class GridPlot:
         self,
         geqdsk,
         aeqdsk=None,
-        ax=None,
-        ncontour=80,
-        color="grey",
-        linestyle="solid",
-        sepcolor="k",
-        linewidth=0.5,
-        labels=False,
-    ):
+        **kwargs):
         """Function to plot EFIT contours
 
         Arguments
@@ -369,7 +462,6 @@ class GridPlot:
         from numpy import linspace
         from uedge import com, flx
         from os.path import exists
-        from scipy.interpolate import RectBivariateSpline
         from Forthon import packageobject
 
         # Backup original pointers
@@ -392,6 +484,37 @@ class GridPlot:
             )
         self.reload()
 
+        # Reconstruct EFIT grid
+        x = linspace(0, self.get("xdim"), self.get("nxefit")) + self.get("rgrid1")
+        y = linspace(0, self.get("zdim"), self.get("nyefit")) - (
+            self.get("zdim") * 0.5 - self.get("zmid")
+        )
+
+        fold = self.get("fold").transpose()
+
+        f = self.contour(
+            x, y, fold, **kwargs
+        )
+
+        self.add_sep(x, y, fold, ax=f, 
+                    lower=(self.get("rseps"), self.get("zseps")),
+                    upper=(self.get("rseps2"), self.get("zseps2")),
+                    **kwargs)
+
+        self.add_vessel(self.get("xlim"), self.get("ylim"), ax=f)
+
+        # Restore original pointers
+        self.setue("aeqdskfname", oldaeqdskfname)
+        self.setue("geqdskfname", oldgeqdskfname)
+
+        return f
+
+    def contour(self, x, y, psi, ncontour=80, color='grey', title=None,
+        linewidth=0.5, linestyle='-', ax=None, labels=False, 
+        **kwargs):
+        from matplotlib.pyplot import subplots, Figure, Axes
+
+
         if ax is None:
             f, ax = subplots(figsize=(7, 9))
         elif isinstance(ax, Axes):
@@ -401,20 +524,11 @@ class GridPlot:
         else:
             raise TypeError("Axes type {} not compatible".format(type(ax)))
 
-        # Reconstruct EFIT grid
-        x = linspace(0, self.get("xdim"), self.get("nxefit")) + self.get("rgrid1")
-        y = linspace(0, self.get("zdim"), self.get("nyefit")) - (
-            self.get("zdim") * 0.5 - self.get("zmid")
-        )
-
-        fold = self.get("fold").transpose()
-        # Interpolate on EFIT grid to find X-points
-        interp = RectBivariateSpline(x, y, fold)
 
         CS = ax.contour(
             x,
             y,
-            fold,
+            psi,
             ncontour,
             colors=color,
             linewidths=linewidth,
@@ -423,44 +537,130 @@ class GridPlot:
         if labels:
             ax.clabel(CS, CS.levels, inline=1, fontsize=10)
 
-        rseps2 = self.get("rseps2")
-        zseps2 = self.get("zseps2")
-        # Check whether the upper X-point exists
-        if (x.min() <= rseps2 <= x.max()) and (y.min() <= zseps2 <= y.max()):
-            upperxpoint = interp(rseps2, zseps2)
-            ax.contour(
-                x,
-                y,
-                fold,
-                [upperxpoint],
-                colors=sepcolor,
-                linewidths=1,
-                linestyles="solid",
-            )
-
-        rseps = self.get("rseps")
-        zseps = self.get("zseps")
-        # Check whether the lower X-point exists
-        if (x.min() <= rseps <= x.max()) and (y.min() <= zseps <= y.max()):
-            lowerxpoint = interp(rseps, zseps)
-            ax.contour(
-                x,
-                y,
-                fold,
-                [lowerxpoint],
-                colors=sepcolor,
-                linewidths=1,
-                linestyles="solid",
-            )
-
-        ax.plot(self.get("xlim"), self.get("ylim"), "k-", linewidth=2)
         ax.set_aspect("equal")
         ax.set_xlabel("Horizontal position [m]")
         ax.set_ylabel("Vertical position [m]")
-        ax.set_title(self.get("runid")[0].decode("UTF-8").strip())
-
-        # Restore original pointers
-        self.setue("aeqdskfname", oldaeqdskfname)
-        self.setue("geqdskfname", oldgeqdskfname)
+        if title is None:
+            ax.set_title(self.get("runid")[0].decode("UTF-8").strip())
 
         return ax.get_figure()
+
+    def add_vessel(self, rm, zm, ax=None):
+        from matplotlib.pyplot import subplots, Figure, Axes
+
+        if ax is None:
+            f, ax = subplots(figsize=(7, 9))
+        elif isinstance(ax, Axes):
+            pass
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+        else:
+            raise TypeError("Axes type {} not compatible".format(type(ax)))
+
+        ax.plot(rm, zm, "k-", linewidth=2)
+        return ax.get_figure()
+
+
+    def add_sep(self, x, y, psi, ax=None, lower=None, upper=None, sepcolor='k',
+        **kwargs):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        from scipy.interpolate import RectBivariateSpline
+
+
+        # Interpolate on EFIT grid to find X-points
+        interp = RectBivariateSpline(x, y, psi, kx=1, ky=1)
+
+        if ax is None:
+            f, ax = subplots(figsize=(7, 9))
+        elif isinstance(ax, Axes):
+            pass
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+        else:
+            raise TypeError("Axes type {} not compatible".format(type(ax)))
+
+        if upper is not None:
+            # Check whether the upper X-point exists
+            if (x.min() <= upper[0] <= x.max()) and (y.min() <= upper[1] <= y.max()):
+                upperxpoint = interp(*upper)
+                ax.contour(
+                    x,
+                    y,
+                    psi,
+                    [upperxpoint],
+                    colors=sepcolor,
+                    linewidths=1,
+                    linestyles="solid",
+                )
+
+        if lower is not None:
+            # Check whether the lower X-point exists
+            if (x.min() <= lower[0] <= x.max()) and (y.min() <= lower[1] <= y.max()):
+                lowerxpoint = interp(*lower)
+                ax.plot(*lower, 'ro')
+                ax.contour(
+                    x,
+                    y,
+                    psi,
+                    [lowerxpoint],
+                    colors=sepcolor,
+                    linewidths=1,
+                    linestyles="solid",
+                )
+
+        return ax.get_figure()
+
+
+    def goat(self, rzpsifile, structfile):
+        f = self.rzpsi(rzpsifile)
+        for struct, data in self.read_structures(structfile).items():
+            self.add_vessel(data['r'], data['z'], ax=f)
+
+    def rzpsi(self, filename):
+        data = self.read_rzpsi(filename)
+        return self.contour(data['r'], data['z'], data['psi'])
+
+    def read_structures(self, filename):
+        structs = {}
+        with open(filename, 'r') as file:
+            lines = file.read()
+        data = lines.split('Structure')
+        for i in range(int(data[0].split()[0])):
+            lines = data[i+1].split('\n')
+            struct = int(lines[0])
+            structs[struct] = {'r': [], 'z': []}
+            for j in range(abs(int(lines[1]))):
+                [r,z] = lines[j+2].split()
+                structs[struct]['r'].append(float(r))
+                structs[struct]['z'].append(float(z))
+
+        return structs
+ 
+
+    def read_rzpsi(self, filename):
+        from numpy import array
+        data = {}
+        block = None
+        with open(filename, 'r') as file:
+            for line in file:
+                if '$' in line:
+                    block = line.split('$')[1].strip()
+                    data[block] = []
+                    blockdata = data[block]
+                    blocklength = 1
+                    for datablock in data.items():
+                        blocklength *= len(datablock)
+                elif block is None:
+                    continue
+                elif '=' in line:
+                    blocklength = int(line.split('=')[1])
+                else:
+                    for linedata in line.split():
+                        blockdata.append(float(linedata))
+        for block, blockdata in data.items():
+            data[block] = array(blockdata)
+
+        data['psi'] = data['psi'].reshape(len(data['z']), len(data['r']))
+          
+        return data
+        
