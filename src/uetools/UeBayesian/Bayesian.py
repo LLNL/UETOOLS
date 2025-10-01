@@ -20,8 +20,11 @@ bayes_opt:
 
 import pickle, os, copy, time
 import numpy as np
-
-from uedge import *
+# For standalone mode use
+try:
+    from uedge import *
+except:
+    pass
 from scipy.stats import qmc
 from IPython.utils import io
 
