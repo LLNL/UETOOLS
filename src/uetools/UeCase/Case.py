@@ -283,6 +283,12 @@ class Case:
                 "tvapllim",
                 "tvaprlim",
             ],
+            "enforce" :[
+                "recypf_use",
+                "recywall_use",
+                "fngysi",
+                "fngyso",
+            ]
         }
         # Assert input file exists before proceeding
         if filename is not None:
