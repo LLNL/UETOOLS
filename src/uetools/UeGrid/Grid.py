@@ -299,102 +299,7 @@ class Grid:
     
         return 
 
-    def read_goat(self, fname):
-        goat_data = {'Vx': {}}
-        with open(fname, 'r') as f:
-            data = f.read().split('*cf:')
-        for block in data[1:]:
-            lines = block.strip().split('\n')
-            header = lines.pop(0)
-            if len(lines) == 0:
-                continue
-            elif len(lines)<2:
-                if ('(' in header) or ('Vx' in header.split()):
-                    variables = header.split()
-                else:
-                    variables = header.split()[-1].split(',')
-                values = lines[0].split()
-                if variables[0] == 'Vx':
-                    if values[0] not in goat_data['Vx']:
-                        goat_data['Vx'][int(values[0])] = {}
-                    Vxdata = goat_data['Vx'][int(values[0])]
-                    for i in range(1,len(variables)):
-                        if values[i].isdigit():
-                            Vxdata[variables[i]] = int(values[i])
-                        else:
-                            Vxdata[variables[i]] = float(values[i])
-                else:
-                    for i in range(len(variables)):
-                        goat_data[variables[i]] = values[i]
-                    else:
-                        continue
-            else:
-                variables = header.split()
-                if variables[0] == 'Vx':
-                    for line in lines:
-                        values = line.split()
-                        if values[0] not in goat_data['Vx']:
-                            goat_data['Vx'][int(values[0])] = {}
-                        Vxdata = goat_data['Vx'][int(values[0])]
-                        for i in range(1, len(variables)):
-                            if values[i].isdigit():
-                                Vxdata[variables[i]] = int(values[i])
-                            else:
-                                Vxdata[variables[i]] = float(values[i])
-                            
-                elif variables[0] == 'int':
-                    goat_data[variables[-1]] = [ \
-                        int(x) for x in (" ".join(lines)).split()
-                    ]
-                    if int(variables[1]) != len(goat_data[variables[-1]]):
-                        raise Exception(f"{variables[-1]} read incorrectly: len does not match!")
-                else:
-                    variables = header.split()
-                    goat_data[variables[0]] = {}
-                    dkey = goat_data[variables[0]]
-                    for line in lines:
-                        values = line.split()
-                        for i in range(1, len(variables)):
-                            if values[0] not in dkey:
-                                dkey[values[0]] = {}
-                            if values[i].isdigit():
-                                dkey[values[0]][variables[i]] = int(values[i])
-                            else:
-                                dkey[values[0]][variables[i]] = float(values[i])
-        
-        vertices = {}
-        from matplotlib.pyplot import subplots
-        f, ax = subplots(figsize=(5,8))
-        for vid, vertex in goat_data['Vx'].items():
-            vertices[vid] = GOATVertex(vid, vertex)
-#            vertices[vid].plot_xy(ax)
-        
-        faces = {}
-        for fid, face in goat_data['fc'].items():
-            faces[int(fid)] = GOATFace(int(fid), face, vertices)
-            faces[int(fid)].plot_xy(ax)
-
-#        for i in range(1,5):
-#            faces[i].plot_xy(ax,color='b', linewidth=3)
-        cells = {}
-        for cid, cell in goat_data['cv'].items():
-            cells[int(cid)] = GOATCell(int(cid), cell, goat_data['cvFc'], faces) 
-#            cells[int(cid)].plot_xy(ax)
-        
-        fluxsurfs = {}
-        for sid, s in goat_data['fs'].items():
-            fluxsurfs[int(sid)] = GOATFluxsurface(int(sid), s, goat_data['fsFc'], faces)
-#            fluxsurfs[int(sid)].plot_xy(ax)
-
-
-        spokes = {}
-        for tid, t in goat_data['ft'].items():
-            spokes[int(tid)] = GOATSpoke(int(tid), t, goat_data['ftFc'], faces)
-#            spokes[int(tid)].plot_xy(ax)
-
-        return goat_data
-                
-        
+               
 
 class GridPlot:
     """Class providing grid generation plotting routines
@@ -759,7 +664,172 @@ class GridPlot:
           
         return data
         
+  
+class GOAT_grid:
+    """Class interfacing with GOAT grids"""
 
+    def __init__(self, fname):
+        """Creates a GOAT grid from file fname"""
+        goat_data = {'Vx': {}}
+        with open(fname, 'r') as f:
+            data = f.read().split('*cf:')
+        for block in data[1:]:
+            lines = block.strip().split('\n')
+            header = lines.pop(0)
+            if len(lines) == 0:
+                continue
+            elif len(lines)<2:
+                if ('(' in header) or ('Vx' in header.split()):
+                    variables = header.split()
+                else:
+                    variables = header.split()[-1].split(',')
+                values = lines[0].split()
+                if variables[0] == 'Vx':
+                    if values[0] not in goat_data['Vx']:
+                        goat_data['Vx'][int(values[0])] = {}
+                    Vxdata = goat_data['Vx'][int(values[0])]
+                    for i in range(1,len(variables)):
+                        if values[i].isdigit():
+                            Vxdata[variables[i]] = int(values[i])
+                        else:
+                            Vxdata[variables[i]] = float(values[i])
+                else:
+                    for i in range(len(variables)):
+                        goat_data[variables[i]] = values[i]
+                    else:
+                        continue
+            else:
+                variables = header.split()
+                if variables[0] == 'Vx':
+                    for line in lines:
+                        values = line.split()
+                        if values[0] not in goat_data['Vx']:
+                            goat_data['Vx'][int(values[0])] = {}
+                        Vxdata = goat_data['Vx'][int(values[0])]
+                        for i in range(1, len(variables)):
+                            if values[i].isdigit():
+                                Vxdata[variables[i]] = int(values[i])
+                            else:
+                                Vxdata[variables[i]] = float(values[i])
+                            
+                elif variables[0] == 'int':
+                    goat_data[variables[-1]] = [ \
+                        int(x) for x in (" ".join(lines)).split()
+                    ]
+                    if int(variables[1]) != len(goat_data[variables[-1]]):
+                        raise Exception(f"{variables[-1]} read incorrectly: len does not match!")
+                else:
+                    variables = header.split()
+                    goat_data[variables[0]] = {}
+                    dkey = goat_data[variables[0]]
+                    for line in lines:
+                        values = line.split()
+                        for i in range(1, len(variables)):
+                            if values[0] not in dkey:
+                                dkey[values[0]] = {}
+                            if values[i].isdigit():
+                                dkey[values[0]][variables[i]] = int(values[i])
+                            else:
+                                dkey[values[0]][variables[i]] = float(values[i])
+        
+        self.vertices = {}
+        for vid, vertex in goat_data['Vx'].items():
+            self.vertices[vid] = GOATVertex(vid, vertex)
+        
+        self.faces = {}
+        for fid, face in goat_data['fc'].items():
+            self.faces[int(fid)] = GOATFace(int(fid), face, self.vertices)
+
+        self.cells = {}
+        for cid, cell in goat_data['cv'].items():
+            self.cells[int(cid)] = GOATCell(int(cid), cell, goat_data['cvFc'], self.faces) 
+        
+        self.fluxsurfs = {}
+        for sid, s in goat_data['fs'].items():
+            self.fluxsurfs[int(sid)] = GOATFluxsurface(int(sid), s, goat_data['fsFc'], self.faces)
+
+
+        self.spokes = {}
+        for tid, t in goat_data['ft'].items():
+            self.spokes[int(tid)] = GOATSpoke(int(tid), t, goat_data['ftFc'], self.faces)
+
+        self.goat_data = goat_data
+
+    def plot_vertices(self, ax=None):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        if ax is None:
+            f, ax = subplots(figsize=(5,8))
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+            f = ax.get_figure()
+        elif isinstance(ax, Axes):
+            f = ax.get_figure()
+        else:
+            raise Exception("Axes type ", type(ax), " not recognized: aborting!")
+        for vid, vertex in self.vertices.items():
+            vertex.plot_xy(ax) 
+
+    def plot_faces(self, ax=None):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        if ax is None:
+            f, ax = subplots(figsize=(5,8))
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+            f = ax.get_figure()
+        elif isinstance(ax, Axes):
+            f = ax.get_figure()
+        else:
+            raise Exception("Axes type ", type(ax), " not recognized: aborting!")
+        for fid, face in self.faces.items():
+            face.plot_xy(ax) 
+
+    def plot_cells(self, ax=None):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        if ax is None:
+            f, ax = subplots(figsize=(5,8))
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+            f = ax.get_figure()
+        elif isinstance(ax, Axes):
+            f = ax.get_figure()
+        else:
+            raise Exception("Axes type ", type(ax), " not recognized: aborting!")
+        for cid, cell in self.cells.items():
+            cell.plot_xy(ax) 
+
+    def plot_fluxsurfs(self, ax=None):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        if ax is None:
+            f, ax = subplots(figsize=(5,8))
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+            f = ax.get_figure()
+        elif isinstance(ax, Axes):
+            f = ax.get_figure()
+        else:
+            raise Exception("Axes type ", type(ax), " not recognized: aborting!")
+        for flid, fluxsurf in self.fluxsurfs.items():
+            fluxsurf.plot_xy(ax) 
+
+    def plot_spokes(self, ax=None):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        if ax is None:
+            f, ax = subplots(figsize=(5,8))
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+            f = ax.get_figure()
+        elif isinstance(ax, Axes):
+            f = ax.get_figure()
+        else:
+            raise Exception("Axes type ", type(ax), " not recognized: aborting!")
+        for spid, spoke in self.spokes.items():
+            spoke.plot_xy(ax) 
+
+
+
+
+
+       
 
 class GOATVertex:
     def __init__(self, ident, datadict):
