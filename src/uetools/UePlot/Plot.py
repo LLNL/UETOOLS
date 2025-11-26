@@ -137,8 +137,10 @@ class Plot:
         getattr(self.dumpfig.get_axes()[iax], plottype)(
             x, y, color=color, **kwargs
         )
-        self.dumpfig.get_axes()[iax].set_xlim(xlim)
-        self.dumpfig.get_axes()[iax].set_ylim(ylim)
+        if xlim != (None, None):
+            self.dumpfig.get_axes()[iax].set_xlim(xlim)
+        if ylim != (None, None):
+            self.dumpfig.get_axes()[iax].set_ylim(ylim)
         self.dumpfig.get_axes()[iax].set_xlabel(xlabel)
         self.dumpfig.get_axes()[iax].set_ylabel(ylabel)
 
