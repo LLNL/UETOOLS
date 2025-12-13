@@ -429,6 +429,8 @@ class GridPlot:
         self,
         geqdsk,
         aeqdsk=None,
+        plot_vessel=True,
+        plot_sep=True,
         **kwargs):
         """Function to plot EFIT contours
 
@@ -495,13 +497,14 @@ class GridPlot:
         f = self.contour(
             x, y, fold, **kwargs
         )
-
-        self.add_sep(x, y, fold, ax=f, 
+        if plot_sep:
+            self.add_sep(x, y, fold, ax=f, 
                     lower=(self.get("rseps"), self.get("zseps")),
                     upper=(self.get("rseps2"), self.get("zseps2")),
                     **kwargs)
 
-        self.add_vessel(self.get("xlim"), self.get("ylim"), ax=f)
+        if plot_vessel:
+            self.add_vessel(self.get("xlim"), self.get("ylim"), ax=f)
 
         # Restore original pointers
         self.setue("aeqdskfname", oldaeqdskfname)
