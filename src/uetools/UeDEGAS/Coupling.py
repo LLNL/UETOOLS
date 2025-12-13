@@ -9,6 +9,114 @@ class DEGAS2Coupling:
         self.plot = case.plot
         
     
+
+    def write_vessel_file_snull(self, outfile, limiter=None, maxlength=None, plot=True, roll_array=True):
+        """ Writes DEGAS2-compatible vessel geometry """
+        from matplotlib.pyplot import subplots
+        from shapely import LinearRing, Polygon, Point
+        from shapely.ops import nearest_points
+        from numpy import array, cross, roll 
+
+        def is_on_segment(p0, p1, p2, epsilon=1e-6):
+            return (sum( (p0-p1)**2) + sum((p0-p2)**2) - sum((p1-p2)**2))<epsilon
+    
+        # Get Shapely object for vessel
+        if limiter is None:
+            limiter_orig = LinearRing( zip( self.get("xlim"), self.get("ylim")) )
+        else: 
+            limiter_orig = LinearRing( limiter )
+        # Refine resolution, if requested
+        if maxlength is not None:
+            limiter = limiter_orig.segmentize(maxlength)
+        else: 
+            limiter = limiter_orig
+        limiter_array = array(limiter.coords)
+        COG = array(Polygon(limiter_array).centroid.coords)[0]
+        # Ensure orientation of limiter is CW
+        if cross( limiter_array[0] - COG, limiter_array[1] - COG)>0:
+            limiter_array = limiter_array[::-1]
+        # Get UEDGE grid end-points
+        rm, zm = self.get('rm'), self.get('zm')
+        # Get the vessel geometric center of gravity
+        zones = {
+            'SOL': {
+                'target': (
+                                (rm[-1, -1, 1], zm[-1, -1, 1]),
+                                (rm[0, -1, 2], zm[0, -1, 2]) 
+                ),
+                'segment': [None, None],
+                'isegment': [None, None],
+                'intersects': [], 
+                'CW': [False, True], 
+            },
+            'PFR': { 
+                'target': ( 
+                                (rm[0, 0, 4], zm[0, 0, 4]), 
+                                (rm[-1, 0, 3], zm[-1, 0, 3])
+                ),
+                'segment': [None, None],
+                'isegment': [None, None],
+                'intersects': [], 
+                'CW': [False, True], 
+            }
+        }
+
+        # Identify vessel segment containing UE grid corner
+        for zonename, zone in zones.items():
+            for point in range(2):
+                # Find closest vessl point to target corner
+                pt = nearest_points(limiter, Point(zone['target'][point]))[0]
+#                COG = zone['COG']
+                pt = array((pt.x, pt.y))
+                # Loop trough all segments
+                for i in range(len(limiter_array)-1):
+                    p1, p2 = limiter_array[i], limiter_array[i+1]
+                    if is_on_segment(pt, p1, p2):
+                        zone['segment'][point] = (p1, p2)
+                        zone['isegment'][point] = (i, i+1)
+                        break
+                if zone['segment'][point] is None:
+                    p1, p2 = limiter_array[0], limiter_array[-1]
+                    if is_on_segment(pt, p1, p2):
+                        zone['segment'][point] = (p1, p2)
+                        zone['isegment'][point] = (0, len(limiter_array)-1)
+                if zone['segment'][point] is None:
+                    raise Exception("Reference point not on vessel")
+                # Identify the correct point 
+                zone['intersects'].append(zone['isegment'][point][zone['CW'][point]])
+        # Roll vessel so first intersect point has index 0
+        if roll_array:
+            ref = zones['SOL']['intersects'][1]
+            limiter_array = roll(limiter_array, -ref, axis=0)
+            for key, zone in zones.items():
+                for i in range(2):
+                    zone['intersects'][i] = zone['intersects'][i] - ref
+                    if zone['intersects'][i] < 0:
+                        zone['intersects'][i] = len(limiter_array) + zone['intersects'][i]
+        # Plot geometry
+        if plot:
+            f, ax = subplots()
+            ax.plot(*limiter_array[0], "or")
+            for key, zone in zones.items():
+                for pt in zone['target']:
+                    ax.plot(*pt, 'v'*(key=="PFR")+'d'*(key=="SOL"), color='b')
+                for pt in zone['intersects']:
+                    ax.plot(*limiter_array[pt], 'v'*(key=="PFR")+'d'*(key=="SOL"), color='r')
+            ax.plot(*limiter_array.T, ".-k")
+        
+        with open(outfile, 'w') as f:
+            f.write(f'1\n{len(limiter_array)}\n')
+            for p in limiter_array:
+                f.write(f'{p[0]:.8f} {p[1]:.8f}\n')
+
+        return zones
+
+
+    def write_dgin(outfile, zones):
+        return
+        
+
+
     def define_vacuum_region(self, **kwargs):
         """ Initializer for vacuum region plotting 
         
@@ -431,6 +539,4 @@ class DEGAS2Coupling:
                 self.plot_triangle(triangledata, ax=ax[4])
             ax[4].set_title("Triangulation")
         return main_points, pf_points
-
-                    
        
