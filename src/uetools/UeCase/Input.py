@@ -37,6 +37,7 @@ class Input:
         self.reload = case.reload
         self.tracker = case.tracker
         self.savefuncs = case.savefuncs
+        self.surfaces = case.surfaces
         # Makes self.populate available in input files
         self.populate = case.populate
 

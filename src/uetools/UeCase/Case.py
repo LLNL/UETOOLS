@@ -3,6 +3,7 @@ from uetools.UeSolver import Solver
 from .Save import Save
 from .Config import Config
 from .Input import Input
+from .Surfaces import Surfaces
 from uetools.UeCherab import Cherab
 from uetools.UeGrid import Grid
 from uetools.UeUtils import *
@@ -410,6 +411,7 @@ class Case:
         self.postproc = PostProcessors(self)
         self.savefuncs = Save(self)
         self.save = self.savefuncs.save
+        self.surfaces = Surfaces(self)
         self.solver = Solver(self)
         self.populate = self.solver.populate
         self.utils = Utilities(self)
