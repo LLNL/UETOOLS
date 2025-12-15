@@ -13,8 +13,8 @@ class DEGAS2Coupling:
     def write_vessel_file_snull(self, outfile, limiter=None, maxlength=None, plot=True, roll_array=True):
         """ Writes DEGAS2-compatible vessel geometry """
         from matplotlib.pyplot import subplots
-        from shapely import LinearRing, Polygon, Point
-        from shapely.ops import nearest_points
+        from shapely import LinearRing, Polygon, Point, LineString
+        from shapely.ops import nearest_points, orient
         from numpy import array, cross, roll 
 
         def is_on_segment(p0, p1, p2, epsilon=1e-6):
@@ -22,17 +22,33 @@ class DEGAS2Coupling:
     
         # Get Shapely object for vessel
         if limiter is None:
-            limiter_orig = LinearRing( zip( self.get("xlim"), self.get("ylim")) )
+            limiter = LinearRing( zip( self.get("xlim"), self.get("ylim")) )
         else: 
-            limiter_orig = LinearRing( limiter )
+            limiter = LinearRing( limiter )
+        # Identify self-intersecting/folding points
+        limiter_array = array(limiter.coords)
+        inter = []
+        # Iterate through all points
+        for i in range(1,len(limiter_array)-1):
+            # Check if the following point lies on the line segment
+            # made up by all previous point s
+            line = LineString(limiter_array[:i+1])
+            if line.distance(Point(limiter_array[i+1])) < 1e-5:
+                # If so, the Point is folding/self-intersecting: store index
+                inter.append(i+1)
+        # Remove folding/self-intersecting points
+        if len(inter)>0:
+            # Cast as list, pop points, and cast as array
+            limiter_array = list(limiter_array)
+            # Reverse order to avoid index-issues
+            for i in inter[::-1]:
+                limiter_array.pop(i)
+            limiter_array = array(limiter_array)
         # Refine resolution, if requested
         if maxlength is not None:
-            limiter = limiter_orig.segmentize(maxlength)
-        else: 
-            limiter = limiter_orig
-        limiter_array = array(limiter.coords)
-        COG = array(Polygon(limiter_array).centroid.coords)[0]
+            limiter_array = array(LinearRing(limiter_array).segmentize(maxlength).coords)
         # Ensure orientation of limiter is CW
+        COG = array(Polygon(limiter_array).centroid.coords)[0]
         if cross( limiter_array[0] - COG, limiter_array[1] - COG)>0:
             limiter_array = limiter_array[::-1]
         # Get UEDGE grid end-points
@@ -66,7 +82,6 @@ class DEGAS2Coupling:
             for point in range(2):
                 # Find closest vessl point to target corner
                 pt = nearest_points(limiter, Point(zone['target'][point]))[0]
-#                COG = zone['COG']
                 pt = array((pt.x, pt.y))
                 # Loop trough all segments
                 for i in range(len(limiter_array)-1):
