@@ -9,122 +9,136 @@ class DEGAS2Coupling:
         self.plot = case.plot
         
     
+    def define_zones(self, **kwargs):
+        rm, zm = self.get('rm'), self.get('zm')
+        if self.get('geometry')[0].decode('UTF-8').strip().lower() == 'snull':
+            # Get the vessel geometric center of gravity
+            self.zones = {
+                'SOL': {
+                    'target': (
+                                    (rm[-1, -1, 1], zm[-1, -1, 1]),
+                                    (rm[0, -1, 2], zm[0, -1, 2]) 
+                    ),
+                    'segment': [None, None],
+                    'isegment': [None, None],
+                    'intersects': [], 
+                    'CW': [False, True], 
+                },
+                'PFR': { 
+                    'target': ( 
+                                    (rm[0, 0, 4], zm[0, 0, 4]), 
+                                    (rm[-1, 0, 3], zm[-1, 0, 3])
+                    ),
+                    'segment': [None, None],
+                    'isegment': [None, None],
+                    'intersects': [], 
+                    'CW': [False, True], 
+                }
+            }
+        else:
+            raise Exception('Only "snull" geometries zoning implemented. Aborting!')
 
-    def write_vessel_file_snull(self, outfile, limiter=None, maxlength=None, plot=True, roll_array=True):
-        """ Writes DEGAS2-compatible vessel geometry """
-        from matplotlib.pyplot import subplots
-        from shapely import LinearRing, Polygon, Point, LineString
-        from shapely.ops import nearest_points, orient
-        from numpy import array, cross, roll 
 
-        def is_on_segment(p0, p1, p2, epsilon=1e-6):
-            return (sum( (p0-p1)**2) + sum((p0-p2)**2) - sum((p1-p2)**2))<epsilon
-    
+    def get_limiter(self, limiter=None, maxlength=None, **kwargs):
+        from shapely import LinearRing, Point, LineString, Polygon 
+        from numpy import array, cross
         # Get Shapely object for vessel
         if limiter is None:
-            limiter = LinearRing( zip( self.get("xlim"), self.get("ylim")) )
+            self.limiter = LinearRing( zip( self.get("xlim"), self.get("ylim")) )
         else: 
-            limiter = LinearRing( limiter )
+            self.limiter = LinearRing( limiter )
         # Identify self-intersecting/folding points
-        limiter_array = array(limiter.coords)
+        self.limiter_array = array(self.limiter.coords)
         inter = []
         # Iterate through all points
-        for i in range(1,len(limiter_array)-1):
+        for i in range(1,len(self.limiter_array)-1):
             # Check if the following point lies on the line segment
             # made up by all previous point s
-            line = LineString(limiter_array[:i+1])
-            if line.distance(Point(limiter_array[i+1])) < 1e-5:
+            line = LineString(self.limiter_array[:i+1])
+            if line.distance(Point(self.limiter_array[i+1])) < 1e-5:
                 # If so, the Point is folding/self-intersecting: store index
                 inter.append(i+1)
         # Remove folding/self-intersecting points
         if len(inter)>0:
             # Cast as list, pop points, and cast as array
-            limiter_array = list(limiter_array)
+            self.limiter_array = list(self.limiter_array)
             # Reverse order to avoid index-issues
             for i in inter[::-1]:
-                limiter_array.pop(i)
-            limiter_array = array(limiter_array)
+                self.limiter_array.pop(i)
+            self.limiter_array = array(self.limiter_array)
         # Refine resolution, if requested
         if maxlength is not None:
-            limiter_array = array(LinearRing(limiter_array).segmentize(maxlength).coords)
+            self.limiter_array = array(LinearRing(self.limiter_array).segmentize(maxlength).coords)
         # Ensure orientation of limiter is CW
-        COG = array(Polygon(limiter_array).centroid.coords)[0]
-        if cross( limiter_array[0] - COG, limiter_array[1] - COG)>0:
-            limiter_array = limiter_array[::-1]
-        # Get UEDGE grid end-points
-        rm, zm = self.get('rm'), self.get('zm')
-        # Get the vessel geometric center of gravity
-        zones = {
-            'SOL': {
-                'target': (
-                                (rm[-1, -1, 1], zm[-1, -1, 1]),
-                                (rm[0, -1, 2], zm[0, -1, 2]) 
-                ),
-                'segment': [None, None],
-                'isegment': [None, None],
-                'intersects': [], 
-                'CW': [False, True], 
-            },
-            'PFR': { 
-                'target': ( 
-                                (rm[0, 0, 4], zm[0, 0, 4]), 
-                                (rm[-1, 0, 3], zm[-1, 0, 3])
-                ),
-                'segment': [None, None],
-                'isegment': [None, None],
-                'intersects': [], 
-                'CW': [False, True], 
-            }
-        }
+        COG = array(Polygon(self.limiter_array).centroid.coords)[0]
+        if cross( self.limiter_array[0] - COG, self.limiter_array[1] - COG)>0:
+            self.limiter_array = self.limiter_array[::-1]
 
+        return
+
+
+    def write_vessel_file_snull(self, outfile, limiter=None, maxlength=None, plot=True, roll_array=True, **kwargs):
+        """ Writes DEGAS2-compatible vessel geometry """
+        from matplotlib.pyplot import subplots
+        from shapely.ops import nearest_points, orient
+        from shapely import Point
+        from numpy import array, roll 
+
+        def is_on_segment(p0, p1, p2, epsilon=1e-6):
+            return (sum( (p0-p1)**2) + sum((p0-p2)**2) - sum((p1-p2)**2))<epsilon
+
+        # Get limiter array
+        self.get_limiter(limiter, maxlength, **kwargs)
+        # Get UEDGE grid end-points
+        self.define_zones(**kwargs)
         # Identify vessel segment containing UE grid corner
-        for zonename, zone in zones.items():
+        for zonename, zone in self.zones.items():
             for point in range(2):
                 # Find closest vessl point to target corner
-                pt = nearest_points(limiter, Point(zone['target'][point]))[0]
+                pt = nearest_points(self.limiter, Point(zone['target'][point]))[0]
                 pt = array((pt.x, pt.y))
                 # Loop trough all segments
-                for i in range(len(limiter_array)-1):
-                    p1, p2 = limiter_array[i], limiter_array[i+1]
+                for i in range(len(self.limiter_array)-1):
+                    p1, p2 = self.limiter_array[i], self.limiter_array[i+1]
                     if is_on_segment(pt, p1, p2):
                         zone['segment'][point] = (p1, p2)
                         zone['isegment'][point] = (i, i+1)
                         break
                 if zone['segment'][point] is None:
-                    p1, p2 = limiter_array[0], limiter_array[-1]
+                    p1, p2 = self.limiter_array[0], self.limiter_array[-1]
                     if is_on_segment(pt, p1, p2):
                         zone['segment'][point] = (p1, p2)
-                        zone['isegment'][point] = (0, len(limiter_array)-1)
+                        zone['isegment'][point] = (0, len(self.limiter_array)-1)
                 if zone['segment'][point] is None:
                     raise Exception("Reference point not on vessel")
                 # Identify the correct point 
                 zone['intersects'].append(zone['isegment'][point][zone['CW'][point]])
         # Roll vessel so first intersect point has index 0
         if roll_array:
-            ref = zones['SOL']['intersects'][1]
-            limiter_array = roll(limiter_array, -ref, axis=0)
-            for key, zone in zones.items():
+            ref = self.zones['SOL']['intersects'][1]
+            self.limiter_array = roll(self.limiter_array, -ref, axis=0)
+            for key, zone in self.zones.items():
                 for i in range(2):
                     zone['intersects'][i] = zone['intersects'][i] - ref
                     if zone['intersects'][i] < 0:
-                        zone['intersects'][i] = len(limiter_array) + zone['intersects'][i]
+                        zone['intersects'][i] = len(self.limiter_array) + zone['intersects'][i]
         # Plot geometry
         if plot:
             f, ax = subplots()
-            ax.plot(*limiter_array[0], "or")
-            for key, zone in zones.items():
+            ax.plot(*self.limiter_array[0], "or")
+            for key, zone in self.zones.items():
                 for pt in zone['target']:
                     ax.plot(*pt, 'v'*(key=="PFR")+'d'*(key=="SOL"), color='b')
                 for pt in zone['intersects']:
-                    ax.plot(*limiter_array[pt], 'v'*(key=="PFR")+'d'*(key=="SOL"), color='r')
-            ax.plot(*limiter_array.T, ".-k")
+                    ax.plot(*self.limiter_array[pt], 'v'*(key=="PFR")+'d'*(key=="SOL"), color='r')
+            ax.plot(*self.limiter_array.T, ".-k")
         
         with open(outfile, 'w') as f:
-            f.write(f'1\n{len(limiter_array)}\n')
-            for p in limiter_array:
+            f.write(f'1\n{len(self.limiter_array)}\n')
+            for p in self.limiter_array:
                 f.write(f'{p[0]:.8f} {p[1]:.8f}\n')
 
-        return zones
+        return 
 
 
     def write_dgin(outfile, zones):
