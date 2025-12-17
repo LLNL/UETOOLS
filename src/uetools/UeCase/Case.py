@@ -7,7 +7,7 @@ from .Surfaces import Surfaces
 from uetools.UeCherab import Cherab
 from uetools.UeGrid import Grid
 from uetools.UeUtils import *
-from uetools.UeDEGAS import DEGAS2Coupling
+from uetools.UeDEGAS import VacuumTransport_coupling, DEGAS2runner
 from uetools.UePostproc.Postproc import PostProcessors
 from uetools.UeBayesian import Bayesian
 import numpy as np
@@ -418,7 +418,7 @@ class Case:
         self.convert = Convert(self)
         self.exmain = self.solver.exmain
         self.interpolate = Interpolate(self)
-        self.coupling = DEGAS2Coupling(self)
+        self.coupling = VacuumTransport_coupling(self)
         #    self.radtransp = RadTransp(self)
         self.config = Config()
         self.grid = Grid(self)
@@ -866,6 +866,9 @@ class Case:
         """
 
         self.bayes_optimizer = Bayesian(self, physics=physics)
+
+    def add_DEGAS2runner(self, degas2_input_path, degas2_run_path, **kwargs):
+        self.degas2 = DEGAS2runner(self, degas2_input_path, degas2_run_path, **kwargs)
 
 
 class GetSetMemory:

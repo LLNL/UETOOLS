@@ -1,36 +1,68 @@
 
-class DEGAS2Coupling:
+class DEGAS2runner:
     """ Object for coupling UEDGE to DEGAS2
 
     """
-    def __init__(self, case):
-        # TODO: set up path etc. links correctly here
+    def __init__(self, case, inpath, runpath, material='C', recyc_coef=1.,
+        overwrite=False, vesselfile='vessel.dat', uefile='uedata.u', **kwargs):
+        from os import getenv, makedirs
+        from os.path import isdir
+
+        self.degas2path = getenv("DEGAS2_PATH")
+        if self.degas2path is None:
+            raise OSError("$DEGAS2_PATH not set. Aborting")
+        self.inpath = inpath
+        if not isdir(self.inpath):
+            raise OSError(f"DEGAS2 input file path {self.inpath} does not exist")
+        self.runpath = runpath
+        makedirs(self.runpath, exist_ok=overwrite)
+        self.runfilepath = f"{self.runpath}/degas2infiles"
+        makedirs(self.runfilepath, exist_ok=overwrite)
+        self.outpath = f"{self.runpath}/degas2output"
+        makedirs(self.outpath, exist_ok=overwrite)
+
+        # Store filenames
+        self.vesselfile = vesselfile
+        self.uefile = uefile
+
+        # TODO: add flexibility to materials and recycling coeffs, etc
+        self.material = material
+        self.recyc_coef = recyc_coef
+        
         """ Links class to uetools.Case functions """
         self.get = case.get
         self.plot = case.plot
-        
 
-    def setup_degas2_run(self, output_path, degas2_input_path, vesselfile="vessel.dat", **kwargs):
-        # TODO: read and set paths correctly
-        self.setup_dirs_paths(**kwargs)
+    def setup_degas2_run(self, vesselfile=None, **kwargs):
+        from shutil import copytree
+        if vesselfile is None:
+            vesselfile = self.vesselfile
+        else:
+            self.vesselfile = vesselfile
+        copytree(self.inpath, self.runfilepath, dirs_exist_ok=True)
+        self.write_uedge_data()
         self.define_boundaries(**kwargs)
         self.setup_dg(plot=False, **kwargs)
-        self.write_vessel_file('vesselfile')
+        self.write_vessel_file(vesselfile)
         self.write_dgin("dg.in", **kwargs)
-    
-    def setup_dirs_paths(self, **kwargs):
-        # TODO: treat materials and recycling coefficients
-        self.material = None
-        self.recyc_coef = 1.
-        self.ue_mesh_path = None
-        self.vessel_file_path = None
-        self.outpath = None
-        # Set up in/out directories
-        # Copy over input files
-        # Set up relveant paths as variables
-        return
+   
+
+    def write_uedge_data(self, uefile=None):
+        from Forthon import packageobject
+        if uefile is None:
+            uefile = self.uefile
+        else:
+            self.uefile = uefile
+        runid = self.get('runid')
+        if runid is None:
+            runid = ""
+        packageobject('bbb').__getattribute__('writemcnfile')(
+            f"{self.runfilepath}/{uefile}", 
+            runid
+        )
 
     def define_boundaries(self, bounds=None,  **kwargs):
+        print("Identifying geometry and setting up zones")
         rm, zm = self.get('rm'), self.get('zm')
         # Define bounding box
         if bounds is None:
@@ -189,10 +221,13 @@ class DEGAS2Coupling:
         else:
             raise Exception('Only "snull" geometries zoning implemented. Aborting!')
 
+        print("    Zone setup completed")
+
 
     def get_limiter(self, limiter=None, maxlength=None, **kwargs):
         from shapely import LinearRing, Point, LineString, Polygon 
         from numpy import array, cross
+        print("Getting limiter nodes...")
         # Get Shapely object for vessel
         if limiter is None:
             self.limiter = LinearRing( zip( self.get("xlim"), self.get("ylim")) )
@@ -211,6 +246,7 @@ class DEGAS2Coupling:
                 inter.append(i+1)
         # Remove folding/self-intersecting points
         if len(inter)>0:
+            print(" ...Removing folding nodes")
             # Cast as list, pop points, and cast as array
             self.limiter_array = list(self.limiter_array)
             # Reverse order to avoid index-issues
@@ -220,15 +256,17 @@ class DEGAS2Coupling:
         # Refine resolution, if requested
         if maxlength is not None:
             self.limiter_array = array(LinearRing(self.limiter_array).segmentize(maxlength).coords)
+            print(" ...Refining resolution")
         # Ensure orientation of limiter is CW
         COG = array(Polygon(self.limiter_array).centroid.coords)[0]
         if cross( self.limiter_array[0] - COG, self.limiter_array[1] - COG)>0:
+            print(" ...Orienting vessel clock-wise")
             self.limiter_array = self.limiter_array[::-1]
-
+        print("    Vessel node setup complete")
         return
 
 
-    def setup_dg(self, limiter=None, maxlength=None, plot=True, roll_array=True, **kwargs):
+    def setup_dg(self, limiter=None, maxlength=None, plot=False, roll_array=True, **kwargs):
         """ Writes DEGAS2-compatible vessel geometry """
         from matplotlib.pyplot import subplots
         from shapely.ops import nearest_points, orient
@@ -238,12 +276,12 @@ class DEGAS2Coupling:
         def is_on_segment(p0, p1, p2, epsilon=1e-6):
             return (sum( (p0-p1)**2) + sum((p0-p2)**2) - sum((p1-p2)**2))<epsilon
 
-        self.setup_dirs_paths()
         # Get limiter array
         self.get_limiter(limiter, maxlength, **kwargs)
         # Get UEDGE grid end-points
         self.define_boundaries(**kwargs)
         # Identify vessel segment containing UE grid corner
+        print("Setting up vessel intersects...")
         for zonename, zone in self.boundaries.items():
             for point in range(2):
                 # Find closest vessl point to target corner
@@ -267,6 +305,7 @@ class DEGAS2Coupling:
                 zone['intersects'].append(zone['isegment'][point][zone['CW'][point]])
         # Roll vessel so first intersect point has index 0
         if roll_array:
+            print(" ...Reordering vessel nodes")
             ref = self.boundaries['SOL']['intersects'][1]
             self.limiter_array = roll(self.limiter_array, -ref, axis=0)
             for key, zone in self.boundaries.items():
@@ -284,24 +323,28 @@ class DEGAS2Coupling:
                 for pt in zone['intersects']:
                     ax.plot(*self.limiter_array[pt], 'v'*(key=="PFR")+'d'*(key=="SOL"), color='r')
             ax.plot(*self.limiter_array.T, ".-k")
+        print("    Vessel intersect setup completed")
         return
 
                 
     def write_vessel_file(self, outfile, **kwargs):
-        with open(outfile, 'w') as f:
+        print(f"Writing {outfile} to {self.runfilepath}")
+        with open(f"{self.runfilepath}/{outfile}", 'w') as f:
             f.write(f'1\n{len(self.limiter_array)}\n')
             for p in self.limiter_array:
                 f.write(f'{p[0]:.8f} {p[1]:.8f}\n')
+        print(f"    {outfile} written successfully.")
         return 
 
 
     def write_dgin(self, outfile, tab=4*' ', **kwargs):
         i = 1
-        with open(outfile, 'w') as f:
+        print(f"Writing {outfile} to {self.runfilepath}")
+        with open(f"{self.runfilepath}/{outfile}", 'w') as f:
             # Write initialization block
             f.write("symmetry cylindrical\n")
-            f.write(f"uedge_mesh {self.ue_mesh_path}\n")
-            f.write(f"wallfile {self.vessel_file_path}\n")
+            f.write(f"uedge_mesh {self.runfilepath}/{self.uefile}\n")
+            f.write(f"wallfile {self.runfilepath}/{self.vesselfile}\n")
             f.write(f"bounds {self.bounds[0]:.3f} {self.bounds[1]:.3f} {self.bounds[2]:.3f} {self.bounds[3]:.3f}\n")
             f.write("end_prep\n")
             # Start writing zones
@@ -337,7 +380,6 @@ class DEGAS2Coupling:
                                 wallrange = f"{wallrange} {i}"
                         else:
                             i = min(intersects)*boundary['start'] + max(intersects)*boundary['end']
-                            print(intersects, i, boundary['start'], boundary['end'])
                             for j in range(2):
                                 wallrange = f"{wallrange} {i}"
                         f.write(f'{tab}{pre} 1 {wallrange.strip()} {app}\n')
@@ -346,7 +388,8 @@ class DEGAS2Coupling:
 
                 i += 1
         
-            f.write(f'\npolygon_nc_file {self.outpath}/polygons.nc\n')
+            f.write(f'\npolygon_nc_file {self.runfilepath}/polygons.nc\n')
+        print(f"{tab}{outfile} written successfully.")
 
 
         return
@@ -374,13 +417,10 @@ class DEGAS2Coupling:
 
 
 class VacuumTransport_coupling:
-    def __init__():
+    def __init__(self, case):
         """ Links class to uetools.Case functions """
         self.get = case.get
         self.plot = case.plot
-        
-
-
 
     def define_vacuum_region(self, **kwargs):
         """ Initializer for vacuum region plotting 
@@ -396,8 +436,6 @@ class VacuumTransport_coupling:
             raise Exception("Vacuum region definition not implemented" +
                 f"geometry {geo}.")
             
-
-
     def get_vacuum(self, boundary, vessel, north):
         """ Function that returns the clockwise vacuum region boundary
         
