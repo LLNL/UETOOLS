@@ -29,6 +29,8 @@ class DEGAS2runner:
         self.material = material
         self.recyc_coef = recyc_coef
         
+        self.ionspecies, self.gasspecies = case.about.species_setup(True)
+
         """ Links class to uetools.Case functions """
         self.get = case.get
         self.plot = case.plot
@@ -41,11 +43,72 @@ class DEGAS2runner:
             self.vesselfile = vesselfile
         copytree(self.inpath, self.runfilepath, dirs_exist_ok=True)
         self.write_uedge_data()
+        self.write_degas2in()
+        self.write_rb()
         self.define_boundaries(**kwargs)
         self.setup_dg(plot=False, **kwargs)
         self.write_vessel_file(vesselfile)
         self.write_dgin("dg.in", **kwargs)
-   
+
+
+    def run_degas2(self):
+        # TODO: implement degas_runner here
+        return
+
+    def write_degas2in(self, problemname='pr', tallyname='tally',
+        geometryout='dg', backgroundout='bk', outputfile='degas2_output'):
+        print(f"Writing degas2.in to {self.runfilepath}")
+        # TODO: harden with lookups? Or standardized locations
+        inoutfilepaths = {
+            'elements': 'data',
+            'species': 'data',
+            'materials': 'data',
+            'reaction': 'data',
+            'pmi': 'data',
+        }
+        degasin = {
+            'problem': problemname,
+            'tally': tallyname
+        }
+        degasout = {
+            'geometry': geometryout,
+            'background': backgroundout,
+            'output': outputfile
+        }
+        inout = {
+            '_infile': ['.input', f"{self.runfilepath}"],
+            'file': ['.nc', f"{self.outpath}"]
+        }
+        with open(f"{self.runfilepath}/degas2.in", 'w') as f:
+            for key, path in inoutfilepaths.items():
+                for keyapp, fileapp in inout.items():
+                    f.write(f"{key}{keyapp} {self.degas2path}/{path}/{key}{fileapp[0]}\n")
+                f.write('\n')
+            for key, file in degasin.items():
+                for keyapp, fileapp in inout.items():
+                    f.write(f"{key}{keyapp} {fileapp[1]}/{file}{fileapp[0]}\n")
+                f.write('\n')
+            for key, file in degasout.items():
+                f.write(f"{key}{keyapp} {self.outpath}/{file}.nc\n")
+                f.write('\n')
+        print(f"    Successfully wrote degas2.in to {self.runfilepath}")
+                
+    def write_rb(self):
+        print(f"Writing db.in to {self.runfilepath}")
+        with open(f"{self.runfilepath}/db.in", 'w') as f:
+            f.write(f"plasma_file {self.runfilepath}/rb.in\n")
+        print(f"    Successfully wrote db.in to {self.runfilepath}")
+
+        ion_species = ''
+        for species in self.ionspecies:
+            if 'D0' not in species.upper():
+                ion_species = f"{ion_species} {species.strip().replace('1','')}"
+        print(f"Writing rb.in to {self.runfilepath}")
+        with open(f"{self.runfilepath}/rb.in", 'w') as f:
+            f.write(f"uedge_file {self.runfilepath}/{self.uefile}\n")
+            f.write(f"ion_species {ion_species}\n")
+            f.write(f"polygon_file {self.outpath}/polygons.nc")
+        print(f"    Successfully wrote rb.in to {self.runfilepath}")
 
     def write_uedge_data(self, uefile=None):
         from Forthon import packageobject
@@ -56,10 +119,12 @@ class DEGAS2runner:
         runid = self.get('runid')
         if runid is None:
             runid = ""
+        print(f"Writing {self.uefile} to {self.runfilepath}")
         packageobject('bbb').__getattribute__('writemcnfile')(
             f"{self.runfilepath}/{uefile}", 
             runid
         )
+        print(f"    Successfully wrote {self.uefile} to {self.runfilepath}")
 
     def define_boundaries(self, bounds=None,  **kwargs):
         print("Identifying geometry and setting up zones")
