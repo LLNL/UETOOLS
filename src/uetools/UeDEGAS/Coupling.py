@@ -36,6 +36,7 @@ class DEGAS2runner:
         self.plot = case.plot
 
     def setup_degas2_run(self, vesselfile=None, **kwargs):
+        """ Creates DEGAS2 input files and intializes directories """
         from shutil import copytree
         if vesselfile is None:
             vesselfile = self.vesselfile
@@ -52,6 +53,23 @@ class DEGAS2runner:
 
 
     def run_degas2(self):
+        """ Exectures DEGAS2 run commands """
+        command = {
+            "datasetup": "",
+            "problemsetup": f"{self.runfilepath}/pr.in",
+            "definegeometry2d": f"{self.runfilepath}/dg.in",
+            "defineback": f"{self.runfilepath}/db.in",
+            "tallysetup": f"{self.runfilepath}/tally.input",
+            "flighttest": ""
+        }
+        for cmd, arg in command.items():
+            try:
+                subprocess.run(f"{cmd} {arg}", shell=True, check=True,
+                                        capture_output=False, text=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Command '{cmd} {arg}' failed with return code {e.returncode}")
+                print(e.stderr)
+    
         # TODO: implement degas_runner here
         return
 
