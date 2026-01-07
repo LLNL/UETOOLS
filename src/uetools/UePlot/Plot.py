@@ -6,7 +6,8 @@ ion()
 # TODO: implement divergence plotting/calculation
 
 class Plot:
-    def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, dnull=False, slab=False, **kwargs):
+    def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, 
+            dnull=False, snowflake=False, slab=False, **kwargs):
         """Constructs patches objects
         rm - UEDGE R-node object
         zm - UEDGE Z-node object
@@ -22,15 +23,21 @@ class Plot:
         self.snull = snull
         self.dnull = dnull
         self.usn = usn
+        self.snowflake = snowflake
 
         if self.snull is False:
-            sep = self.get("iysptrx1")
-            if sep[0] == sep[1]:
-                self.dnull = "balanced"
-            elif sep[0] < sep[1]:
-                self.dnull = "lower"
+            if self.dnull is True:
+                sep = self.get("iysptrx1")
+                if sep[0] == sep[1]:
+                    self.dnull = "balanced"
+                elif sep[0] < sep[1]:
+                    self.dnull = "lower"
+                else:
+                    self.dnull = "upper"
+            elif self.snowflake is not False:
+                pass
             else:
-                self.dnull = "upper"
+                raise Exception("Geometry not recognized. Aborting!")
 
 
         self.createvertices(rm, zm)
@@ -280,6 +287,107 @@ class Plot:
                     self.sep['isepo'][xy] = append(isepo, locals()[f"{xy}m"][\
                             ixpt2[1], iysptrx2[0]+1, 2]
                     )
+            elif self.snowflake is not False:
+                iysptrx1 = self.get("iysptrx1")
+                iysptrx2 = self.get("iysptrx2")
+                ixpt1 = self.get("ixpt1")
+                ixpt2 = self.get("ixpt2")
+                ixlb = self.get("ixlb")
+                ixrb = self.get("ixrb")
+                common_lines = ['plate1', 'plate2', 'plate3', 'plate4', 
+                                'core']
+                if self.snowflake == 75:
+                    for line in common_lines + [  
+                                'p1xp1', 'p1xpc1', 'bp1p2', 'bp1xpc1',
+                                'p2xp1', 'p2xp2', 'bp2xpc2',
+                                'p3xp2', 'bp3p4', 'bp3xpc2',
+                                'p4xp2', 'bp4xpc1',
+                                'bxpc1xpc2', 'xp1xp2', 'sep'
+                                ]:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, 0, 3
+                        ]
+                        self.sep['core'][xy] = append( self.sep['core'][xy],
+                                locals()[f"{xy}m"][ixpt2[0], 0, 4]
+                        )
+                        self.sep['p1xp1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['p1xpc1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['bp1p2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['bp1xpc1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['p2xp1'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]:ixrb[0]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['p2xp2'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[0]:ixrb[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['bp2xpc2'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                        ]
+                        self.sep['p3xp2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['bp3p4'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['bp3xpc2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, 0, 4
+                        ]
+                        self.sep['p4xp2'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, iysptrx1[1], 3
+                        ]
+                        self.sep['bp4xpc1'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ]
+#                                'bxpc1xpc2', 'xp1xp2' 'sep'
+                        self.sep['bxpc1xpc2'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixpt1[1]+1, 0, 3
+                         ]
+                        self.sep['xp1xp2'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixpt1[1]+1, iysptrx2[1], 3
+                        ]
+                        self.sep['bxpc1xpc2'][xy] = append(
+                                self.sep['bxpc1xpc2'][xy], 
+                                locals()[f"{xy}m"][ixpt1[1], 0, 4]
+                        )
+                        self.sep['xp1xp2'][xy] = append(
+                                self.sep['xp1xp2'][xy], 
+                                locals()[f"{xy}m"][ixpt1[1], iysptrx2[1], 4]
+                        )
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+2, iysptrx2[0], 3
+                        ]
+                else:
+                    print(  20*'='+
+                        "\nWarning! Snowflake geometries not implemented in " +
+                        "UETOOLS plotting routines. Visualization will not " +
+                        "be shown correctly.\n" + 20*"=")
+            
+
+            
+
+
             if self.dnull=="upper":
                 for xy in ['r', 'z']:
                     self.sep['ilegu'][xy] = locals()[f"{xy}m"][\
