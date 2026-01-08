@@ -1,0 +1,125 @@
+# == SINGLE-NULL ==
+---
+name: snull
+segments:
+    x:
+        1: 
+            var: ixlb
+        2:
+            var: ixpt1
+            index: 0
+        3:
+            var: ixpt2
+            index: 0
+        4:
+            var: ixrb
+    y:
+        1: 0
+        2: 
+            var: iysptrx
+        3: -1
+
+patches:
+    core:
+        boundaries:
+            E: core
+            W: core
+        neighbors:
+            N: sol
+            E: pfr_2
+            W: pfr_1
+    sol:
+        neighbors:
+            S: [pfr_1, core, pfr_2]
+    pfr_1:
+        boundaries:
+            E: pfr_2
+        neighbors:
+            N: sol
+            E: core
+    pfr_2:
+        boundaries:
+            W: pfr_1
+        neighbors:
+            N: sol
+            W: core
+
+
+
+# == SNOWFLAKE 75 ==
+---
+name: snowflake75
+subregion1: [   core, 
+                sol_outer, 
+                sol_inner_1, 
+                sol_inner_2, 
+                pfr_14_1, 
+                pfr_14_2,
+                pfr_23_1
+    ]
+subregion2: [   pfr_14_3,
+                pfr_34,
+                pfr_23_2
+    ]
+
+patches:
+    core:
+        plot: 
+            -   side: N
+                periodic: True
+        boundaries:
+            E: core
+            W: core
+        neighbors:
+            N: sol_outer
+            E: [pfr_14_2, sol_inner_2]
+            W: [pfr_14_1, sol_inner_1]
+
+    sol_outer: 
+        plot:
+            -   side: N
+                periodic: False
+        neighbors:
+            S:  [sol_inner_1, core, sol_inner_2]
+
+    sol_inner_1:
+        neighbors:
+            N: sol_outer
+            E: core
+            S: pfr_14_1
+
+    sol_inner_2:
+        neighbors:
+            N: sol_outer
+            S: [pfr_14_2, pfr_23_1]
+            W: core
+
+    pfr_14_1:
+        neighbors:
+            N:  sol_inner_1
+            E:  core
+
+    pfr_14_2:
+        neighbors:
+            N: sol_inner_2
+            E: pfr_23_1
+            W: core
+    pfr_14_3:
+        neighbors:
+            N: pfr_34
+            W: pfr_23_2
+
+    pfr_34:
+        neighbors:
+            S: [pfr_23_2, pfr_14_3]
+
+    pfr_23_1:
+        neighbors:
+            N: sol_inner_2
+            W: pfr_14_2
+
+    pfr_23_2:
+        neighbors:
+            N: pfr_34
+            E: pfr_14_3
+
