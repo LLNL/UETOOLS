@@ -81,8 +81,6 @@ class Plot:
         nodes[:, :, :, 1] = self.getomit("zm")
         nodes = transpose(nodes, (2, 3, 0, 1))
 
-        # TODO: rather than align poloidal/radial in direction of cell,
-        # evaluate face normal locally at cell face?
         # Find midpoints of y-faces
         self.symid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
         self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
@@ -93,23 +91,15 @@ class Plot:
         self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
 
         # Find vectors of east faces
-        eastface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
-        eastface[:-1] = nodes[4] - nodes[2]
-        # Find vectors of north faces
-        northface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
-        northface[:-1] = nodes[4] - nodes[3]
-        # Find normals to faces
-        northnormal = self.symid[1]-self.symid[0]
-        eastnormal = self.sxmid[1]-self.sxmid[0]
-
-        self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
-        for i in range(2):
-            self.northnormaln[i] = northnormal[i] / (sum(northnormal**2, 
-                axis=0) ** 0.5 + 1e-20)
         self.eastnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
-        for i in range(2):
-            self.eastnormaln[i] = eastnormal[i] / (sum(eastnormal**2, 
-                axis=0) ** 0.5 + 1e-20)
+        self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
+        for ix in range(self.get("nx")+2):
+            for iy in range(self.get("ny")+2):
+                dR = self.get("rm")[ix, iy, 2] - self.get("rm")[ix, iy, 1]
+                dZ = self.get("zm")[ix, iy, 2] - self.get("zm")[ix, iy, 1]
+                mag = (dR**2 + dZ**2) ** 0.5 + 1e-20
+                self.eastnormaln[:,ix,iy] = [dR / mag, dZ / mag]
+                self.northnormaln[:,ix,iy] = [-dZ / mag, dR / mag]
 
     def newplot(self, **kwargs):
         """ Creates a figure for 'dump' plots """
@@ -364,7 +354,7 @@ class Plot:
                         self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
                                 ixpt2[1]+1:ixrb[1]+2, iysptrx1[1], 3
                         ])
-                if self.snowflake == 45:
+                elif self.snowflake == 45:
                     for line in common_lines + ['sep2', 'p2p4']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
@@ -1241,6 +1231,8 @@ class Plot:
         density=2,
         xlim=(None, None),
         ylim=(None, None),
+        lcfscolor="grey",
+        lcfs = True,
         **kwargs
     ):
         from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
@@ -1253,21 +1245,34 @@ class Plot:
         nx = self.get("nx")
         ny = self.get("ny")
         # Create polygons for masking
-        outerx = []
-        outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
-        outerx = outerx + list(rm[0, :, 1])
-        outerx = outerx + list(rm[:, -1, 3])
-        outerx = outerx + list(rm[:, ::-1][-1, :, 4])
-        outerx = outerx + list(rm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
-        outery = []
-        outery = outery + list(zm[::-1][-self.get("ixpt1")[0] :, 0, 2])
-        outery = outery + list(zm[0, :, 1])
-        outery = outery + list(zm[:, -1, 3])
-        outery = outery + list(zm[:, ::-1][-1, :, 4])
-        outery = outery + list(zm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+        if self.snowflake is False:
+            outerx = []
+            outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+            outerx = outerx + list(rm[0, :, 1])
+            outerx = outerx + list(rm[:, -1, 3])
+            outerx = outerx + list(rm[:, ::-1][-1, :, 4])
+            outerx = outerx + list(rm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+            outery = []
+            outery = outery + list(zm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+            outery = outery + list(zm[0, :, 1])
+            outery = outery + list(zm[:, -1, 3])
+            outery = outery + list(zm[:, ::-1][-1, :, 4])
+            outery = outery + list(zm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
 
-        innerx = rm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
-        innery = zm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+            innerx = rm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+            innery = zm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+        else:
+            from numpy import concatenate
+            outerx = concatenate([self.sep['outer_sol']['r'], 
+                                  self.sep['pfr3']['r'], 
+                                  self.sep['pfr2']['r'], 
+                                  self.sep['pfr1']['r']])
+            outery = concatenate([self.sep['outer_sol']['z'], 
+                                  self.sep['pfr3']['z'], 
+                                  self.sep['pfr2']['z'], 
+                                  self.sep['pfr1']['z']])
+            innerx = self.sep['core']['r']
+            innery = self.sep['core']['z']
 
         outer = Polygon(
             array([outerx, outery]).transpose(),
@@ -1283,6 +1288,8 @@ class Plot:
         )
         x = pol * self.eastnormaln[0] + rad * self.northnormaln[0]
         y = pol * self.eastnormaln[1] + rad * self.northnormaln[1]
+        # Convert input vector to R-Z coordinates
+        # x, y = self.get_vector_rz(pol,rad)
 
         gx, gy = mgrid[
             rm.min() : rm.max() : resolution[0], zm.min() : zm.max() : resolution[1]
@@ -1326,8 +1333,8 @@ class Plot:
             density=density,
             **kwargs
         )
-
         ax = f.get_axes()[0]
+        self.lcfs(ax, flip=False, color=lcfscolor, zorder=1)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
         ax.set_xlabel("R [m]")
