@@ -165,7 +165,7 @@ class Plot:
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         """Creates a poly collection and records boundaries"""
         from matplotlib.collections import PolyCollection
-        from numpy import append
+        from numpy import append, where
         try:
             from uedge import com
         except:
@@ -294,16 +294,11 @@ class Plot:
                 ixpt2 = self.get("ixpt2")
                 ixlb = self.get("ixlb")
                 ixrb = self.get("ixrb")
+                isixcore = self.get("isixcore")
                 common_lines = ['plate1', 'plate2', 'plate3', 'plate4', 
-                                'core']
-                if self.snowflake == 75:
-                    for line in common_lines + [  
-                                'p1xp1', 'p1xpc1', 'bp1p2', 'bp1xpc1',
-                                'p2xp1', 'p2xp2', 'bp2xpc2',
-                                'p3xp2', 'bp3p4', 'bp3xpc2',
-                                'p4xp2', 'bp4xpc1',
-                                'bxpc1xpc2', 'xp1xp2', 'sep'
-                                ]:
+                                'core', 'outer_sol', 'pfr1', 'pfr2', 'pfr3', 'sep']
+                if self.snowflake == 15:
+                    for line in common_lines + ['sep2', 'p2p4']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
                         self.sep['plate1'][xy] = locals()[f"{xy}m"][\
@@ -324,60 +319,345 @@ class Plot:
                         self.sep['core'][xy] = append( self.sep['core'][xy],
                                 locals()[f"{xy}m"][ixpt2[0], 0, 4]
                         )
-                        self.sep['p1xp1'][xy] = locals()[f"{xy}m"][\
-                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
-                        ]
-                        self.sep['p1xpc1'][xy] = locals()[f"{xy}m"][\
-                                ixlb[0]:ixpt1[0]+1, iysptrx1[1], 4
-                        ]
-                        self.sep['bp1p2'][xy] = locals()[f"{xy}m"][\
+                        self.sep['core'][xy] = append( self.sep['core'][xy],
+                                locals()[f"{xy}m"][ixpt1[1]+1:ixpt2[1]+1, 0, 4]
+                        )
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
                                 ixlb[0]:ixrb[0]+1, -2, 4
                         ]
-                        self.sep['bp1xpc1'][xy] = locals()[f"{xy}m"][\
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
                                 ixlb[0]:ixpt1[0]+1, 0, 4
                         ]
-                        self.sep['p2xp1'][xy] = locals()[f"{xy}m"][\
-                                ixpt1[1]:ixrb[0]+1, iysptrx1[1], 4
-                        ]
-                        self.sep['p2xp2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[0]:ixrb[0]+1, iysptrx1[0], 4
-                        ]
-                        self.sep['bp2xpc2'][xy] = locals()[f"{xy}m"][\
-                                ixpt1[1]+1:ixrb[0]+2, 0, 3
-                        ]
-                        self.sep['p3xp2'][xy] = locals()[f"{xy}m"][\
-                                ixlb[1]:ixpt2[1]+1, iysptrx1[1], 4
-                        ]
-                        self.sep['bp3p4'][xy] = locals()[f"{xy}m"][\
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
                                 ixlb[1]:ixrb[1]+1, -2, 4
                         ]
-                        self.sep['bp3xpc2'][xy] = locals()[f"{xy}m"][\
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0]+2:ixpt1[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt1[0]:ixpt2[0]+1, iysptrx1[0], 4
+                        ])
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]+1:, iysptrx1[0], 4
+                        ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt2[0]+1, iysptrx2[0], 4
+                        ]
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt1[1]+1, iysptrx1[1], 4
+                        ][::-1])
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[0]:ixrb[0]+1, iysptrx2[0], 4
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]:ixpt2[1]+1, iysptrx1[1], 4
+                        ])
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, iysptrx1[1], 3
+                        ])
+                if self.snowflake == 45:
+                    for line in common_lines + ['sep2', 'p2p4']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, 0, 3
+                        ]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], locals()[f"{xy}m"][\
+                                ixpt2[0], 0, 4
+                        ])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] =locals()[f"{xy}m"][\
                                 ixlb[1]:ixpt2[1]+1, 0, 4
                         ]
-                        self.sep['p4xp2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[1]+1:ixrb[1]+2, iysptrx1[1], 3
-                        ]
-                        self.sep['bp4xpc1'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[1]+1:ixrb[1]+2, 0, 3
-                        ]
-#                                'bxpc1xpc2', 'xp1xp2' 'sep'
-                        self.sep['bxpc1xpc2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[0]+1:ixpt1[1]+1, 0, 3
-                         ]
-                        self.sep['xp1xp2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[0]+1:ixpt1[1]+1, iysptrx2[1], 3
-                        ]
-                        self.sep['bxpc1xpc2'][xy] = append(
-                                self.sep['bxpc1xpc2'][xy], 
-                                locals()[f"{xy}m"][ixpt1[1], 0, 4]
-                        )
-                        self.sep['xp1xp2'][xy] = append(
-                                self.sep['xp1xp2'][xy], 
-                                locals()[f"{xy}m"][ixpt1[1], iysptrx2[1], 4]
-                        )
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
                         self.sep['sep'][xy] = locals()[f"{xy}m"][\
-                                ixpt1[0]+1:ixpt2[0]+2, iysptrx2[0], 3
+                                ixlb[0]:ixpt1[1]+1, iysptrx1[0], 4
                         ]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[0], 4
+                        ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[1]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]+1:ixpt2[1]+2, iysptrx1[1], 3
+                        ][::-1])
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, iysptrx1[1], 3
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[1], 4
+                        ])
+                elif self.snowflake == 75:
+                    for line in common_lines + ['p1p3', 'p2p4']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                where(isixcore==1), 0, 3
+                        ][0]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], self.sep['core'][xy][0])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]:ixrb[0]+1, iysptrx2[1], 4
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[1], 4
+                        ])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx2[1], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixpt1[1]+1, iysptrx2[1], 4
+                        ])
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, iysptrx1[1], 4
+                        ][::-1])
+                elif self.snowflake == 105:
+                    for line in common_lines + ['p1p3', 'p2p4']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                where(isixcore==1), 0, 3
+                        ][0]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], self.sep['core'][xy][0])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, iysptrx2[1], 3
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, iysptrx2[1], 3
+                        ][::-1])
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, iysptrx2[1], 3
+                        ])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx2[1], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, iysptrx2[1], 4
+                        ][::-1])
+                elif self.snowflake == 135:
+                    for line in common_lines + ['sep2', 'p1p3']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                where(isixcore==1), 0, 3
+                        ][0]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], self.sep['core'][xy][0])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] =locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]:ixrb[0]+1, iysptrx1[0], 4
+                        ][::-1]
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[0], 4
+                        ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[0]:ixrb[0]+1, iysptrx1[1], 4
+                        ][::-1]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, iysptrx1[1], 3
+                        ][::-1])
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]+1:ixpt2[1]+1, iysptrx1[1], 3
+                        ][::-1])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1], iysptrx1[0], 4
+                        ][::-1])
+                elif self.snowflake == 165:
+                    for line in common_lines + ['sep2', 'p1p3']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, 0, 3
+                        ]
+                        self.sep['core'][xy] = append( self.sep['core'][xy],
+                                locals()[f"{xy}m"][ixpt2[0], 0, 4]
+                        )
+                        self.sep['core'][xy] = append( self.sep['core'][xy],
+                                locals()[f"{xy}m"][ixpt1[1]+1:ixpt2[1]+1, 0, 4]
+                        )
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0]+2:ixpt1[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[1]:, iysptrx1[0], 4
+                        ][::-1]
+                        
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy],locals()[f"{xy}m"][\
+                                ixpt1[0]:ixrb[0]+1, iysptrx1[0], 4
+                        ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt1[1]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy],locals()[f"{xy}m"][\
+                                ixpt1[1]:ixpt2[1]+1, iysptrx2[0], 4
+                        ])
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy],locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixrb[0]+2, iysptrx2[0], 3
+                        ])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1], iysptrx1[0], 4
+                        ][::-1])
                 else:
                     print(  20*'='+
                         "\nWarning! Snowflake geometries not implemented in " +
