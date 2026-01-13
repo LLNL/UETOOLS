@@ -1224,6 +1224,8 @@ class Plot:
         rad,
         resolution=(500j, 800j),
         linewidth="magnitude",
+        linewidth_mult=1,
+        logscale_linewidth=False,
         broken_streamlines=False,
         color="k",
         maxlength=0.4,
@@ -1231,12 +1233,30 @@ class Plot:
         density=2,
         xlim=(None, None),
         ylim=(None, None),
-        lcfscolor="grey",
         lcfs = True,
+        lcfscolor="grey",
         **kwargs
     ):
-        from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
-        from scipy.interpolate import griddata, bisplrep
+        """Plot streamlines of a vector variable with poloidal and radial components (pol, rad). Based on the function streamline() in UETools (https://github.com/LLNL/UETOOLS/blob/aaa823222ecc8ae76647aa8bf5299cd9804b61b1/src/uetools/UePlot/Plot.py)
+
+            :param pol: Poloidal component of variable on UEDGE mesh
+            :param rad: Radial component of variable on UEDGE mesh
+            :param resolution: Resolution of a Cartesian grid on which to interpolate x-y components of vector field directions, defaults to (500j, 800j)
+            :param linewidth: Method of calculating linewidths, "magnitude" (in which case all linewidths are scaled to the maximum vector magnitude) or "absolute" (used in conjunction with linewidth_mult to set linewidths in absolute terms; useful for comparisons with other streamline plots), defaults to "magnitude"
+            :param linewidth_mult: Linewidth multiplier (useful if using linewidth="magnitude"), defaults to 1
+            :param logscale_linewidth: Linewidths are calculated on a logarithmic scale, defaults to False
+            :param broken_streamlines: Whether streamlines are brroken, defaults to True
+            :param color: Colour of streamlines, defaults to "red"
+            :param maxlength: Max length of streamlines, defaults to 0.4
+            :param mask: Whether to mask regions outside of simulation domain, defaults to True
+            :param density: Density of streamlines, defaults to 2
+            :param xlim: x-axis limits, defaults to (None, None)
+            :param ylim: y-axis limits, defaults to (None, None)
+            :param lcfs: Whether to display the separatrix/separatrices
+            :param lcfscolor: Colour of lcfs
+        """
+        from numpy import mgrid, nan, array, nan_to_num, log
+        from scipy.interpolate import griddata
         from matplotlib.patches import Polygon
         from copy import deepcopy
 
@@ -1315,11 +1335,25 @@ class Plot:
                         yinterp[i, j] = nan
 
         f = self.mesh()
+
+        # Determine the linewidth of the streamlines
         if linewidth == "magnitude":
+            lw_setting = linewidth
             linewidth = (xinterp**2 + yinterp**2) ** 0.5
             linewidth = linewidth.transpose()
             maxwidth = nan_to_num(deepcopy(linewidth)).max()
             linewidth /= maxwidth
+            linewidth *= linewidth_mult
+            if logscale_linewidth:
+                linewidth = log(linewidth + 1)
+        elif linewidth == "absolute":
+            linewidth = (xinterp**2 + yinterp**2) ** 0.5
+            linewidth = linewidth.transpose()
+            linewidth *= linewidth_mult
+            if logscale_linewidth:
+                linewidth = log(linewidth + 1)
+        else:
+            linewidth *= linewidth_mult
 
         f.get_axes()[0].streamplot(
             gx.transpose(),
@@ -1334,7 +1368,8 @@ class Plot:
             **kwargs
         )
         ax = f.get_axes()[0]
-        self.lcfs(ax, flip=False, color=lcfscolor, zorder=1)
+        if lcfs:
+            self.lcfs(ax, flip=False, color=lcfscolor, zorder=1)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
         ax.set_xlabel("R [m]")
