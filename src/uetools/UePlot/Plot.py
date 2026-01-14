@@ -1284,13 +1284,21 @@ class Plot:
         else:
             from numpy import concatenate
             outerx = concatenate([self.sep['outer_sol']['r'], 
-                                  self.sep['pfr3']['r'], 
+                                  self.sep['plate2']['r'][::-1], 
+                                  self.sep['pfr3']['r'][::-1], 
+                                  self.sep['plate3']['r'], 
                                   self.sep['pfr2']['r'], 
-                                  self.sep['pfr1']['r']])
+                                  self.sep['plate4']['r'], 
+                                  self.sep['pfr1']['r'][::-1],
+                                  self.sep['plate1']['r']])
             outery = concatenate([self.sep['outer_sol']['z'], 
-                                  self.sep['pfr3']['z'], 
+                                  self.sep['plate2']['z'][::-1], 
+                                  self.sep['pfr3']['z'][::-1], 
+                                  self.sep['plate3']['z'], 
                                   self.sep['pfr2']['z'], 
-                                  self.sep['pfr1']['z']])
+                                  self.sep['plate4']['z'], 
+                                  self.sep['pfr1']['z'][::-1],
+                                  self.sep['plate1']['z']])
             innerx = self.sep['core']['r']
             innery = self.sep['core']['z']
 
@@ -1374,6 +1382,11 @@ class Plot:
         ax.set_ylim(ylim)
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
+
+
+        ax.plot(innerx, innery)
+        ax.plot(outerx, outery)
+
         return f
 
 
