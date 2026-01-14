@@ -1383,10 +1383,6 @@ class Plot:
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
 
-
-        ax.plot(innerx, innery)
-        ax.plot(outerx, outery)
-
         return f
 
 
