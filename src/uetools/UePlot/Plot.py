@@ -278,16 +278,21 @@ class Plot:
                             ixpt2[1], iysptrx2[0]+1, 2]
                     )
             elif self.snowflake is not False:
+                from numpy import zeros
                 iysptrx1 = self.get("iysptrx1")
                 iysptrx2 = self.get("iysptrx2")
                 ixpt1 = self.get("ixpt1")
                 ixpt2 = self.get("ixpt2")
                 ixlb = self.get("ixlb")
                 ixrb = self.get("ixrb")
-                isixcore = self.get("isixcore")
+                nx = self.get("nx")
                 common_lines = ['plate1', 'plate2', 'plate3', 'plate4', 
                                 'core', 'outer_sol', 'pfr1', 'pfr2', 'pfr3', 'sep']
                 if self.snowflake == 15:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if (ix > ixpt1[0] and ix <= ixpt2[0]) or (ix > ixpt1[1] and ix <= ixpt2[1]):
+                            isixcore[ix] = 1
                     for line in common_lines + ['sep2', 'p2p4']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
@@ -355,6 +360,10 @@ class Plot:
                                 ixpt2[1]+1:ixrb[1]+2, iysptrx1[1], 3
                         ])
                 elif self.snowflake == 45:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt1[0] and ix <= ixpt2[0]:
+                            isixcore[ix] = 1
                     for line in common_lines + ['sep2', 'p2p4']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
@@ -413,6 +422,10 @@ class Plot:
                                 ixpt2[1]+1:, iysptrx1[1], 4
                         ])
                 elif self.snowflake == 75:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt1[0] and ix <= ixpt2[0]:
+                            isixcore[ix] = 1
                     for line in common_lines + ['p1p3', 'p2p4']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
@@ -469,6 +482,10 @@ class Plot:
                                 ixlb[1]:ixpt2[1]+1, iysptrx1[1], 4
                         ][::-1])
                 elif self.snowflake == 105:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt2[0] and ix <= ixpt1[1]:
+                            isixcore[ix] = 1
                     for line in common_lines + ['p1p3', 'p2p4']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
@@ -525,6 +542,10 @@ class Plot:
                                 ixlb[1]:ixpt2[1]+1, iysptrx2[1], 4
                         ][::-1])
                 elif self.snowflake == 135:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt2[0] and ix <= ixpt1[1]:
+                            isixcore[ix] = 1
                     for line in common_lines + ['sep2', 'p1p3']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
@@ -584,6 +605,10 @@ class Plot:
                                 ixlb[1]:ixpt2[1], iysptrx1[0], 4
                         ][::-1])
                 elif self.snowflake == 165:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if (ix > ixpt1[0] and ix <= ixpt2[0]) or (ix > ixpt1[1] and ix <= ixpt2[1]):
+                            isixcore[ix] = 1
                     for line in common_lines + ['sep2', 'p1p3']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
@@ -653,7 +678,6 @@ class Plot:
                         "\nWarning! Snowflake geometries not implemented in " +
                         "UETOOLS plotting routines. Visualization will not " +
                         "be shown correctly.\n" + 20*"=")
-            
 
             
 
