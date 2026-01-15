@@ -36,8 +36,10 @@ class Database(DB_1DPlots, DB_2DPlots):
         self.create_database(database)
         self.ixmp = self.get("ixmp")[0]
         self.iysptrx = self.get("iysptrx")[0]
-        self.ixpt1 = self.get("ixpt1")[0][0]
-        self.ixpt2 = self.get("ixpt2")[0][0]
+        self.iysptrx1 = self.get("iysptrx1")[0]
+        self.iysptrx2 = self.get("iysptrx2")[0]
+        self.ixpt1 = self.get("ixpt1")[0]
+        self.ixpt2 = self.get("ixpt2")[0]
         self.nx = self.get("nx")[0]
         self.ny = self.get("ny")[0]
         # TODO: Store commonly used grid locations
