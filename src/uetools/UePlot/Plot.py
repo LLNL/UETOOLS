@@ -934,7 +934,7 @@ class Plot:
         else:
             return ax.get_figure()
 
-    def lcfs(self, ax, flip=True, color="grey", linewidth=0.5, **kwargs):
+    def lcfs(self, ax, flip=True, color="grey", linewidth=0.5, add_label=True, **kwargs):
         """Plots LCFS on ax"""
         try:
             from uedge import com, bbb, grd
@@ -943,12 +943,13 @@ class Plot:
         from numpy import int64
         for key, coords in self.sep.items():
             if not isinstance(coords['r'], (int, int64)):
+                label = "lcfs" if add_label else None
                 ax.plot(
                     coords['r'], 
                     self.checkusn(coords['z'], flip), 
                     color=color,
                     linewidth=linewidth,
-                    label="lcfs",
+                    label=None,
                     **kwargs
                 )
         return
@@ -1259,6 +1260,7 @@ class Plot:
         ylim=(None, None),
         lcfs = True,
         lcfscolor="grey",
+        title = None,
         **kwargs
     ):
         """Plot streamlines of a vector variable with poloidal and radial components (pol, rad). Based on the function streamline() in UETools (https://github.com/LLNL/UETOOLS/blob/aaa823222ecc8ae76647aa8bf5299cd9804b61b1/src/uetools/UePlot/Plot.py)
@@ -1401,11 +1403,13 @@ class Plot:
         )
         ax = f.get_axes()[0]
         if lcfs:
-            self.lcfs(ax, flip=False, color=lcfscolor, zorder=1)
+            self.lcfs(ax, flip=False, add_label=False, color=lcfscolor, zorder=1)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
+        if title is not None:
+            ax.set_title(title)
 
         return f
 

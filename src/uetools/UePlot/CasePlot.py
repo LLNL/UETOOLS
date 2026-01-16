@@ -768,6 +768,162 @@ class Caseplot(Plot):
 
         return self.streamline(pol, rad, **kwargs)
 
+    def drifts(self, s=0, linewidth="absolute", logscale_linewidth=True, linewidth_mult=None, **kwargs):
+        """Plot particle drifts. ExB and grad B contributions are plotted separately. 
+        
+        An attempt will be made to set the scale of the linewidths appropriately and equally across the two plots. 
+        The legend will show the magnitude of a vector with linewidth=1, which corresponds to 1/linewidth_mult. 
+        If the lines are too thick or too thin, adjust linewidth_mult accordingly.
+
+        Keyword Arguments:
+            s -- Species index (default: {0})
+            linewidth -- Method of calculating linewidths, "magnitude" (in which case all linewidths are scaled to the maximum vector magnitude) or "absolute" (used in conjunction with linewidth_mult to set linewidths in absolute terms; useful for comparisons with other streamline plots) (default: {"absolute"})
+            logscale_linewidth -- Apply logarithmic scale to linewidths (default: {True})
+            linewidth_mult -- Multiplier on linewidths (default: {None}, in which case it will be determined automatically)
+
+        Returns:
+            ExB and gradB drifts plots
+        """
+        from numpy import sign, sqrt, where, median
+        
+        # Plot ExB drifts
+        niy_upwind = where(
+            self.get("vy", s) > 0, self.get("niy0",s), self.get("niy1",s)
+        )
+        pol = (
+            -sign(self.get("b0"))
+            * sqrt(1 - self.get("rr")**2)
+            * self.get("cf2ef")
+            * self.get("v2ce",s)
+            * niy_upwind
+            * self.get("sy")
+        )
+        rad = (
+            self.get("cfyef") * self.get("vyce",s) * niy_upwind * self.get("sy")
+        )
+        if linewidth_mult is None:
+            linewidth_mult = 0.1/median(sqrt(pol**2 + rad**2))
+        ExB_plot = self.streamline(pol, 
+                                   rad, 
+                                   linewidth=linewidth, 
+                                   logscale_linewidth=logscale_linewidth, 
+                                   linewidth_mult=linewidth_mult, 
+                                   title=r"$\vec{\Gamma}_{E \times B}$",
+                                   color="red",
+                                   **kwargs)
+        ax = ExB_plot.get_axes()[0]
+        ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [m$^{-2}$s$^{-1}$]")
+        ax.legend()
+
+        # Plot grad B drifts
+        pol = (
+            -sign(self.get("b0"))
+            * sqrt(1 - self.get("rr")**2)
+            * self.get("cf2bf")
+            * self.get("v2cb",s)
+            * niy_upwind[:, :]
+            * self.get("sy")
+        )
+        rad = self.get("cfybf") * self.get("fniycb",s)
+        gradB_plot = self.streamline(pol, 
+                                     rad, 
+                                     linewidth=linewidth, 
+                                     logscale_linewidth=logscale_linewidth, 
+                                     linewidth_mult=linewidth_mult, 
+                                     title=r"$\vec{\Gamma}_{\nabla B}$",
+                                     color="red",
+                                     **kwargs)
+        ax = gradB_plot.get_axes()[0]
+        ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [m$^{-2}$s$^{-1}$]")
+        ax.legend()
+
+        return ExB_plot, gradB_plot
+
+
+    def enedrifts(self, linewidth="absolute", logscale_linewidth=True, linewidth_mult=None, **kwargs):
+        """Plot heat fluxes from drifts. ExB and grad B contributions are plotted separately. 
+        
+        An attempt will be made to set the scale of the linewidths appropriately and equally across the two plots. 
+        The legend will show the magnitude of a vector with linewidth=1, which corresponds to 1/linewidth_mult. 
+        If the lines are too thick or too thin, adjust linewidth_mult accordingly.
+
+        Keyword Arguments:
+            s -- Species index (default: {0})
+            linewidth -- Method of calculating linewidths, "magnitude" (in which case all linewidths are scaled to the maximum vector magnitude) or "absolute" (used in conjunction with linewidth_mult to set linewidths in absolute terms; useful for comparisons with other streamline plots) (default: {"absolute"})
+            logscale_linewidth -- Apply logarithmic scale to linewidths (default: {True})
+            linewidth_mult -- Multiplier on linewidths (default: {None}, in which case it will be determined automatically)
+
+        Returns:
+            ExB and gradB drifts plots
+        """
+        #TODO: Should add up contributions from all impurity ions here. Or exclude electrons and just plot for a single ion species
+        s=0
+        from numpy import sign, sqrt, where, median
+        
+        # Plot ExB drifts
+        niy_upwind = where(
+            self.get("vy", s) > 0, self.get("niy0",s), self.get("niy1",s)
+        )
+        ney_upwind = where(self.get("vy", s) > 0, self.get("ney0"), self.get("ney1"))
+        tey_upwind = where(self.get("vy", s) > 0, self.get("tey0"), self.get("tey1"))
+        tiy_upwind = where(self.get("vy", s) > 0, self.get("tiy0"), self.get("tiy1"))
+        ion_energy_upwindy = (
+            (5 / 2) * tiy_upwind
+            + (1 / 2) * self.get("mp") * self.get("minu")[s] * (self.get("up",s) + self.get("vy",s)) ** 2
+        ) * niy_upwind
+        electron_energy_upwindy = (5 / 2) * tey_upwind * ney_upwind
+        ion_energy_x = (
+            (5 / 2) * self.get("ti")
+            + (1 / 2) * self.get("mp") * self.get("minu")[s] * (self.get("up",s) + self.get("vy",s)) ** 2
+        ) * self.get("ni",s)
+        electron_energy_x = (5 / 2) * self.get("te") * self.get("ne")
+        pol = (
+            -sign(self.get("b0"))
+            * sqrt(1 - self.get("rr")**2)
+            * self.get("cf2ef")
+            * self.get("v2ce",s)
+            * (ion_energy_x + electron_energy_x)
+        )
+        rad = (
+            self.get("cfyef") * self.get("vyce",s) * (ion_energy_upwindy + electron_energy_upwindy)
+        )
+        if linewidth_mult is None:
+            linewidth_mult = 0.1/median(sqrt(pol**2 + rad**2))
+        ExB_plot = self.streamline(pol, 
+                                   rad, 
+                                   linewidth=linewidth, 
+                                   logscale_linewidth=logscale_linewidth, 
+                                   linewidth_mult=linewidth_mult, 
+                                   title=r"$\vec{q}_{E \times B}$",
+                                   color="red",
+                                   **kwargs)
+        ax = ExB_plot.get_axes()[0]
+        ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [Wm$^{-2}$]")
+        ax.legend()
+
+        # Plot grad B drifts
+        pol = (
+            -sign(self.get("b0"))
+            * sqrt(1 - self.get("rr")**2)
+            * self.get("cf2bf")
+            * self.get("v2cb",s)
+            * (ion_energy_x + electron_energy_x)
+        )
+        rad = self.get("cfybf") * self.get("vycb",s) * (ion_energy_x + electron_energy_x)
+        gradB_plot = self.streamline(pol, 
+                                     rad, 
+                                     linewidth=linewidth, 
+                                     logscale_linewidth=logscale_linewidth, 
+                                     linewidth_mult=linewidth_mult, 
+                                     title=r"$\vec{q}_{\nabla B}$",
+                                     color="red",
+                                     **kwargs)
+        ax = gradB_plot.get_axes()[0]
+        ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [Wm$^{-2}$]")
+        ax.legend()
+
+        return ExB_plot, gradB_plot
+
     def plot_2Dyldot(self, **kwargs):
         """Returns a series of figures to scroll through"""
         """
