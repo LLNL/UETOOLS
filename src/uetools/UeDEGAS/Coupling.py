@@ -101,7 +101,8 @@ class DEGAS2runner:
         with open(f"{self.runfilepath}/degas2.in", 'w') as f:
             for key, path in inoutfilepaths.items():
                 for keyapp, fileapp in inout.items():
-                    f.write(f"{key}{keyapp} {self.degas2path}/{path}/{key}{fileapp[0]}\n")
+                    fname = key.replace("reaction", "reactions")
+                    f.write(f"{key}{keyapp} {self.degas2path}/{path}/{fname}{fileapp[0]}\n")
                 f.write('\n')
             for key, file in degasin.items():
                 for keyapp, fileapp in inout.items():
@@ -151,10 +152,10 @@ class DEGAS2runner:
         # Define bounding box
         if bounds is None:
             self.bounds = [
-                rm.min()*0.95,
-                rm.max()*1.05,
-                zm.min()*0.95,
-                zm.max()*1.05
+                rm.min()-0.25,
+                rm.max()+0.25,
+                zm.min()-0.25,
+                zm.max()+0.25
             ]
         else: 
             self.bounds = bounds
