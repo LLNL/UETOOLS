@@ -3,6 +3,7 @@ from uetools import Case
 import uetools
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Tuple, Union, Sequence, Optional, Iterable, Type
+from numpy.typing import NDArray
 from matplotlib.pyplot import Figure, Axes
 import networkx as nx
 
@@ -40,23 +41,52 @@ class TopoPatch:
         self,
         patch_info: Dict,
         location: Tuple[int,int],
-        region_bounds: Tuple[Tuple[int], Tuple[int]]
+        region_bounds: Tuple[Tuple[int], Tuple[int]],
+        rm: NDArray,
+        zm: NDArray
     ) -> None:
         self.info = patch_info
         self.location = location
         self.region_bounds = region_bounds
+        self.rm = rm[
+                        region_bounds[0][0]:region_bounds[0][1]+1, 
+                        region_bounds[1][0]:region_bounds[1][1]+1
+        ] 
+        self.zm = zm[
+                        region_bounds[0][0]:region_bounds[0][1]+1, 
+                        region_bounds[1][0]:region_bounds[1][1]+1
+        ] 
         return
+
+
+    def plot_patch_geo(
+        self,
+        ax: Optional[Type[Axes]] = None,
+        color: Optional[Type[Axes]] = 'k',
+    ) -> Type[Figure]:
+        from matplotlib.pyplot import subplots
+        if ax is None:
+            f, ax = subplots()
+        
+        (nx, ny, _) = self.rm.shape
+        for ix in range(nx):
+            for iy in range(ny):
+                ax.plot(
+                        [self.rm[ix, iy, r] for r in [1, 2, 4, 3, 1]],
+                        [self.zm[ix, iy, r] for r in [1, 2, 4, 3, 1]],
+                        '-', color=color
+                )
+
+        return ax.get_figure()
 
     def plot_patch(self, ax: Type[Axes]) -> Type[Figure]:
         from random import random
         from matplotlib.patches import Rectangle
         x0, x1 = self.region_bounds[0]
         y0, y1 = self.region_bounds[1]
-        x1 -= 1
-        y1 -= 1
 
         width = x1 - x0 + 1
-        height = y1 - y0 + 1
+        height = y1 - y0 + 1 
 
         color = (random(), random(), random())
 
@@ -102,6 +132,8 @@ class TopoGeo:
                         'ny'
         ]
         [self.__setattr__(var, case.get(var)) for var in var_store]
+        self.ixpt1 += 1
+        self.ixpt2 += 1
         self.iyb = (0, self.ny)
         self.xpoints = len(self.ixlb)
         # Create x/y segmentation map
@@ -117,6 +149,9 @@ class TopoGeo:
             }.items()
             for i, val in enumerate(arr)
         ))
+        # TODO: remove this
+        self.iysptrx1 += 1
+        self.iysptrx2 += 1
         self.iy = sorted((
             (val, name, i)
             for name, arr in {
@@ -131,8 +166,9 @@ class TopoGeo:
         ix_cuts = bisect.bisect_left(ix_indices, self.ixrb[0]+1)
         self.region_xbounds = [ix_indices[:ix_cuts], ix_indices[ix_cuts:]]
         for i in range(self.xpoints):
-            self.region_xbounds[i][-1] += 1
+            self.region_xbounds[i][-1] += 2
         self.region_ybounds = [int(v) for v, _, _ in self.iy]
+        self.region_ybounds[-1] += 1
         
 
 
@@ -141,6 +177,22 @@ class TopoGeo:
                         uetools.__path__[0], 
                         "yamls/geometries.yaml"
         )
+        # Detect whether SF+/- and flip accordingly
+        if "snowflake" in self.geometry.lower():
+            sfmap = {105: 75, 135: 45, 165: 15}
+            sfangle = int(self.geometry.replace('snowflake',''))
+            if sfangle in [105, 135, 165]:
+                self.geometry_info = geometry_decks[f"snowflake{sfmap[sfangle]}"]
+                # Flip E/W neighbors for each patch to recreate SF- counterpart
+                for name, patch in self.geometry_info['patches']:
+                    for var in ['neighbors', 'boundaries']:
+                        try:
+                            patch[var] = swap_e_w(patch[var])
+                        except:
+                            pass
+            
+
+
         geometry_decks = {}
         with open(yaml_file, 'r') as f:
             for data in safe_load_all(f):
@@ -176,13 +228,44 @@ class TopoGeo:
                         name: TopoPatch(
                                 self.geometry_info['patches'][name], 
                                 location,
-                                bounds[name]
+                                bounds[name],
+                                self.rm,
+                                self.zm
                         ) for name, location in order.items()
                     }
                 )
         else:
             raise NotImplementedError("xpoints>2 not implemented")
         return
+
+
+    def swap_e_w(d: dict[str, object]) -> dict[str, object]:
+        out = dict(d)  # shallow copy
+
+        e = out.pop("E", None)
+        w = out.pop("W", None)
+
+        if e is not None or w is not None:
+            out["E"] = w
+            out["W"] = e
+
+        return out
+
+    def plot_geo(
+        self,
+        plot_patches: Optional[bool] = False,
+    ) -> Type[Figure]:
+        from matplotlib.pyplot import subplots
+        from random import random
+
+        f, ax = subplots()
+        for key, patch in self.patches.items():
+            color = (random(), random(), random())
+            if plot_patches:
+                patch.plot_patch_geo()
+            patch.plot_patch_geo(ax=ax, color=color)
+
+        return ax.get_figure()
 
     def plot_patchmap(self) -> Type[Figure]:
         from matplotlib.pyplot import subplots
@@ -197,6 +280,8 @@ class TopoGeo:
     
         for key, patch in self.patches.items():
             patch.plot_patch(ax=ax)
+
+        return ax.get_figure()
 
 
     def _neighbors_to_list(self, entry: Any) -> list[str]:
@@ -305,7 +390,7 @@ class TopoGeo:
             x0, x1 = x_pts[ix0 - 1], x_pts[ix1 - 1]
             y0, y1 = y_pts[iy0 - 1], y_pts[iy1 - 1]
 
-            out[name] = ((x0, x1), (y0, y1))
+            out[name] = ((x0, x1-1), (y0, y1-1))
 
         return out
 
