@@ -422,7 +422,7 @@ class DEGAS2runner:
 
 
     def write_dgin(self, outfile, tab=4*' ', **kwargs):
-        i = 1
+        stra = 1
         print(f"Writing {outfile} to {self.runfilepath}")
         with open(f"{self.runfilepath}/{outfile}", 'w') as f:
             # Write initialization block
@@ -432,7 +432,6 @@ class DEGAS2runner:
             f.write(f"bounds {self.bounds[0]:.3f} {self.bounds[1]:.3f} {self.bounds[2]:.3f} {self.bounds[3]:.3f}\n")
             f.write("end_prep\n")
             # Start writing zones
-            stra = 1
             for zone, data in self.zones.items():
                 # Required entries
                 f.write(f'\n# {zone.upper()}\n')
@@ -470,13 +469,9 @@ class DEGAS2runner:
                         f.write(f'{tab}{pre} 1 {wallrange.strip()} {app}\n')
                         
                 f.write(f'{tab} {data["triangulation"]}\n')
-
                 stra += 1
-
-                i += 1
         
-            f.write(f'\npolygon_nc_file {self.outpath}/polygons.nc\n')
-            f.write(f'end\n')
+            f.write(f'\npolygon_nc_file {self.outpath}/polygons.nc\nend\n')
         print(f"{tab}{outfile} written successfully.")
 
 
