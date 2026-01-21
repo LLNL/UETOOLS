@@ -53,6 +53,7 @@ class DEGAS2runner:
 
 
     def run_degas2(self):
+        import subprocess
         """ Exectures DEGAS2 run commands """
         command = {
             "datasetup": "",
@@ -245,7 +246,7 @@ class DEGAS2runner:
                 'SOL': {
                     'type': 'plasma',
                     'boundaries': {
-                        '1-edge-reverse': [self.get('ny'), self.get('ny')],
+                        '1-edge-reverse': ['*', self.get('ny'), self.get('ny')],
                         '2-wall': {
                             'intersects': self.boundaries['SOL'],
                             'connection': True,
@@ -431,11 +432,12 @@ class DEGAS2runner:
             f.write(f"bounds {self.bounds[0]:.3f} {self.bounds[1]:.3f} {self.bounds[2]:.3f} {self.bounds[3]:.3f}\n")
             f.write("end_prep\n")
             # Start writing zones
+            stra = 1
             for zone, data in self.zones.items():
                 # Required entries
                 f.write(f'\n# {zone.upper()}\n')
                 f.write(f'new_zone {data["type"]}\n')
-                f.write(f'new_polygon\n{tab}stratum {i}\n')
+                f.write(f'new_polygon\n{tab}stratum {stra}\n')
                 # Wall material data
                 if data['type'].strip().lower() == 'solid':
                     f.write(f'{tab}material {data["material"]}\n') 
@@ -467,11 +469,14 @@ class DEGAS2runner:
                                 wallrange = f"{wallrange} {i}"
                         f.write(f'{tab}{pre} 1 {wallrange.strip()} {app}\n')
                         
-                f.write(f'{tab}triangulate {data["triangulation"]}\n')
+                f.write(f'{tab} {data["triangulation"]}\n')
+
+                stra += 1
 
                 i += 1
         
-            f.write(f'\npolygon_nc_file {self.runfilepath}/polygons.nc\n')
+            f.write(f'\npolygon_nc_file {self.outpath}/polygons.nc\n')
+            f.write(f'end\n')
         print(f"{tab}{outfile} written successfully.")
 
 
