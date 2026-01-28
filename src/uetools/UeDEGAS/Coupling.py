@@ -149,13 +149,14 @@ class DEGAS2runner:
     def define_boundaries(self, bounds=None,  **kwargs):
         print("Identifying geometry and setting up zones")
         rm, zm = self.get('rm'), self.get('zm')
+        xlim, ylim = self.get('xlim'), self.get('ylim')
         # Define bounding box
         if bounds is None:
             self.bounds = [
-                rm.min()-0.25,
-                rm.max()+0.25,
-                zm.min()-0.25,
-                zm.max()+0.25
+                xlim.min()-0.25,
+                xlim.max()+0.25,
+                ylim.min()-0.25,
+                ylim.max()+0.25
             ]
         else: 
             self.bounds = bounds
