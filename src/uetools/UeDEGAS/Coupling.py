@@ -7,6 +7,7 @@ class DEGAS2runner:
         overwrite=False, vesselfile='vessel.dat', uefile='uedata.u', **kwargs):
         from os import getenv, makedirs
         from os.path import isdir
+        from pathlib import Path
 
         self.degas2path = getenv("DEGAS2_PATH")
         if self.degas2path is None:
@@ -14,9 +15,9 @@ class DEGAS2runner:
         self.inpath = inpath
         if not isdir(self.inpath):
             raise OSError(f"DEGAS2 input file path {self.inpath} does not exist")
-        self.runpath = runpath
+        self.runpath = Path(runpath).resolve()
         makedirs(self.runpath, exist_ok=overwrite)
-        self.runfilepath = f"{self.runpath}/degas2infiles"
+        self.runfilepath = Path(f"{self.runpath}/degas2infiles").resolve()
         makedirs(self.runfilepath, exist_ok=overwrite)
         self.outpath = f"{self.runpath}/degas2output"
         makedirs(self.outpath, exist_ok=overwrite)
@@ -35,9 +36,15 @@ class DEGAS2runner:
         self.get = case.get
         self.plot = case.plot
 
-    def setup_degas2_run(self, vesselfile=None, **kwargs):
+    def run(self, **kwargs):
+        self.setup_degas2(**kwargs)
+        self.trigger_degas2(**kwargs)
+        
+
+    def setup_degas2(self, vesselfile=None, **kwargs):
         """ Creates DEGAS2 input files and intializes directories """
         from shutil import copytree
+
         if vesselfile is None:
             vesselfile = self.vesselfile
         else:
@@ -52,8 +59,9 @@ class DEGAS2runner:
         self.write_dgin("dg.in", **kwargs)
 
 
-    def run_degas2(self):
+    def trigger_degas2(self):
         import subprocess
+        # TODO: add structures to choose run commands
         """ Exectures DEGAS2 run commands """
         command = {
             "datasetup": "",
@@ -66,7 +74,8 @@ class DEGAS2runner:
         for cmd, arg in command.items():
             try:
                 subprocess.run(f"{cmd} {arg}", shell=True, check=True,
-                                        capture_output=False, text=True)
+                                        capture_output=False, text=True,
+                                        cwd=self.runfilepath)
             except subprocess.CalledProcessError as e:
                 print(f"Command '{cmd} {arg}' failed with return code {e.returncode}")
                 print(e.stderr)
