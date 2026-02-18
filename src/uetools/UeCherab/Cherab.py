@@ -58,6 +58,7 @@ class Cherab:
         self.case = case
         self._triangulation = None
         self.zshift = 0.0
+        self.rshift = 0.0
 
     @property
     def triangulation(self):
@@ -66,7 +67,7 @@ class Cherab:
         (Re-)Compute if needed.
         """
 
-        rm = self.case.get("rm")
+        rm = self.case.get("rm") - self.rshift
         zm = self.case.get("zm") - self.zshift  # Shifted by UEDGE grid generator
 
         # Recalculate if the mesh has changed
@@ -111,3 +112,18 @@ class Cherab:
         # This may cause a retriangulation of the mesh.
         self.zshift = zshift
         return D3D(self)
+
+    def mastu(self, zshift: float = 0.0, rshift: float = 0.0):
+        """
+        Create an object representing the MAST-U device
+
+        zshift - The distance (in m) that the UEDGE grid is shifted upward.
+        rshift - The distance (in m) that the UEDGE grid is shifted left/rightward.
+        """
+        from .mastu import MASTU
+
+        # Set the Z shift so that UEDGE is consistent with device coordinates.
+        # This may cause a retriangulation of the mesh.
+        self.zshift = zshift
+        self.rshift = rshift
+        return MASTU(self)
