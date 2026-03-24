@@ -740,10 +740,11 @@ class GridSnull:
 
         nx_new = griddata["nxm"]
         ny_new = griddata["nym"]
-        ixpt1_new = griddata["ixpt1"]
-        ixpt2_new = griddata["ixpt2"]
-        iysptrx_new = griddata["iysptrx1"]
+        ixpt1_new = int(griddata["ixpt1"])
+        ixpt2_new = int(griddata["ixpt2"])
+        iysptrx_new = int(griddata["iysptrx1"])
         connlen_new = self.calc_connlen(griddata)
+        print(ixpt1_new, ixpt2_new, iysptrx_new)
 
         # Store the new dimensions
         nxny = {
@@ -994,6 +995,7 @@ class IndexGridPatch:
         from numpy import linspace, meshgrid
 
         new_solution = {}
+        print(nxl, nxu, nyl, nyu)
         nx = nxu - nxl
         ny = nyu - nyl
         x = linspace(0, 1, nx)

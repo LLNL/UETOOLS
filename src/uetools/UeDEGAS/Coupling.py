@@ -1,14 +1,510 @@
 
-class DEGAS2Coupling:
+class DEGAS2runner:
     """ Object for coupling UEDGE to DEGAS2
 
     """
+    def __init__(self, case, inpath, runpath, material='C', recyc_coef=1.,
+        overwrite=False, vesselfile='vessel.dat', uefile='uedata.u', **kwargs):
+        from os import getenv, makedirs
+        from os.path import isdir
+
+        self.degas2path = getenv("DEGAS2_PATH")
+        if self.degas2path is None:
+            raise OSError("$DEGAS2_PATH not set. Aborting")
+        self.inpath = inpath
+        if not isdir(self.inpath):
+            raise OSError(f"DEGAS2 input file path {self.inpath} does not exist")
+        self.runpath = runpath
+        makedirs(self.runpath, exist_ok=overwrite)
+        self.runfilepath = f"{self.runpath}/degas2infiles"
+        makedirs(self.runfilepath, exist_ok=overwrite)
+        self.outpath = f"{self.runpath}/degas2output"
+        makedirs(self.outpath, exist_ok=overwrite)
+
+        # Store filenames
+        self.vesselfile = vesselfile
+        self.uefile = uefile
+
+        # TODO: add flexibility to materials and recycling coeffs, etc
+        self.material = material
+        self.recyc_coef = recyc_coef
+        
+        self.ionspecies, self.gasspecies = case.about.species_setup(True)
+
+        """ Links class to uetools.Case functions """
+        self.get = case.get
+        self.plot = case.plot
+
+    def setup_degas2_run(self, vesselfile=None, **kwargs):
+        """ Creates DEGAS2 input files and intializes directories """
+        from shutil import copytree
+        if vesselfile is None:
+            vesselfile = self.vesselfile
+        else:
+            self.vesselfile = vesselfile
+        copytree(self.inpath, self.runfilepath, dirs_exist_ok=True)
+        self.write_uedge_data()
+        self.write_degas2in()
+        self.write_rb()
+        self.define_boundaries(**kwargs)
+        self.setup_dg(plot=False, **kwargs)
+        self.write_vessel_file(vesselfile)
+        self.write_dgin("dg.in", **kwargs)
+
+
+    def run_degas2(self):
+        """ Exectures DEGAS2 run commands """
+        command = {
+            "datasetup": "",
+            "problemsetup": f"{self.runfilepath}/pr.in",
+            "definegeometry2d": f"{self.runfilepath}/dg.in",
+            "defineback": f"{self.runfilepath}/db.in",
+            "tallysetup": f"{self.runfilepath}/tally.input",
+            "flighttest": ""
+        }
+        for cmd, arg in command.items():
+            try:
+                subprocess.run(f"{cmd} {arg}", shell=True, check=True,
+                                        capture_output=False, text=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Command '{cmd} {arg}' failed with return code {e.returncode}")
+                print(e.stderr)
+    
+        # TODO: implement degas_runner here
+        return
+
+    def write_degas2in(self, problemname='pr', tallyname='tally',
+        geometryout='dg', backgroundout='bk', outputfile='degas2_output'):
+        print(f"Writing degas2.in to {self.runfilepath}")
+        # TODO: harden with lookups? Or standardized locations
+        inoutfilepaths = {
+            'elements': 'data',
+            'species': 'data',
+            'materials': 'data',
+            'reaction': 'data',
+            'pmi': 'data',
+        }
+        degasin = {
+            'problem': problemname,
+            'tally': tallyname
+        }
+        degasout = {
+            'geometry': geometryout,
+            'background': backgroundout,
+            'output': outputfile
+        }
+        inout = {
+            '_infile': ['.input', f"{self.runfilepath}"],
+            'file': ['.nc', f"{self.outpath}"]
+        }
+        with open(f"{self.runfilepath}/degas2.in", 'w') as f:
+            for key, path in inoutfilepaths.items():
+                for keyapp, fileapp in inout.items():
+                    f.write(f"{key}{keyapp} {self.degas2path}/{path}/{key}{fileapp[0]}\n")
+                f.write('\n')
+            for key, file in degasin.items():
+                for keyapp, fileapp in inout.items():
+                    f.write(f"{key}{keyapp} {fileapp[1]}/{file}{fileapp[0]}\n")
+                f.write('\n')
+            for key, file in degasout.items():
+                f.write(f"{key}{keyapp} {self.outpath}/{file}.nc\n")
+                f.write('\n')
+        print(f"    Successfully wrote degas2.in to {self.runfilepath}")
+                
+    def write_rb(self):
+        print(f"Writing db.in to {self.runfilepath}")
+        with open(f"{self.runfilepath}/db.in", 'w') as f:
+            f.write(f"plasma_file {self.runfilepath}/rb.in\n")
+        print(f"    Successfully wrote db.in to {self.runfilepath}")
+
+        ion_species = ''
+        for species in self.ionspecies:
+            if 'D0' not in species.upper():
+                ion_species = f"{ion_species} {species.strip().replace('1','')}"
+        print(f"Writing rb.in to {self.runfilepath}")
+        with open(f"{self.runfilepath}/rb.in", 'w') as f:
+            f.write(f"uedge_file {self.runfilepath}/{self.uefile}\n")
+            f.write(f"ion_species {ion_species}\n")
+            f.write(f"polygon_file {self.outpath}/polygons.nc")
+        print(f"    Successfully wrote rb.in to {self.runfilepath}")
+
+    def write_uedge_data(self, uefile=None):
+        from Forthon import packageobject
+        if uefile is None:
+            uefile = self.uefile
+        else:
+            self.uefile = uefile
+        runid = self.get('runid')
+        if runid is None:
+            runid = ""
+        print(f"Writing {self.uefile} to {self.runfilepath}")
+        packageobject('bbb').__getattribute__('writemcnfile')(
+            f"{self.runfilepath}/{uefile}", 
+            runid
+        )
+        print(f"    Successfully wrote {self.uefile} to {self.runfilepath}")
+
+    def define_boundaries(self, bounds=None,  **kwargs):
+        print("Identifying geometry and setting up zones")
+        rm, zm = self.get('rm'), self.get('zm')
+        # Define bounding box
+        if bounds is None:
+            self.bounds = [
+                rm.min()*0.95,
+                rm.max()*1.05,
+                zm.min()*0.95,
+                zm.max()*1.05
+            ]
+        else: 
+            self.bounds = bounds
+
+
+        if self.get('geometry')[0].decode('UTF-8').strip().lower() == 'snull':
+
+            self.boundaries = {
+                'SOL': {
+                    'target': (
+                                    (rm[-1, -1, 1], zm[-1, -1, 1]),
+                                    (rm[0, -1, 2], zm[0, -1, 2]) 
+                    ),
+                    'segment': [None, None],
+                    'isegment': [None, None],
+                    'intersects': [], 
+                    'CW': [False, True], 
+                },
+                'PFR': { 
+                    'target': ( 
+                                    (rm[0, 0, 4], zm[0, 0, 4]), 
+                                    (rm[-1, 0, 3], zm[-1, 0, 3])
+                    ),
+                    'segment': [None, None],
+                    'isegment': [None, None],
+                    'intersects': [], 
+                    'CW': [False, True], 
+                }
+            }
+
+            ####################################### 
+            #                                     # 
+            #                 ####                # 
+            #                #    #               # 
+            #               #      #              # 
+            #              #   ##   #             # 
+            #             #   #  #   #            # 
+            #           #    #     #  #           # 
+            #          #    #       #  #          #
+            #         #   #          #   #        # 
+            #        #   #     ##     #   #       # 
+            #       #   #     #  #     #   #      # 
+            #      #   #     #    #     #   #     # 
+            #    #    #     #   1   #    #   #    # 
+            #   #    #      # CORE  #      #  #   # 
+            #   #    #       #     #      #   #   # 
+            #   #     #       #  #       #    #   # 
+            #   #   4  #       ##      #      #   #
+            #   #  SOL  #             #       #   # 
+            #    #       #           #       #    # 
+            #      #      #         #       #     #  
+            #       #    #     2     #     #      #    
+            #   5    #  #   PLASMA    #  #        # 
+            # WALLS   ##               ##         #    
+            #         ##               ##         # 
+            #        #  #      ##     #   #       # 
+            #       #    #    #  #   #     #      # 
+            #     #       #  # 3  # #       #     # 
+            #    #          # PFR #          #    # 
+            #   #     6      #   #            #   # 
+            #  #   TARGETS    ###              #  # 
+            # #                                 # # 
+            #######################################
+            self.zones = {
+                'CORE': {
+                    'type': 'exit',
+                    'boundaries': {
+                        '1-edge': [self.get('ixpt1')[0]+1, self.get('ixpt2')[0], 0, 0]
+                    },
+                    'triangulation': 'triangulate_to_zones'
+                },
+#                'PLASMA': {
+#                },
+                'PFR': {
+                    'type': 'plasma',
+                    'boundaries': {
+                        '1-edge': [0, self.get('ixpt1')[0], 0, 0],
+                        '2-edge-xcut': [self.get('ixpt2')[0]+1, self.get('ixpt2')[0]+1, 0, 0],
+                        '3-edge': [self.get('ixpt2')[0]+1, self.get('nx'), 0, 0],
+                        '4-wall': {
+                            'intersects': self.boundaries['PFR'],
+                            'connection': True,
+                            'start': False,
+                            'end': False
+                        }
+                    },
+                    'triangulation': 'triangulate_to_zones'
+                },
+                'SOL': {
+                    'type': 'plasma',
+                    'boundaries': {
+                        '1-edge-reverse': [self.get('ny'), self.get('ny')],
+                        '2-wall': {
+                            'intersects': self.boundaries['SOL'],
+                            'connection': True,
+                            'start': False,
+                            'end': False
+                        }
+                    },
+                    'triangulation': 'triangulate_to_zones'
+                },
+                'WALLS': {
+                    'type': 'solid',
+                    'boundaries': {
+                        '1-outer': [0, 1, 2, 3],
+                        '2-wall-reverse': {
+                            'intersects': self.boundaries['SOL'],
+                            'connection': True,
+                            'start': False,
+                            'end': False
+                        }
+                    },
+                    'material': self.material,
+                    'recyc_coef': self.recyc_coef,
+                    'triangulation': 'triangulate_polygon'
+                },
+                'TARGETS': {
+                    'type': 'solid',
+                    'boundaries': {
+                        '1-outer': [3, 0],
+                        '2-wall': {
+                            'intersects': self.boundaries['SOL'],
+                            'connection': False,
+                            'start': True,
+                            'end': False
+                        },
+                        '3-edge-reverse': [0, 0, 0, self.get('ny')],
+                        '4-wall-reverse': {
+                            'intersects': self.boundaries['PFR'],
+                            'connection': True,
+                            'start': False,
+                            'end': False
+                        },
+                        '5-edge': [self.get('nx'), self.get('nx'), 0, self.get('ny')],
+                        '6-wall': {
+                            'intersects': self.boundaries['SOL'],
+                            'connection': False,
+                            'start': False,
+                            'end': True
+                        },
+                    },
+                    'material': self.material,
+                    'recyc_coef': self.recyc_coef,
+                    'triangulation': 'triangulate_polygon'
+                }
+            }
+
+        else:
+            raise Exception('Only "snull" geometries zoning implemented. Aborting!')
+
+        print("    Zone setup completed")
+
+
+    def get_limiter(self, limiter=None, maxlength=None, **kwargs):
+        from shapely import LinearRing, Point, LineString, Polygon 
+        from numpy import array, cross
+        print("Getting limiter nodes...")
+        # Get Shapely object for vessel
+        if limiter is None:
+            self.limiter = LinearRing( zip( self.get("xlim"), self.get("ylim")) )
+        else: 
+            self.limiter = LinearRing( limiter )
+        # Identify self-intersecting/folding points
+        self.limiter_array = array(self.limiter.coords)
+        inter = []
+        # Iterate through all points
+        for i in range(1,len(self.limiter_array)-1):
+            # Check if the following point lies on the line segment
+            # made up by all previous point s
+            line = LineString(self.limiter_array[:i+1])
+            if line.distance(Point(self.limiter_array[i+1])) < 1e-5:
+                # If so, the Point is folding/self-intersecting: store index
+                inter.append(i+1)
+        # Remove folding/self-intersecting points
+        if len(inter)>0:
+            print(" ...Removing folding nodes")
+            # Cast as list, pop points, and cast as array
+            self.limiter_array = list(self.limiter_array)
+            # Reverse order to avoid index-issues
+            for i in inter[::-1]:
+                self.limiter_array.pop(i)
+            self.limiter_array = array(self.limiter_array)
+        # Refine resolution, if requested
+        if maxlength is not None:
+            self.limiter_array = array(LinearRing(self.limiter_array).segmentize(maxlength).coords)
+            print(" ...Refining resolution")
+        # Ensure orientation of limiter is CW
+        COG = array(Polygon(self.limiter_array).centroid.coords)[0]
+        if cross( self.limiter_array[0] - COG, self.limiter_array[1] - COG)>0:
+            print(" ...Orienting vessel clock-wise")
+            self.limiter_array = self.limiter_array[::-1]
+        print("    Vessel node setup complete")
+        return
+
+
+    def setup_dg(self, limiter=None, maxlength=None, plot=False, roll_array=True, **kwargs):
+        """ Writes DEGAS2-compatible vessel geometry """
+        from matplotlib.pyplot import subplots
+        from shapely.ops import nearest_points, orient
+        from shapely import Point
+        from numpy import array, roll 
+
+        def is_on_segment(p0, p1, p2, epsilon=1e-6):
+            return (sum( (p0-p1)**2) + sum((p0-p2)**2) - sum((p1-p2)**2))<epsilon
+
+        # Get limiter array
+        self.get_limiter(limiter, maxlength, **kwargs)
+        # Get UEDGE grid end-points
+        self.define_boundaries(**kwargs)
+        # Identify vessel segment containing UE grid corner
+        print("Setting up vessel intersects...")
+        for zonename, zone in self.boundaries.items():
+            for point in range(2):
+                # Find closest vessl point to target corner
+                pt = nearest_points(self.limiter, Point(zone['target'][point]))[0]
+                pt = array((pt.x, pt.y))
+                # Loop trough all segments
+                for i in range(len(self.limiter_array)-1):
+                    p1, p2 = self.limiter_array[i], self.limiter_array[i+1]
+                    if is_on_segment(pt, p1, p2):
+                        zone['segment'][point] = (p1, p2)
+                        zone['isegment'][point] = (i, i+1)
+                        break
+                if zone['segment'][point] is None:
+                    p1, p2 = self.limiter_array[0], self.limiter_array[-1]
+                    if is_on_segment(pt, p1, p2):
+                        zone['segment'][point] = (p1, p2)
+                        zone['isegment'][point] = (0, len(self.limiter_array)-1)
+                if zone['segment'][point] is None:
+                    raise Exception("Reference point not on vessel")
+                # Identify the correct point 
+                zone['intersects'].append(zone['isegment'][point][zone['CW'][point]])
+        # Roll vessel so first intersect point has index 0
+        if roll_array:
+            print(" ...Reordering vessel nodes")
+            ref = self.boundaries['SOL']['intersects'][1]
+            self.limiter_array = roll(self.limiter_array, -ref, axis=0)
+            for key, zone in self.boundaries.items():
+                for i in range(2):
+                    zone['intersects'][i] = zone['intersects'][i] - ref
+                    if zone['intersects'][i] < 0:
+                        zone['intersects'][i] = len(self.limiter_array) + zone['intersects'][i]
+        # Plot geometry
+        if plot:
+            f, ax = subplots()
+            ax.plot(*self.limiter_array[0], "or")
+            for key, zone in self.boundaries.items():
+                for pt in zone['target']:
+                    ax.plot(*pt, 'v'*(key=="PFR")+'d'*(key=="SOL"), color='b')
+                for pt in zone['intersects']:
+                    ax.plot(*self.limiter_array[pt], 'v'*(key=="PFR")+'d'*(key=="SOL"), color='r')
+            ax.plot(*self.limiter_array.T, ".-k")
+        print("    Vessel intersect setup completed")
+        return
+
+                
+    def write_vessel_file(self, outfile, **kwargs):
+        print(f"Writing {outfile} to {self.runfilepath}")
+        with open(f"{self.runfilepath}/{outfile}", 'w') as f:
+            f.write(f'1\n{len(self.limiter_array)}\n')
+            for p in self.limiter_array:
+                f.write(f'{p[0]:.8f} {p[1]:.8f}\n')
+        print(f"    {outfile} written successfully.")
+        return 
+
+
+    def write_dgin(self, outfile, tab=4*' ', **kwargs):
+        i = 1
+        print(f"Writing {outfile} to {self.runfilepath}")
+        with open(f"{self.runfilepath}/{outfile}", 'w') as f:
+            # Write initialization block
+            f.write("symmetry cylindrical\n")
+            f.write(f"uedge_mesh {self.runfilepath}/{self.uefile}\n")
+            f.write(f"wallfile {self.runfilepath}/{self.vesselfile}\n")
+            f.write(f"bounds {self.bounds[0]:.3f} {self.bounds[1]:.3f} {self.bounds[2]:.3f} {self.bounds[3]:.3f}\n")
+            f.write("end_prep\n")
+            # Start writing zones
+            for zone, data in self.zones.items():
+                # Required entries
+                f.write(f'\n# {zone.upper()}\n')
+                f.write(f'new_zone {data["type"]}\n')
+                f.write(f'new_polygon\n{tab}stratum {i}\n')
+                # Wall material data
+                if data['type'].strip().lower() == 'solid':
+                    f.write(f'{tab}material {data["material"]}\n') 
+                    f.write(f'{tab}recyc_coef {data["recyc_coef"]:.2f}\n') 
+                # Write boundaries of zones to file
+                for btype, boundary in data['boundaries'].items():
+                    pre = btype.split('-')[1]
+                    try:
+                        app = btype.split('-')[2]
+                    except:
+                        app = ''
+                    indices = ''
+                    # Check if the bounday is defined on UEDGE/outer nodes
+                    if not isinstance(boundary, dict):
+                        for index in boundary:
+                            indices = f'{indices} {index}'
+                        f.write(f'{tab}{pre} {indices.strip()} {app}\n')
+                    # If not, access vessel indices from structs
+                    else:
+                        wallrange = ""
+                        intersects = boundary['intersects']['intersects']
+                        intersects.sort()
+                        if boundary['connection']:
+                            for i in intersects:
+                                wallrange = f"{wallrange} {i}"
+                        else:
+                            i = min(intersects)*boundary['start'] + max(intersects)*boundary['end']
+                            for j in range(2):
+                                wallrange = f"{wallrange} {i}"
+                        f.write(f'{tab}{pre} 1 {wallrange.strip()} {app}\n')
+                        
+                f.write(f'{tab}triangulate {data["triangulation"]}\n')
+
+                i += 1
+        
+            f.write(f'\npolygon_nc_file {self.runfilepath}/polygons.nc\n')
+        print(f"{tab}{outfile} written successfully.")
+
+
+        return
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class VacuumTransport_coupling:
     def __init__(self, case):
         """ Links class to uetools.Case functions """
         self.get = case.get
         self.plot = case.plot
-        
-    
+
     def define_vacuum_region(self, **kwargs):
         """ Initializer for vacuum region plotting 
         
@@ -23,8 +519,6 @@ class DEGAS2Coupling:
             raise Exception("Vacuum region definition not implemented" +
                 f"geometry {geo}.")
             
-
-
     def get_vacuum(self, boundary, vessel, north):
         """ Function that returns the clockwise vacuum region boundary
         
@@ -431,6 +925,4 @@ class DEGAS2Coupling:
                 self.plot_triangle(triangledata, ax=ax[4])
             ax[4].set_title("Triangulation")
         return main_points, pf_points
-
-                    
        

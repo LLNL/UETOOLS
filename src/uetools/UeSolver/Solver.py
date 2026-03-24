@@ -346,8 +346,8 @@ class Solver(UeRun):
             var,
             savedir=savedir,
             commands=[
-                f"self.morphed_mesh('{newgrid}',"
-                + "self.getue('gridmorph'), standalone=False)",
+                f"self.setue('manualgrid',1);self.setue('newgeo',1);self.morphed_mesh('{newgrid}',"
+                + "self.getue('gridmorph'))",
             ],
             newgeo=True,
             **kwargs,

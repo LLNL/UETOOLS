@@ -106,7 +106,11 @@ class Tracker:
                     for var, struct in self.variables["hashes"]["undef"][pkg].items():
                         self.variables["hashes"]["input"][var] = struct
 
-    #                    del( self.variables['hashes']['undef'][pkg] )
+
+        # UETOOLS-side fix for wrongly identified variables
+        for var in self.variables['enforce']:
+            if var in self.variables["hashes"]["maybeinput"]:
+                self.variables["hashes"]["input"][var] = self.variables["hashes"]["maybeinput"][var]
 
     def gather_changes(self, vardict, changes=None, key=None):
         """Recursively checks for changes in all variables in vardict

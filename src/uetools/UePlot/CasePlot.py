@@ -10,8 +10,8 @@ class Caseplot(Plot):
         self.get = case.get
         self.info = case.info
         self.tools = Tools()
-        if self.get('geometry')[0].decode('UTF-8').strip() \
-            in ['uppersn', 'snull']:
+        geometry = self.get('geometry')[0].decode('UTF-8').strip()
+        if geometry in ['uppersn', 'snull']:
             snull = True
             dnull = False
             if  self.get('geometry')[0].decode('UTF-8').strip() \
@@ -19,21 +19,28 @@ class Caseplot(Plot):
                 usn = True
             else:
                 usn = False
-        elif  self.get('geometry')[0].decode('UTF-8').strip() \
-            == 'dnull':
+            snowflake = False
+        elif geometry == 'dnull':
             snull = False
             usn = False
             dnull = True
-        elif  self.get('geometry')[0].decode('UTF-8').strip() \
-            == 'dnbot':
+            snowflake = False
+        elif geometry == 'dnbot':
             snull = True
             usn = False
             dnull = False
+            snowflake = False
+        elif "snowflake" in geometry:
+            snull = False
+            usn = False
+            dnull = False
+            snowflake = int(geometry.replace('snowflake', '')) 
         else:
             raise TypeError("Geometry {} not recognized! Aborting.".format(\
                 self.get('geometry')[0].decode('UTF-8').strip()))
+        slab = (self.get('mhdgeo') == -1)
 
-        super().__init__(*args, snull=snull, dnull=dnull, usn=usn, **kwargs)
+        super().__init__(*args, snull=snull, dnull=dnull, usn=usn, snowflake=snowflake, slab=slab, **kwargs)
     
     def watermark(self, figure, bottom=0.15, top=0.95, left=0.09, right=0.98):
         """Adds metadata to figure"""

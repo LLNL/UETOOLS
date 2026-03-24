@@ -141,7 +141,7 @@ class AboutSetup:
 
         # TODO: add option for detecting mixes
 
-    def species_setup(self):
+    def species_setup(self, return_arrays=False):
         """Prints the species included and models used"""
         from sys import modules
 
@@ -206,6 +206,8 @@ class AboutSetup:
         ionarray = [x.center(5) for x in self.ionarray]
         gasarray = [x.center(5) for x in self.gasarray]
         idxarr = [str(x).center(5) for x in range(max(len(ionarray), len(gasarray)))]
+        if return_arrays:
+            return ionarray, gasarray
         # Output species setup
         print("The UEDGE set-up contains:")
         print("  - {} hydrogenic species:".format(self.nhydrogenic))
