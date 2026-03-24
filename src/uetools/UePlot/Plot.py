@@ -1,11 +1,12 @@
 # Object for plotting
 from matplotlib.pyplot import ion
+from uetools.UePlot import PlotHelpers
 
 ion()
 
 # TODO: implement divergence plotting/calculation
 
-class Plot:
+class Plot(PlotHelpers):
     def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, 
             dnull=False, snowflake=False, slab=False, **kwargs):
         """Constructs patches objects
@@ -114,6 +115,9 @@ class Plot:
             new=False,
             xlabel='', 
             ylabel='', 
+            label=None,
+            labelsize=12,
+            labelweight='bold',
             xlim=(None, None),
             ylim=(None, None),
             iax=0, 
@@ -131,7 +135,7 @@ class Plot:
         if (not fignum_exists(self.dumpfig.number)) or new:
             self.newplot(nrows=nrows, ncols=ncols, figsize=figsize)
 
-        getattr(self.dumpfig.get_axes()[iax], plottype)(
+        line, = getattr(self.dumpfig.get_axes()[iax], plottype)(
             x, y, color=color, **kwargs
         )
         if xlim != (None, None):
@@ -140,6 +144,8 @@ class Plot:
             self.dumpfig.get_axes()[iax].set_ylim(ylim)
         self.dumpfig.get_axes()[iax].set_xlabel(xlabel)
         self.dumpfig.get_axes()[iax].set_ylabel(ylabel)
+        if label is not None:
+            self.add_inline_label(self.dumpfig.get_axes()[iax], line, label, labelsize, fontweight=labelweight)
 
     def savefig(self, fname, **kwargs):
         from matplotlib.pyplot import fignum_exists
@@ -770,6 +776,9 @@ class Plot:
         figsize=(7, 5),
         xlabel=None,
         ylabel=None,
+        label=None,
+        labelsize=12,
+        labelweight='bold',
         title=None,
         logx=False,
         logy=False,
@@ -795,7 +804,10 @@ class Plot:
         else:
             plot = ax.plot
 
-        plot(x, y, color=color, **kwargs)
+
+
+
+        line, = plot(x, y, color=color, **kwargs)
 
         ax.set_title(title)
         ax.set_xlabel(xlabel)
@@ -806,6 +818,8 @@ class Plot:
         if watermark is True:
             self.watermark(ax.get_figure())
 
+        if label is not None:
+            self.add_inline_label(ax, line, label, labelsize, fontweight=labelweight)
         return ax.get_figure()
 
     def mesh(
