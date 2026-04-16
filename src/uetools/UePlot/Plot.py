@@ -62,16 +62,21 @@ class Plot(PlotHelpers):
     def createvertices(self, rm, zm):
         from numpy import zeros, transpose, cross, sum
         # CREATE POLYGON COLLECTIONS TO USE
+
+        nx, ny = self.get("nx"), self.get("ny")
+        rm, zm = self.get("rm"), self.get("zm")
+        rmagx, zmagx = self.get("rmagx"), self.get("zmagx")
+
         self.vertices = self.createpolycollection(self.getomit(rm), self.getomit(zm))
         self.disp=0
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             self.disp = 0
-            if self.get("rmagx") + self.get("zmagx") == 0:
+            if rmagx + zmagx == 0:
                 # Normalizing to -min(-zm) results in "jumping" USN cases when
                 # the core surfaces change: revert to using set 2.8m displacement
                 self.disp = 2.8
             else:
-                self.disp = 2 * self.get("zmagx")
+                self.disp = 2 * zmagx
             self.uppersnvertices = self.createpolycollection(
                 self.getomit(rm), self.getomit(self.disp -zm), setparams=False
             )
@@ -92,12 +97,12 @@ class Plot(PlotHelpers):
         self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
 
         # Find vectors of east faces
-        self.eastnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
-        self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
-        for ix in range(self.get("nx")+2):
-            for iy in range(self.get("ny")+2):
-                dR = self.get("rm")[ix, iy, 2] - self.get("rm")[ix, iy, 1]
-                dZ = self.get("zm")[ix, iy, 2] - self.get("zm")[ix, iy, 1]
+        self.eastnormaln = zeros((2, nx + 2, ny + 2))
+        self.northnormaln = zeros((2, nx + 2, ny + 2))
+        for ix in range(nx+2):
+            for iy in range(ny+2):
+                dR = rm[ix, iy, 2] - rm[ix, iy, 1]
+                dZ = zm[ix, iy, 2] - zm[ix, iy, 1]
                 mag = (dR**2 + dZ**2) ** 0.5 + 1e-20
                 self.eastnormaln[:,ix,iy] = [dR / mag, dZ / mag]
                 self.northnormaln[:,ix,iy] = [-dZ / mag, dR / mag]
