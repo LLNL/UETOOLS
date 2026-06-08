@@ -922,6 +922,7 @@ class Plot:
         if not self.slab:
             ax.set_aspect(aspect)
         if (z is not None) or (colorbar is True):
+        # if (z is not None) and (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")
 
@@ -934,7 +935,7 @@ class Plot:
         else:
             return ax.get_figure()
 
-    def lcfs(self, ax, flip=True, color="grey", linewidth=0.5, add_label=True, **kwargs):
+    def lcfs(self, ax, flip=True, color="grey", linewidth=0.5, add_label=False, **kwargs):
         """Plots LCFS on ax"""
         try:
             from uedge import com, bbb, grd
@@ -1261,6 +1262,7 @@ class Plot:
         lcfs = True,
         lcfscolor="grey",
         title = None,
+        watermark = False,
         **kwargs
     ):
         """Plot streamlines of a vector variable with poloidal and radial components (pol, rad). Based on the function streamline() in UETools (https://github.com/LLNL/UETOOLS/blob/aaa823222ecc8ae76647aa8bf5299cd9804b61b1/src/uetools/UePlot/Plot.py)
@@ -1368,7 +1370,7 @@ class Plot:
                         xinterp[i, j] = nan
                         yinterp[i, j] = nan
 
-        f = self.mesh()
+        f = self.mesh(lcfs=False, plates=False, vessel=False, watermark=watermark)
 
         # Determine the linewidth of the streamlines
         if linewidth == "magnitude":

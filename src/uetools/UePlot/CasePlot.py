@@ -808,12 +808,12 @@ class Caseplot(Plot):
                                    linewidth=linewidth, 
                                    logscale_linewidth=logscale_linewidth, 
                                    linewidth_mult=linewidth_mult, 
-                                   title=r"$\vec{\Gamma}_{E \times B}$",
+                                   title=r"$\vec{\Gamma}_{E}$",
                                    color="red",
                                    **kwargs)
         ax = ExB_plot.get_axes()[0]
         ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [m$^{-2}$s$^{-1}$]")
-        ax.legend()
+        ax.legend(loc="upper center")
 
         # Plot grad B drifts
         pol = (
@@ -835,7 +835,7 @@ class Caseplot(Plot):
                                      **kwargs)
         ax = gradB_plot.get_axes()[0]
         ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [m$^{-2}$s$^{-1}$]")
-        ax.legend()
+        ax.legend(loc="upper center")
 
         return ExB_plot, gradB_plot
 
@@ -858,7 +858,7 @@ class Caseplot(Plot):
         """
         #TODO: Should add up contributions from all impurity ions here. Or exclude electrons and just plot for a single ion species
         s=0
-        from numpy import sign, sqrt, where, median
+        from numpy import sign, sqrt, where, median, log10
         
         # Plot ExB drifts
         niy_upwind = where(
@@ -889,38 +889,54 @@ class Caseplot(Plot):
         )
         if linewidth_mult is None:
             linewidth_mult = 0.1/median(sqrt(pol**2 + rad**2))
+        v_1 = (10**1 - 1) / linewidth_mult
+        v_2 = 10*v_1
+        lw_1 = log10(v_1 * linewidth_mult + 1)
+        lw_2 = log10(v_2 * linewidth_mult + 1)
         ExB_plot = self.streamline(pol, 
                                    rad, 
                                    linewidth=linewidth, 
                                    logscale_linewidth=logscale_linewidth, 
                                    linewidth_mult=linewidth_mult, 
-                                   title=r"$\vec{q}_{E \times B}$",
+                                   title=r"$\vec{q}_{E}$",
                                    color="red",
                                    **kwargs)
         ax = ExB_plot.get_axes()[0]
-        ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [Wm$^{-2}$]")
-        ax.legend()
+        # ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [Wm$^{-2}$]")
+        ax.plot([],[],color="red",linewidth=lw_1,label="{:.1f}".format(v_1/1e6) + " MWm$^{-2}$")
+        ax.plot([],[],color="red",linewidth=lw_2,label="{:.1f}".format(v_2/1e6) + " MWm$^{-2}$")
+        ax.legend(loc="upper center")
 
         # Plot grad B drifts
+        # pol = (
+        #     -sign(self.get("b0"))
+        #     * sqrt(1 - self.get("rr")**2)
+        #     * self.get("cf2bf")
+        #     * self.get("v2cb",s)
+        #     * (ion_energy_x + electron_energy_x)
+        # )
+        # rad = self.get("cfybf") * self.get("vycb",s) * (ion_energy_x + electron_energy_x)
         pol = (
             -sign(self.get("b0"))
             * sqrt(1 - self.get("rr")**2)
             * self.get("cf2bf")
             * self.get("v2cb",s)
-            * (ion_energy_x + electron_energy_x)
+            * (ion_energy_x)
         )
-        rad = self.get("cfybf") * self.get("vycb",s) * (ion_energy_x + electron_energy_x)
+        rad = self.get("cfybf") * self.get("vycb",s) * (ion_energy_x)
         gradB_plot = self.streamline(pol, 
                                      rad, 
                                      linewidth=linewidth, 
                                      logscale_linewidth=logscale_linewidth, 
                                      linewidth_mult=linewidth_mult, 
-                                     title=r"$\vec{q}_{\nabla B}$",
+                                     title=r"$\vec{q}_{\nabla B, i}$",
                                      color="red",
                                      **kwargs)
         ax = gradB_plot.get_axes()[0]
-        ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [Wm$^{-2}$]")
-        ax.legend()
+        # ax.plot([],[],linewidth=1.0,color="red",label="{:.1e}".format(1/linewidth_mult) + " [Wm$^{-2}$]")
+        ax.plot([],[],color="red",linewidth=lw_1,label="{:.1f}".format(v_1/1e6) + " MWm$^{-2}$")
+        ax.plot([],[],color="red",linewidth=lw_2,label="{:.1f}".format(v_2/1e6) + " MWm$^{-2}$")
+        ax.legend(loc="upper center")
 
         return ExB_plot, gradB_plot
 
