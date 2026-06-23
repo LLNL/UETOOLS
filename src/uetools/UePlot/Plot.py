@@ -82,19 +82,37 @@ class Plot(PlotHelpers):
             )
 
         # CREATE NORMAL VECTOR IN LOCAL CELL COORDINATES
-        nodes = zeros((self.get("nx") + 2, self.get("ny") + 2, 5, 2))
-        nodes[:, :, :, 0] = self.getomit("rm")
-        nodes[:, :, :, 1] = self.getomit("zm")
-        nodes = transpose(nodes, (2, 3, 0, 1))
+        try:
+            nodes = zeros((self.get("nx") + 2, self.get("ny") + 2, 5, 2))
+            nodes[:, :, :, 0] = self.getomit("rm")
+            nodes[:, :, :, 1] = self.getomit("zm")
+            nodes = transpose(nodes, (2, 3, 0, 1))
+        except:
+            nodes = zeros((self.get("nxm") + 2, self.get("nym") + 2, 5, 2))
+            nodes[:, :, :, 0] = self.getomit("rm")
+            nodes[:, :, :, 1] = self.getomit("zm")
+            nodes = transpose(nodes, (2, 3, 0, 1))
+
 
         # Find midpoints of y-faces
-        self.symid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
-        self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
-        self.symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
+        try:
+            self.symid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
+            self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
+            self.symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
+        except:
+            self.symid = zeros((2, 2, self.get("nxm") + 2, self.get("nym") + 2))
+            self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
+            self.symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
+
         # Find midpoints of x-faces
-        self.sxmid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
-        self.sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
-        self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
+        try:
+            self.sxmid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
+            self.sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
+            self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
+        except:
+            self.sxmid = zeros((2, 2, self.get("nxm") + 2, self.get("nym") + 2))
+            self.sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
+            self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
 
         # Find vectors of east faces
         self.eastnormaln = zeros((2, nx + 2, ny + 2))
@@ -907,8 +925,8 @@ class Plot(PlotHelpers):
             vertices.set_linewidths(1)
             vertices.set_edgecolors("face")
         else:
-            vertices.set_edgecolors("lightgrey")
-            vertices.set_linewidths(0.08)
+            vertices.set_edgecolors(linecolor)
+            vertices.set_linewidths(linewidth)
         if z is None:  # Plot grid
             vertices.set_facecolor((0, 0, 0, 0))
             vertices.set_edgecolors(linecolor)
@@ -943,6 +961,7 @@ class Plot(PlotHelpers):
         if (z is not None) or (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")
+#            cbar.ax.yaxis.labelpad(100)
 
         if watermark is True:
             self.watermark(ax.get_figure(), bottom=0.1, left=0.02, right=0.95)
