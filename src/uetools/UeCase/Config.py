@@ -44,9 +44,6 @@ class Config:
         if 'UETOOLS_SILENT' in environ:
             verbose = not bool(int(environ['UETOOLS_SILENT']))
 
-        if int(environ.get("UETOOLS_SILENT", 0)):
-            verbose = False
-
         searchpath = path.expanduser("~")
         try:
             config = safe_load(Path("{}/.uetoolsrc".format(searchpath)).read_text())
