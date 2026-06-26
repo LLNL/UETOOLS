@@ -160,7 +160,7 @@ class VNM_interface:
                 # create new pkl saves if desired
                 self.SOL_Vacuum.saveVacuumRegion(main_pkl_name)
                 self.PF_Vacuum.saveVacuumRegion(pf_pkl_name)
-                matrices = matrix_calculate(main_pkl_name, pf_pkl_name)
+                matrices = matrix_calculate(main_pkl_name, pf_pkl_name, from_pkl=True)
             else: # Not saving the pkls 
                 matrices = matrix_calculate(self.SOL_Vacuum, self.PF_Vacuum)
 
@@ -182,6 +182,7 @@ class VNM_interface:
             if main_pkl_name != None or pf_pkl_name != None:
                 self.SOL_Vacuum.saveVacuumRegion(main_pkl_name)
                 self.PF_Vacuum.saveVacuumRegion(pf_pkl_name)
+                matrices = matrix_calculate(main_pkl_name, pf_pkl_name, from_pkl=True)
             else:
                 matrices = matrix_calculate(self.SOL_Vacuum, self.PF_Vacuum)
 
