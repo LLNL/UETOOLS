@@ -16,11 +16,14 @@ class TriangularData:
         self.triangles = triangles
         self.data = data
 
-        from raysect.core.math.function.float import Discrete2DMesh
+        from raysect.core.math.function.float import Discrete2DMesh, Interpolator2DMesh
 
         self.mesh = Discrete2DMesh(
             self.vertices, self.triangles, self.data, limit=False, default_value=0.0
         )
+        # self.mesh = Interpolator2DMesh(
+        #     self.vertices, self.triangles, self.data, limit=False, default_value=0.0
+        # )
 
     def to_emitter(
         self,

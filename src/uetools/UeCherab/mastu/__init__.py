@@ -53,6 +53,31 @@ class MASTU:
         self.emitter = self.cherab.make_emitter(prad, parent=self.world)
         return self
 
+    # @property
+    # def camera(self):
+    #     """
+    #     Return pinhole camera setup.
+
+    #     To use this camera:
+    #         camera = mastu.camera
+    #         plt.ion()
+    #         camera.observe()
+    #         plt.ioff()
+    #         plt.show()
+    #     """
+    #     if self._camera is None:
+    #         from raysect.core import translate, Vector3D, rotate_basis
+    #         from raysect.optical.observer import PinholeCamera, PowerPipeline2D
+
+    #         self._camera = PinholeCamera(
+    #             (256, 256), pipelines=[PowerPipeline2D()], parent=self.world
+    #         )
+    #         self._camera.transform = translate(-3.5, -0.0, -0.3) * rotate_basis(
+    #             Vector3D(1, 0, 0), Vector3D(0, 0, 1)
+    #         )
+    #         self._camera.pixel_samples = 1
+    #     return self._camera
+
     @property
     def camera(self):
         """
@@ -66,16 +91,30 @@ class MASTU:
             plt.show()
         """
         if self._camera is None:
-            from raysect.core import translate, Vector3D, rotate_basis
-            from raysect.optical.observer import PinholeCamera, PowerPipeline2D
+            # from raysect.core import translate, Vector3D, rotate_basis
+            # from raysect.optical.observer import PinholeCamera, PowerPipeline2D
 
-            self._camera = PinholeCamera(
-                (256, 256), pipelines=[PowerPipeline2D()], parent=self.world
-            )
-            self._camera.transform = translate(-3.5, -0.0, -0.3) * rotate_basis(
-                Vector3D(1, 0, 0), Vector3D(0, 0, 1)
-            )
-            self._camera.pixel_samples = 1
+            # self._camera = PinholeCamera(
+            #     (256, 256), pipelines=[PowerPipeline2D()], parent=self.world
+            # )
+            # self._camera.transform = translate(-3.5, -0.0, -0.3) * rotate_basis(
+            #     Vector3D(1, 0, 0), Vector3D(0, 0, 1)
+            # )
+            # self._camera.pixel_samples = 1
+            from calcam import Calibration
+            cam_calib = Calibration('/Users/power8/Documents/01_code/16_IRVB/data/mastu_rba_46823.ccc')
+            vec_cam = cam_calib.get_raysect_camera()
+            vec_cam.parent = self.world
+            self._camera = vec_cam
+
+            # from raysect.primitive.mesh import import_obj
+            print("Loading...")
+            from calcam import CADModel
+            mastu_machine = CADModel("/Users/power8/Documents/01_code/16_IRVB/data/MAST_Upgrade.ccm")
+            for f in mastu_machine.features.keys():
+                mastu_machine.features[f].set_enabled(True)
+            print("Loaded")
+            
         return self._camera
 
     @property

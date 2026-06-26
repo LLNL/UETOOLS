@@ -3,6 +3,7 @@
 constants:
     bbb:
         - 'ev'
+        - 'b0'
 
 centered:
     bbb:
@@ -14,6 +15,7 @@ centered:
         - 'tg'
         - 'phi'
         - 'ey'
+        - 'ex'
         - 'psorxr'
         - 'psorxrc'
         - 'psordis'
@@ -30,6 +32,17 @@ centered:
         - 'pradhyd'
         - 'pradcff'
         - 'rbfbt'
+        - 'niy0'
+        - 'niy1'
+        - 'ney0'
+        - 'ney1'
+        - 'tey0'
+        - 'tey1'
+        - 'tiy0'
+        - 'tiy1'
+        - 'v2ce'
+        - 'vyce'
+        - 'fqy'
     com:
         - 'yyc'
         - 'xcs'
@@ -44,6 +57,7 @@ staggered:
         - 'feey'
         - 'feix'
         - 'feiy'
+        - 'fniycb'
         - 'up'
         - 'uup'
         - 'vy'
@@ -115,4 +129,3 @@ postprocessed:
         - 'swalle'
         - 'swbind'
         - 'swallt'
-
