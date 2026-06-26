@@ -40,6 +40,7 @@ class Input:
         self.surfaces = case.surfaces
         # Makes self.populate available in input files
         self.populate = case.populate
+        self.vnm = case.vnm
 
     def readhdf5(self, fname):
         """Reads the UEDGE input deck from setup group of HDF5

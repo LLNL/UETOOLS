@@ -75,27 +75,144 @@ class VacuumTests:
         f = test.plotGeometry(labels=True, testsurf=6, showCircle=True)
         return test
 
-
-    def tokamakPlot(self, savefile):
-        from uetools import Case
-        from numpy import zeros
-        '''Plots the full tokamak geometry.'''
-        c = Case(savefile, inplace=True)
-        (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
-        # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
-        # test = VacuumRegion(main[0], P=main[1]) # main geometry
-        test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
-        '''To plot surfaces that aren't meeting unity:'''
-        # for i in test.errors:
-        #     if (i > 50) and (i<90):
-        #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
-        #         f.get_axes()[0].set_title(f"Surface {i}")
-        f = test.plotGeometry(labels=False, testsurf=27, showCircle=True)
-        m = test.heatmapPlot() # TO PLOT MATRIX HEATMAPS
-        # f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
-        # f = test.plotGeometry(labels=False, testsurf=4)
-        return test
+    # def tokamakPlot(self, savefile): # Functionality transferred over to VNM_interface.couple
+    #     from uetools import Case
+    #     from numpy import zeros
+    #     '''Plots the full tokamak geometry.'''
+    #     c = Case(savefile, inplace=True)
+    #     (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
+    #     # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
+    #     # test = VacuumRegion(main[0], P=main[1]) # main geometry
+    #     test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
+    #     '''To plot surfaces that aren't meeting unity:'''
+    #     # for i in test.errors:
+    #     #     if (i > 50) and (i<90):
+    #     #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
+    #     #         f.get_axes()[0].set_title(f"Surface {i}")
+    #     f = test.plotGeometry(labels=False, testsurf=27, showCircle=True)
+    #     m = test.heatmapPlot() # TO PLOT MATRIX HEATMAPS
+    #     # f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
+    #     # f = test.plotGeometry(labels=False, testsurf=4)
+    #     return test
        
+class VNM_interface:
+    def __init__(self, case):
+        self.coupling = case.coupling
+        self.set = case.setue
+        self.info = case.info
+        self.tools = case.tools
+        self.getue = case.getue
+
+    
+    def couple(self, save_file=None, main_pkl_name=None, pf_pkl_name=None, reevaluate=False, 
+               plot=False, main_surface=[], pf_surface=[]):
+        import h5py
+        import numpy
+
+        (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
+
+        if save_file == None:
+            save_file = self.info['savefile']
+
+        def matrix_calculate(main_vac, pf_vac, from_pkl=False): # helper that calculates tele matrices
+            'main_pkl is main_pkl_name, and pf_pkl is pf_pkl_name'
+            if from_pkl:
+                t_main = VacuumRegion(main_vac)
+                t_pf = VacuumRegion(pf_vac)
+            else:
+                t_main = main_vac
+                t_pf = pf_vac
+
+            t_main.matrices()
+            t_pf.matrices()
+
+            cftelematrix_ = t_main.getOutputMatrix(t_main.AB_matrix, 1000000) # transport matrices
+            cftelematrix_pf = t_pf.getOutputMatrix(t_pf.AB_matrix, 1000000)
+
+            return [cftelematrix_, cftelematrix_pf]
+        
+        def save_matrices(main_matrix, pf_matrix, save_file_name): # helper that saves matrices to hdf5 file
+            'main_matrix is cftelematrix, pf_matrix is cftelematrix_pf, save_file_name is save_file, new tells if the path doesnt exist'
+            with h5py.File(save_file_name, 'a') as f:
+                subgroup = f.require_group('vnm/bbb')
+
+                for name, matrix in [('cftelematrix', main_matrix), ('cftelematrix_pf', pf_matrix)]:
+                    if name in subgroup:
+                        subgroup[name][...] = matrix
+                    else:
+                        subgroup.create_dataset(name, data=matrix)
+
+        with h5py.File(save_file, 'r') as f:
+            if 'vnm/bbb/cftelematrix' in f:
+                cftelematrix = f['vnm/bbb/cftelematrix'][...]
+            else:
+                cftelematrix = None
+            if 'vnm/bbb/cftelematrix_pf' in f:
+                cftelematrix_pf = f['vnm/bbb/cftelematrix_pf'][...]
+            else:
+                cftelematrix_pf = None
+
+        if cftelematrix.all() == None :#r cftelematrix_pf == None:
+            self.SOL_Vacuum = VacuumRegion(main[0], P=main[1])
+            self.PF_Vacuum = VacuumRegion(pf[0], P=pf[1] - 1)
+
+            if main_pkl_name != None or pf_pkl_name != None:
+                # create new pkl saves if desired
+                self.SOL_Vacuum.saveVacuumRegion(main_pkl_name)
+                self.PF_Vacuum.saveVacuumRegion(pf_pkl_name)
+                matrices = matrix_calculate(main_pkl_name, pf_pkl_name)
+            else: # Not saving the pkls 
+                matrices = matrix_calculate(self.SOL_Vacuum, self.PF_Vacuum)
+
+            cftelematrix = matrices[0]
+            cftelematrix_pf = matrices[1]
+
+            cftelematrix_full = numpy.zeros((94, 94, 6))
+            cftelematrix_full[1:-1, 1:-1, 0] = cftelematrix
+
+            cftelematrix_pf_full = numpy.zeros((42, 42, 6))
+            cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
+
+            save_matrices(cftelematrix, cftelematrix_pf, save_file)
+
+        elif reevaluate: # make new pkl files
+            self.SOL_Vacuum = VacuumRegion(main[0], P=main[1])
+            self.PF_Vacuum = VacuumRegion(pf[0], P=pf[1] - 1)
+
+            if main_pkl_name != None or pf_pkl_name != None:
+                self.SOL_Vacuum.saveVacuumRegion(main_pkl_name)
+                self.PF_Vacuum.saveVacuumRegion(pf_pkl_name)
+            else:
+                matrices = matrix_calculate(self.SOL_Vacuum, self.PF_Vacuum)
+
+            cftelematrix = matrices[0]
+            cftelematrix_pf = matrices[1]
+
+            cftelematrix_full = numpy.zeros((94, 94, 6))
+            cftelematrix_full[1:-1, 1:-1, 0] = cftelematrix
+
+            cftelematrix_pf_full = numpy.zeros((42, 42, 6))
+            cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
+
+            save_matrices(cftelematrix, cftelematrix_pf, save_file)
+
+        else: 
+            cftelematrix_full = numpy.zeros((94, 94, 6))
+            cftelematrix_full[1:-1, 1:-1, 0] = cftelematrix
+
+            cftelematrix_pf_full = numpy.zeros((42, 42, 6))
+            cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
+
+        self.set('cftelematrix', cftelematrix_full)
+        # self.set('cftelematrix_pf', cftelematrix_pf_full) # Uncomment after pf matrix has been added to UEDGE
+
+        if plot:
+            m = self.SOL_Vacuum.plotGeometry(labels=False, testsurf=main_surface, showCircle=True)
+            p = self.PF_Vacuum.plotGeometry(labels=False, ax=m.get_axes()[0], testsurf=pf_surface, showCircle=True)
+
+        self.getue('isvacuummodel', cp=False)[0] = 1
+        # bbb.isvacuummodel[0] = 1
+        self.set('cfteleout', 1.0)
 
 class VacuumRegion:
     def __init__(self, nodeList, P=0, variation=True, multiprocess=True, ncores=None, verbose=True):
@@ -317,7 +434,7 @@ class VacuumRegion:
             gamma_array[i, 0] = 0
 
             gammaOut = rowCalculation[self.numSurfaces:]
-            gammaFinal = gammaOut[0:self.P]
+            gammaFinal = gammaOut[0:self.P].flatten()
 
             for j in range(self.P):
                 self.output[i, j] = gammaFinal[j]
