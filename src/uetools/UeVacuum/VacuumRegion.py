@@ -165,13 +165,17 @@ class VNM_interface:
                 matrices = matrix_calculate(self.SOL_Vacuum, self.PF_Vacuum)
 
             cftelematrix = matrices[0]
+            dimension = len(cftelematrix) + 2
             cftelematrix_pf = matrices[1]
+            dimension_pf = len(cftelematrix_pf) + 2
 
-            cftelematrix_full = numpy.zeros((94, 94, 6))
+            cftelematrix_full = numpy.zeros((dimension, dimension, 6))
             cftelematrix_full[1:-1, 1:-1, 0] = cftelematrix
+            cftelematrix_full[1:-1, 1:-1, 1] = cftelematrix
 
-            cftelematrix_pf_full = numpy.zeros((42, 42, 6))
+            cftelematrix_pf_full = numpy.zeros((dimension_pf, dimension_pf, 6))
             cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
+            cftelematrix_pf_full[1:-1, 1:-1, 1] = cftelematrix_pf
 
             save_matrices(cftelematrix, cftelematrix_pf, save_file)
 
@@ -187,22 +191,31 @@ class VNM_interface:
                 matrices = matrix_calculate(self.SOL_Vacuum, self.PF_Vacuum)
 
             cftelematrix = matrices[0]
-            cftelematrix_pf = matrices[1]
+            dimension = len(cftelematrix) + 2
+            cftelematrix_pf = matrices[1] + 2
+            dimension_pf = len(cftelematrix_pf)
 
-            cftelematrix_full = numpy.zeros((94, 94, 6))
+
+            cftelematrix_full = numpy.zeros((dimension, dimension, 6))
             cftelematrix_full[1:-1, 1:-1, 0] = cftelematrix
+            cftelematrix_full[1:-1, 1:-1, 1] = cftelematrix
 
-            cftelematrix_pf_full = numpy.zeros((42, 42, 6))
+            cftelematrix_pf_full = numpy.zeros((dimension_pf, dimension_pf, 6))
             cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
+            cftelematrix_pf_full[1:-1, 1:-1, 1] = cftelematrix_pf
 
             save_matrices(cftelematrix, cftelematrix_pf, save_file)
 
         else: 
-            cftelematrix_full = numpy.zeros((94, 94, 6))
+            dimension = len(cftelematrix) + 2
+            dimension_pf = len(cftelematrix_pf) + 2
+            cftelematrix_full = numpy.zeros((dimension, dimension, 6))
             cftelematrix_full[1:-1, 1:-1, 0] = cftelematrix
+            cftelematrix_full[1:-1, 1:-1, 1] = cftelematrix
 
-            cftelematrix_pf_full = numpy.zeros((42, 42, 6))
+            cftelematrix_pf_full = numpy.zeros((dimension_pf, dimension_pf, 6))
             cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
+            cftelematrix_pf_full[1:-1, 1:-1, 1] = cftelematrix_pf
 
         self.set('cftelematrix', cftelematrix_full)
         # self.set('cftelematrix_pf', cftelematrix_pf_full) # Uncomment after pf matrix has been added to UEDGE
@@ -214,6 +227,7 @@ class VNM_interface:
         self.getue('isvacuummodel', cp=False)[0] = 1
         # bbb.isvacuummodel[0] = 1
         self.set('cfteleout', 1.0)
+
 
 class VacuumRegion:
     def __init__(self, nodeList, P=0, variation=True, multiprocess=True, ncores=None, verbose=True):
