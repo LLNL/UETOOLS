@@ -103,58 +103,164 @@ class VNM_interface:
         self.tools = case.tools
         self.getue = case.getue
 
-    def restore(self, save_file=None):
-        """Restores existing telematrices from the provided save file, or loads a new VacuumRegion if telematrices are not found."""
-        # Should restore the Vacuum Region, either from saved pkls or reloads a new one
+    def puffing_array_calc(self, region, point, current, puffing_matrix): # helper
+        """Returns input puffing array based on location as an (R, Z) coordinate, input current, and the puffing transport matrix."""
+        from shapely import Point, intersects
+        import numpy
+        puff_point = Point(point)
+
+        puffing_location = 0
+        min_dist = float('inf')
+        for i in range(region.numSurfaces):
+            if i >= region.P:
+                seg = region.surfaces[i]
+                seg_x = seg.normalEndX
+                seg_y = seg.normalEndY
+
+                point_x = puff_point.x
+                point_y = puff_point.y
+
+                dist = numpy.sqrt((seg_x - point_x)**2 + (seg_y - point_y)**2)
+                if dist < min_dist:
+                    min_dist = dist
+                    puffing_location = i
+
+        region.matrices()
+        puffing_array = region.getPuffingArray(puffing_matrix, puffing_location, current)
+        return puffing_array
+    
+    def save_matrices(self, matrix_list, matrix_name_list, save_file_name, open_file=None): # helper
+            """Saves matrices to hdf5 file (save file)."""
+            import h5py
+
+            def save_helper(f):
+                subgroup = f.require_group('vnm/bbb')
+                for name, matrix in zip(matrix_name_list, matrix_list):
+                    if hasattr(matrix, 'toarray'):
+                        matrix = matrix.toarray()
+                    if name in subgroup:
+                        subgroup[name][...] = matrix
+                    else:
+                        subgroup.create_dataset(name, data=matrix)
+
+            if open_file is not None:
+                save_helper(open_file)
+            else:
+                with h5py.File(save_file_name, 'a') as f:
+                    save_helper(f)
+
+    def restore(self, save_file=None, sol_puff_dict=None, pfr_puff_dict=None):
+        """Restores existing telematrices from the provided save file, and calculates puffing input arrays if desired.
+        Uses the current save file if none is provided.
+        - sol_puff_dict = {'point': __, 'current': __, 'region'__}
+         'region' is optional-- pass in a pkl save of a VacuumRegion or a previously loaded VacuumRegion
+        - pfr_puff_dict = {'point': __, 'current': __}
+         'region' is optional-- pass in a pkl save of a VacuumRegion or a previously loaded VacuumRegion
+        """
         import h5py
         import warnings
+        import numpy
 
         if save_file == None:
             save_file = self.info['savefile']
 
-        with h5py.File(save_file, 'r') as f:
+        with h5py.File(save_file, 'a') as f:
             if 'vnm/bbb/cftelematrix' not in f:
                 warnings.warn('SOL telematrix not found in save file. Call self.vnm.generate()')
+            else:
+                dimension = len(f['vnm/bbb/cftelematrix'][:]) + 2
+                cftelematrix_full = numpy.zeros((dimension, dimension, 6))
+                cftelematrix_full[1:-1, 1:-1, 0] = f['vnm/bbb/cftelematrix'][:]
+                self.set('cftelematrix', cftelematrix_full)
             if 'vnm/bbb/cftelematrix_pf' not in f:
-                warnings.warn('Private flux region telematrix not found in save file. Call self.vnm.generate()')
+                warnings.warn('Private flux region telematrix not found in save file. Call self.vnm.generate.')
+            # else:
+                # dimension = len(f['vnm/bbb/cftelematrix_pf'][:]) + 2
+                # cftelematrix_full_pf = numpy.zeros((dimension, dimension, 6))
+                # cftelematrix_full_pf[1:-1, 1:-1, 0] = f['vnm/bbb/cftelematrix_pf'][:]
+            #     self.set('cftelematrix_pf', cftelematrix_full_pf)
 
             if 'vnm/bbb/puffing_matrix' not in f:
                 warnings.warn('SOL puffing matrix not found in save file. Call self.vnm.generate.')
+            # else: # not sure what the dimension here should be
+            #     self.set('puffing_matrix', f['vnm/bbb/puffing_matrix'][:])
             if 'vnm/bbb/puffing_matrix_pf' not in f:
                 warnings.warn('Private flux region puffing matrix not found in save file. Call self.vnm.generate.')
+            # else:
+            #     self.set('puffing_matrix_pf', f['vnm/bbb/puffing_matrix_pf'])
 
             if 'vnm/bbb/puffing_array' not in f:
-                warnings.warn('SOL puffing array not found in save file. If needed, call self.vnm.generate with SOL_puffing argument.')
+                warnings.warn('SOL puffing array not found in save file. Call self.vnm.restore or self.vnm.generate.')
+            # else:
+            #     self.set('puffing_array', f['vnm/bbb/puffing_array'][:])
+            if sol_puff_dict != None and 'vnm/bbb/puffing_matrix' in f:
+                if 'region' not in sol_puff_dict:
+                    (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
+                    sol = VacuumRegion(main[0], P=main[1])
+                else:
+                    print('error here')
+                    sol = VacuumRegion(sol_puff_dict['region'])
+
+                print('made it here')
+                puffing_array = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], 
+                                                    f['vnm/bbb/puffing_matrix'][:])
+                print('save error')
+                self.save_matrices([puffing_array], ['puffing_array'], save_file, open_file=f)
+                print('set error')
+                # self.set('puffing_array', puffing_array)
+            elif sol_puff_dict != None and 'vnm/bbb/puffing_matrix' not in f:
+                warnings.warn('Cannot generate SOL puffing input. Call self.vnm.restore or self.vnm.generate.')
+            
             if 'vnm/bbb/puffing_array_pf' not in f:
-                warnings.warn('Private flux region puffing matrix not found in save file. If needed, call self.vnm.generate with PFR_puffing argument.')
+                warnings.warn('Private flux region puffing matrix not found in save file. Call self.vnm.restore or self.vnm.generate.')
+            # else:
+            #     self.set('puffing_array_pf', f['vnm/bbb/puffing_array_pf'][:])
+            if pfr_puff_dict != None and 'vnm/bbb/puffing_matrix_pf' in f:
+                if 'region' not in pfr_puff_dict:
+                    (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
+                    pfr = VacuumRegion(pf[0], P=pf[1] - 1)
+                else:
+                    print('pfr errors here')
+                    pfr = VacuumRegion(pfr_puff_dict['region'])
+                
+                print('pfr made it here')
+                puffing_array_pf = self.puffing_array_calc(pfr, pfr_puff_dict['point'], pfr_puff_dict['current'], 
+                                                    f['vnm/bbb/puffing_matrix_pf'][:])
+                
+                self.save_matrices([puffing_array_pf], ['puffing_array_pf'], save_file, open_file=f)
+                # self.set('puffing_array_pf', puffing_array_pf)
+            elif pfr_puff_dict != None and 'vnm/bbb/puffing_matrix_pf' not in f:
+                warnings.warn('Cannot generate private flux region puffing input. Call self.vnm.restore or self.vnm.generate.')
+
+        print('error with one of these')
+        self.getue('isvacuummodel', cp=False)[0] = 1
+        # bbb.isvacuummodel[0] = 1
+        self.set('cfteleout', 1.0)
     
-    def generate(self, sol=None, pfr=None, save_file=None, sol_puffing=None, pfr_puffing=None, 
-                 pumping=None, save=False, plot=True):
+    def generate(self, sol=None, pfr=None, save_file=None, sol_puff_dict=None, pfr_puff_dict=None, 
+                 pump_dict=None, save=False, pump_plot=True):
         """Generates telematrices for given VacuumRegions.
         
         Keyword arguments:
-        sol -- VacuumRegion save of the main SOL; can be a pkl file name (default None)
+        - sol -- VacuumRegion save of the main SOL; can be a pkl file name (default None).
          If none, a new VacuumRegion will be loaded. If a pkl file name is passed in, that pkl save VacuumRegion will be used.
-        pfr -- VacuumRegion save of the private flux region; can be a pkl file (default None)
+        - pfr -- VacuumRegion save of the private flux region; can be a pkl file (default None).
          If none, a new VacuumRegion will be loaded. If a pkl file name is passed in, that pkl save VacuumRegion will be used.
-        save_file -- save file used to generate the Case (default None)
-        sol_puffing -- dictionary that should include 'point' and 'current' as keys (default None)
+        - save_file -- save file used to generate the Case. Uses the current save file if none are provided (default None).
+        - sol_puff_dict -- {'point': __, 'current': __} (default None).
          'point' is a coordinate that identifies the location of the gas puff.
          'current' is a value that determines the strength of the gas puff.
-        pfr_puffing -- dictionary that should include 'point' and 'current' as keys (default None)
+        - pfr_puff_dict -- {'point': __, 'current': __} (default None).
          'point' is a coordinate that identifies the location of the gas puff.
          'current' is a value that determines the strength of the gas puff.
-        pumping -- dictionary that should include the keys 'box_points' and 'albedo' (default None)
-         'box_points' should be a list of four or more coordinates that create a box around the pumping portion of the private flux region
-           Note: even if the full surfaces is not within the box, it will be counted as a pumping surface
+        - pump_dict -- {'box_points': __, 'albedo': __} (default None).
+         'box_points' should be a list of four or more coordinates that create a box around the pumping portion of the private flux region.
+           Note: even if the full surfaces is not within the box, it will be counted as a pumping surface. Additionally, if not enough points are provided for a box (3 or less),
+           all wall surfaces in the private flux region will be taken as pumping.
          'albedo' is a value between 0 and 1 that determines the strength of the pumping
-        save -- if False, won't save a new pkl file. if True, will save new pkl file with names 'SOL_Vacuum.pkl' and 'PFR_Vacuum.pkl' (default False)
-        plot -- if True, plots the pumping surfaces in the private flux region (default True)
+        - save -- if True, will save new pkl file with names 'SOL_Vacuum.pkl' and 'PFR_Vacuum.pkl' (default False).
+        - plot -- if True, plots the pumping surfaces in the private flux region (default True).
         """
-        # assume sol=self.SOL_Vacuum and pfr=self.PF_Vacuum
-        # Must call restore before generate
-        # puffing must be {point: __, current: __}
-        # pumping must be {box_points: __, albedo: __}
 
         import h5py
         import numpy
@@ -164,13 +270,10 @@ class VNM_interface:
         if save_file == None:
             save_file = self.info['savefile']
         
-        def matrix_calculate(main_vac, pf_vac, from_pkl=False): # helper that calculates tele matrices
-            if from_pkl:
-                t_main = VacuumRegion(main_vac)
-                t_pf = VacuumRegion(pf_vac)
-            else:
-                t_main = main_vac
-                t_pf = pf_vac
+        def matrix_calculate(main_vac, pf_vac):
+            """Generates the telematrices."""
+            t_main = main_vac
+            t_pf = pf_vac
 
             t_main.matrices()
             t_pf.matrices()
@@ -183,38 +286,22 @@ class VNM_interface:
 
             return [cftelematrix_, cftelematrix_pf, puffing_matrix, puffing_matrix_pf]
 
-        def save_matrices(matrix_list, matrix_name_list, save_file_name): # helper that saves matrices to hdf5 file
-            """Saves matrices to hdf5 file (save file)."""
-            with h5py.File(save_file_name, 'a') as f:
-                subgroup = f.require_group('vnm/bbb')
-
-                for name, matrix in zip(matrix_name_list, matrix_list):
-                    if hasattr(matrix, 'toarray'):
-                        matrix = matrix.toarray()
-                    if name in subgroup:
-                        subgroup[name][...] = matrix
-                    else:
-                        subgroup.create_dataset(name, data=matrix)
-
-                # for name, matrix in [('cftelematrix', main_matrix), ('cftelematrix_pf', pf_matrix)]:
-                #     if name in subgroup:
-                #         subgroup[name][...] = matrix
-                #     else:
-                #         subgroup.create_dataset(name, data=matrix)
-
         if sol == None or pfr == None: # generate new VacuumRegions
             sol = VacuumRegion(main[0], P=main[1])
             pfr = VacuumRegion(pf[0], P=pf[1] - 1)
             matrices = matrix_calculate(sol, pfr)
-            if save:
+            if save: # save the new VacuumRegions as pkl files
                 sol.saveVacuumRegion('SOL_Vacuum.pkl')
                 pfr.saveVacuumRegion('PFR_Vacuum.pkl')
         elif type(sol) != VacuumRegion or type(pfr) != VacuumRegion: # provide a specific pkl file to read from
             sol = VacuumRegion(sol)
             pfr = VacuumRegion(pfr)
-            matrices = matrix_calculate(sol, pfr, from_pkl=False)
-        else:
             matrices = matrix_calculate(sol, pfr)
+        else: # passing in a VacuumRegion object as sol and pfr arguments
+            matrices = matrix_calculate(sol, pfr)
+        
+        sol_puff_dict['region'] = sol
+        pfr_puff_dict['region'] = pfr
         
         cftelematrix = matrices[0]
         cftelematrix_pf = matrices[1]
@@ -232,8 +319,7 @@ class VNM_interface:
         cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
         cftelematrix_pf_full[1:-1, 1:-1, 1] = cftelematrix_pf
 
-        print(type(cftelematrix), type(cftelematrix_pf), type(puffing_matrix), type(puffing_matrix_pf))
-        save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix, puffing_matrix_pf], 
+        self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix, puffing_matrix_pf], 
                       ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix', 'puffing_matrix_pf'], 
                       save_file)
 
@@ -246,59 +332,16 @@ class VNM_interface:
         # bbb.isvacuummodel[0] = 1
         self.set('cfteleout', 1.0)
 
-        if sol_puffing != None:
-            from shapely import Point, intersects
-            main_puff_point = Point(sol_puffing['point'])
+        if sol_puff_dict != None:
+            main_puffing_array = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], puffing_matrix)
+            self.save_matrices([main_puffing_array], ['puffing_array'], save_file)
 
-            main_puffing_location = 0
-            min_dist = float('inf')
-            for i in range(sol.numSurfaces):
-                if i >= sol.P:
-                    # print('sol surfaces')
-                    seg = sol.surfaces[i]
-                    seg_x = seg.normalEndX
-                    seg_y = seg.normalEndY
-
-                    point_x = main_puff_point.x
-                    point_y = main_puff_point.y
-
-                    dist = numpy.sqrt((seg_x - point_x)**2 + (seg_y - point_y)**2)
-                    if dist < min_dist:
-                        min_dist = dist
-                        main_puffing_location = i
-
-            sol.matrices()
-            main_puffing_array = sol.getPuffingArray(puffing_matrix, main_puffing_location, sol_puffing['current'])
-            save_matrices([main_puffing_array], ['puffing_array'], save_file)
-
-        if pfr_puffing != None:
-            from shapely import Point, intersects
-            pf_puff_point = Point(pfr_puffing['point'])
-
-            pf_puffing_location = 0
-            min_dist = float('inf')
-            for i in range(pfr.numSurfaces):
-                if i >= pfr.P:
-                    # print('pfr surfaces')
-                    seg = pfr.surfaces[i]
-                    seg_x = seg.normalEndX
-                    seg_y = seg.normalEndY
-
-                    point_x = pf_puff_point.x
-                    point_y = pf_puff_point.y
-
-                    dist = numpy.sqrt((seg_x - point_x)**2 + (seg_y - point_y)**2)
-
-                    if dist < min_dist:
-                        min_dist = dist
-                        pf_puffing_location = i
-
-            pfr.matrices()
-            pf_puffing_array = pfr.getPuffingArray(puffing_matrix_pf, pf_puffing_location, pfr_puffing['current'])
+        if pfr_puff_dict != None:
+            pf_puffing_array = self.puffing_array_calc(pfr, pfr_puff_dict['point'], pfr_puff_dict['current'], puffing_matrix_pf)
             # a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location, pf_test_surf=pf_puffing_location)
-            save_matrices([pf_puffing_array], ['puffing_array_pf'], save_file)
+            self.save_matrices([pf_puffing_array], ['puffing_array_pf'], save_file)
 
-        if pumping != None:
+        if pump_dict != None:
             from shapely import Polygon, intersects, Point
 
             (_, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
@@ -307,8 +350,8 @@ class VNM_interface:
             points = []
             xbox = []
             ybox = []
-            if len(pumping['box_coords']) > 3:
-                for coord in pumping['box_coords']:
+            if len(pump_dict['box_coords']) > 3:
+                for coord in pump_dict['box_coords']:
                     points.append(Point(coord))
                     xbox.append(coord[0])
                     ybox.append(coord[1])
@@ -322,22 +365,19 @@ class VNM_interface:
                     if i >= pfr.P:
                         seg = pfr.surfaces[i].segment
                         if intersects(seg, box):
-                            pfr.R_dictionary[i] = pumping['albedo']
+                            pfr.R_dictionary[i] = pump_dict['albedo']
                             pumping_surf.append(i)
             else:
                 for i in range(pfr.numSurfaces):
                     if i >= pfr.P: # Pump on all wall surfaces
-                        pfr.R_dictionary[i] = pumping['albedo']
+                        pfr.R_dictionary[i] = pump_dict['albedo']
                         pumping_surf.append(i)
 
-            # print(pumping_surf)
-
             pfr.matrices()
-
             pf_pumping_matrix = pfr.getOutputMatrix(pfr.AB_matrix, 1000000)
+            self.save_matrices([pf_pumping_matrix], ['pumping_matrix'], save_file)
 
-            if plot:
-                # plotting pumping surfaces
+            if pump_plot:
                 surfx = []
                 surfy = []
                 for i in pumping_surf:
@@ -352,8 +392,6 @@ class VNM_interface:
                 ax = plt.gca()
                 ax.plot(surfx, surfy, color='blue')
                 ax.plot(xbox, ybox, color='gray')
-
-            save_matrices([pf_pumping_matrix], ['pumping_matrix'], save_file)
 
             pfr.R_dictionary.update(original_R)
 
