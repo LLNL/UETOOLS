@@ -128,6 +128,9 @@ class VNM_interface:
 
         region.matrices()
         puffing_array = region.getPuffingArray(puffing_matrix, puffing_location, current)
+        print('error here 1')
+        puffing_array = numpy.transpose(puffing_array)
+        print('error here 2')
         return puffing_array, puffing_location
     
     def save_matrices(self, matrix_list, matrix_name_list, save_file_name, open_file=None): # helper
@@ -269,8 +272,6 @@ class VNM_interface:
             elif pfr_puff_dict != None and 'vnm/bbb/puffing_matrix_pf' not in f: # error if can't make new pfr puffing array
                 warnings.warn('Cannot generate private flux region puffing input. Call self.vnm.restore or self.vnm.generate.')
 
-            puffingMatrix = f['vnm/bbb/puffing_matrix'][:]
-
         print('error with one of these')
         self.getue('isvacuummodel', cp=False)[0] = 1
         # bbb.isvacuummodel[0] = 1
@@ -325,9 +326,7 @@ class VNM_interface:
             cftelematrix_pf = numpy.transpose(cftelematrix_pf)
 
             puffing_matrix = t_main.getPuffingMatrix(1000000)
-            puffing_matrix = numpy.transpose(puffing_matrix)
             puffing_matrix_pf = t_pf.getPuffingMatrix(1000000)
-            puffing_matrix_pf = numpy.transpose(puffing_matrix_pf)
 
             return [cftelematrix_, cftelematrix_pf, puffing_matrix, puffing_matrix_pf]
 
@@ -389,14 +388,22 @@ class VNM_interface:
         self.set('cfteleout', 1.0)
 
         if sol_puff_dict != None:
+            print('enter puff sol')
             main_puffing_array, main_puffing_location = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], puffing_matrix)
-            self.save_matrices([main_puffing_array], ['puffing_array'], save_file)
+            self.main_puffing_array = numpy.transpose(main_puffing_array)
+            self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file)
             self.puffing_matrix = puffing_matrix
+            print('puffing matrix:', self.main_puffing_array)
 
         if pfr_puff_dict != None:
+            print('enter pfr puffing')
             pf_puffing_array, pf_puffing_location = self.puffing_array_calc(pfr, pfr_puff_dict['point'], pfr_puff_dict['current'], puffing_matrix_pf)
-            a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location, pf_test_surf=pf_puffing_location)
-            self.save_matrices([pf_puffing_array], ['puffing_array_pf'], save_file)
+            self.pf_puffing_array = numpy.transpose(pf_puffing_array)
+            # a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location, pf_test_surf=pf_puffing_location)
+            self.save_matrices([self.pf_puffing_array], ['puffing_array_pf'], save_file)
+            self.puffing_matrix_pf = puffing_matrix_pf
+            print('puffing matrix pfr:', self.pf_puffing_array)
+
 
         if pump_dict != None:
             from shapely import Polygon, intersects, Point
@@ -432,6 +439,7 @@ class VNM_interface:
 
             pfr.matrices()
             pf_pumping_matrix = pfr.getOutputMatrix(pfr.AB_matrix, 1000000)
+            self.pf_pumping_matrix = numpy.transpose(pf_pumping_matrix)
             self.save_matrices([pf_pumping_matrix], ['pumping_matrix'], save_file)
 
             if pump_plot:
