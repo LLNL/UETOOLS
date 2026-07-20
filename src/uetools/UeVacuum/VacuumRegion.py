@@ -238,7 +238,8 @@ class VNM_interface:
                                                     f['vnm/bbb/puffing_matrix'][:])
                 print('puffing_array:', puffing_array)
                 print('save error')
-                self.save_matrices([puffing_array], ['puffing_array'], save_file, open_file=f)
+                self.main_puffing_array = numpy.transpose(puffing_array)
+                self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file, open_file=f)
                 self.getue('fngyo_use', cp=False)[1:-1, 0] = f['vnm/bbb/puffing_array'][: , 0]
                 print('set error')
                 # self.set('puffing_array', puffing_array)
@@ -264,8 +265,8 @@ class VNM_interface:
                 print('pfr made it here')
                 puffing_array_pf, pfr_puff_loc = self.puffing_array_calc(pfr, pfr_puff_dict['point'], pfr_puff_dict['current'], 
                                                     f['vnm/bbb/puffing_matrix_pf'][:])
-                
-                self.save_matrices([puffing_array_pf], ['puffing_array_pf'], save_file, open_file=f)
+                self.pf_puffing_array = numpy.transpose(puffing_array_pf)
+                self.save_matrices([self.pf_puffing_array], ['puffing_array_pf'], save_file, open_file=f)
                 self.getue('fngyi_use', cp=False)[1:com.ixpt1[0]+1 , 0] = f['vnm/bbb/puffing_array_pf'][:com.ixpt1[0], 0]
                 self.getue('fngyi_use', cp=False)[com.ixpt2[0]+1:com.nx+1, 0] = f['vnm/bbb/puffing_array_pf'][com.ixpt1[0]: , 0]
                 # self.set('puffing_array_pf', puffing_array_pf)
