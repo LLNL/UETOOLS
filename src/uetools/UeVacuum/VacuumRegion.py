@@ -153,12 +153,10 @@ class VNM_interface:
                 with h5py.File(save_file_name, 'a') as f:
                     save_helper(f)
 
-    def restore(self, save_file=None, sol_puff_dict=None, pfr_puff_dict=None):
+    def restore(self, save_file=None, sol_puff_dict=None):
         """Restores existing telematrices from the provided save file, and calculates puffing input arrays if desired.
         Uses the current save file if none is provided.
         - sol_puff_dict = {'point': __, 'current': __, 'region':__}
-         'region' is optional-- pass in a pkl save of a VacuumRegion or a previously loaded VacuumRegion
-        - pfr_puff_dict = {'point': __, 'current': __, 'region':__}
          'region' is optional-- pass in a pkl save of a VacuumRegion or a previously loaded VacuumRegion
         """
         import h5py
@@ -204,24 +202,20 @@ class VNM_interface:
                 bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = small_matrix[com.ixpt1[0]:, com.ixpt1[0]:] # 4
 
                 self.save_matrices([small_matrix], ['cftelematrix_pf'], save_file, open_file=f)
-            
 
             if 'vnm/bbb/puffing_matrix' not in f: # check for main puffing matrix
                 warnings.warn('SOL puffing matrix not found in save file. Call self.vnm.generate.')
             else: # re-save main puffing matrix
-                # self.set('puffing_matrix', f['vnm/bbb/puffing_matrix'][:])
                 self.save_matrices([f['vnm/bbb/puffing_matrix']], ['puffing_matrix'], save_file, open_file=f)
 
-            if 'vnm/bbb/puffing_matrix_pf' not in f: # check for pfr puffing matrix
-                warnings.warn('Private flux region puffing matrix not found in save file. Call self.vnm.generate.')
-            else: # re-save pfr puffing matrix
-                # self.set('puffing_matrix_pf', f['vnm/bbb/puffing_matrix_pf'])
-                self.save_matrices([f['vnm/bbb/puffing_matrix_pf']], ['puffing_matrix_pf'], save_file, open_file=f)
+            # if 'vnm/bbb/puffing_matrix_pf' not in f: # check for pfr puffing matrix
+            #     warnings.warn('Private flux region puffing matrix not found in save file. Call self.vnm.generate.')
+            # else: # re-save pfr puffing matrix
+            #     self.save_matrices([f['vnm/bbb/puffing_matrix_pf']], ['puffing_matrix_pf'], save_file, open_file=f)
 
             if 'vnm/bbb/puffing_array' not in f: # check for main puffing array
                 warnings.warn('SOL puffing array not found in save file. Call self.vnm.restore or self.vnm.generate.')
             else: # re-save main puffing array
-                # self.set('puffing_array', f['vnm/bbb/puffing_array'][:])
                 self.save_matrices([f['vnm/bbb/puffing_array']], ['puffing_array'], save_file, open_file=f)
                 self.getue('fngyo_use', cp=False)[1:-1, 0] = f['vnm/bbb/puffing_array'][: , 0]
 
@@ -242,45 +236,33 @@ class VNM_interface:
                 self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file, open_file=f)
                 self.getue('fngyo_use', cp=False)[1:-1, 0] = f['vnm/bbb/puffing_array'][: , 0]
                 print('set error')
-                # self.set('puffing_array', puffing_array)
             elif sol_puff_dict != None and 'vnm/bbb/puffing_matrix' not in f: # error if can't make new puffing array
                 warnings.warn('Cannot generate SOL puffing input. Call self.vnm.restore or self.vnm.generate.')
-            
-            if 'vnm/bbb/puffing_array_pf' not in f: # check for pfr puffing array
-                warnings.warn('Private flux region puffing matrix not found in save file. Call self.vnm.restore or self.vnm.generate.')
-            else: # re-save pfr puffing array
-                # self.set('puffing_array_pf', f['vnm/bbb/puffing_array_pf'][:])
-                self.save_matrices([f['vnm/bbb/puffing_array_pf']], ['puffing_array_pf'], save_file, open_file=f)
-                self.getue('fngyi_use', cp=False)[1:com.ixpt1[0]+1 , 0] = f['vnm/bbb/puffing_array_pf'][:com.ixpt1[0], 0]
-                self.getue('fngyi_use', cp=False)[com.ixpt2[0]+1:com.nx+1, 0] = f['vnm/bbb/puffing_array_pf'][com.ixpt1[0]: , 0]
 
-            if pfr_puff_dict != None and 'vnm/bbb/puffing_matrix_pf' in f: # create new pfr puffing array
-                if 'region' not in pfr_puff_dict:
-                    (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
-                    pfr = VacuumRegion(pf[0], P=pf[1] - 1)
-                else:
-                    print('pfr errors here')
-                    pfr = VacuumRegion(pfr_puff_dict['region'])
-                
-                print('pfr made it here')
-                puffing_array_pf, pfr_puff_loc = self.puffing_array_calc(pfr, pfr_puff_dict['point'], pfr_puff_dict['current'], 
-                                                    f['vnm/bbb/puffing_matrix_pf'][:])
-                self.pf_puffing_array = numpy.transpose(puffing_array_pf)
-                self.save_matrices([self.pf_puffing_array], ['puffing_array_pf'], save_file, open_file=f)
-                self.getue('fngyi_use', cp=False)[1:com.ixpt1[0]+1 , 0] = f['vnm/bbb/puffing_array_pf'][:com.ixpt1[0], 0]
-                self.getue('fngyi_use', cp=False)[com.ixpt2[0]+1:com.nx+1, 0] = f['vnm/bbb/puffing_array_pf'][com.ixpt1[0]: , 0]
-                # self.set('puffing_array_pf', puffing_array_pf)
-            elif pfr_puff_dict != None and 'vnm/bbb/puffing_matrix_pf' not in f: # error if can't make new pfr puffing array
-                warnings.warn('Cannot generate private flux region puffing input. Call self.vnm.restore or self.vnm.generate.')
+            if 'vnm/bbb/pumping_matrix_pf' not in f:
+                warnings.warn('PFR pumping matrix not found. Call self.vnm.generate.')
+            else:
+                pump = f['vnm/bbb/pumping_matrix_pf'][:]
+                self.save_matrices([pump], ['pumping_matrix_pf'], save_file_name=save_file, open_file=f)
+                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = pump[:com.ixpt1[0], :com.ixpt1[0]] # 1
+                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = pump[:com.ixpt1[0], com.ixpt1[0]:] # 2
+                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = pump[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
+                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = pump[com.ixpt1[0]:, com.ixpt1[0]:] # 4
 
+            if 'vnm/bbb/pumping_matrix_sol' not in f:
+                warnings.warn('SOL pumping matrix not found. Call self.vnm.generate.')
+            else:
+                pump = f['vnm/bbb/pumping_matrix_sol'][:]
+                self.save_matrices([pump], ['pumping_matrix_sol'], save_file_name=save_file, open_file=f)
+                bbb.cftelematrix[1, 1:-1, 1:-1, 0] = pump
         print('error with one of these')
         self.getue('isvacuummodel', cp=False)[0] = 1
         # bbb.isvacuummodel[0] = 1
         self.set('cfteleout', 1.0)
         print('finished execution')
     
-    def generate(self, sol=None, pfr=None, save_file=None, sol_puff_dict=None, pfr_puff_dict=None, 
-                 pump_dict=None, save=False, pump_plot=True):
+    def generate(self, sol=None, pfr=None, save_file=None, sol_puff_dict=None, 
+                 sol_pump_dict=None, pf_pump_dict=None, save=False, pump_plot=True):
         """Generates telematrices for given VacuumRegions.
         
         Keyword arguments:
@@ -292,14 +274,13 @@ class VNM_interface:
         - sol_puff_dict -- {'point': __, 'current': __} (default None).
          'point' is a coordinate that identifies the location of the gas puff.
          'current' is a value that determines the strength of the gas puff.
-        - pfr_puff_dict -- {'point': __, 'current': __} (default None).
-         'point' is a coordinate that identifies the location of the gas puff.
-         'current' is a value that determines the strength of the gas puff.
-        - pump_dict -- {'box_points': __, 'albedo': __} (default None).
-         'box_points' should be a list of four or more coordinates that create a box around the pumping portion of the private flux region.
-           Note: even if the full surfaces is not within the box, it will be counted as a pumping surface. Additionally, if not enough points are provided for a box (3 or less),
-           all wall surfaces in the private flux region will be taken as pumping.
+        - sol_pump_dict -- {'box_points':__, 'albedo':__} (default None).
+         'box_points' should be a list of four or more coordinates that create a box around the pumping portion.
+           Note: even if the full surfaces is not within the box, it will be counted as a pumping surface. Additionally, if not enough points are provided for a box (3 or less or None),
+           all wall surfaces in the region will be taken as pumping with the specified albedo.
          'albedo' is a value between 0 and 1 that determines the strength of the pumping
+        - pf_pump_dict -- {'box_points': __, 'albedo': __} (default None).
+         Same logic as sol_pump_dict.
         - save -- if True, will save new pkl file with names 'SOL_Vacuum.pkl' and 'PFR_Vacuum.pkl' (default False).
         - plot -- if True, plots the pumping surfaces in the private flux region (default True).
         """
@@ -327,14 +308,15 @@ class VNM_interface:
             cftelematrix_pf = numpy.transpose(cftelematrix_pf)
 
             puffing_matrix = t_main.getPuffingMatrix(1000000)
-            puffing_matrix_pf = t_pf.getPuffingMatrix(1000000)
 
-            return [cftelematrix_, cftelematrix_pf, puffing_matrix, puffing_matrix_pf]
+            self.cftelematrix = cftelematrix_
+            self.cftelematrix_pf = cftelematrix_pf
+
+            return [cftelematrix_, cftelematrix_pf, puffing_matrix]
 
         if sol == None or pfr == None: # generate new VacuumRegions
             sol = VacuumRegion(main[0], P=main[1])
             pfr = VacuumRegion(pf[0], P=pf[1] - 1)
-            self.sol = sol
             matrices = matrix_calculate(sol, pfr)
             if save: # save the new VacuumRegions as pkl files
                 sol.saveVacuumRegion('SOL_Vacuum.pkl')
@@ -347,42 +329,29 @@ class VNM_interface:
             matrices = matrix_calculate(sol, pfr)
         
         self.sol = sol
+        self.pfr = pfr
         sol_puff_dict['region'] = sol
-        pfr_puff_dict['region'] = pfr
         
         cftelematrix = matrices[0]
         cftelematrix_pf = matrices[1]
         puffing_matrix = matrices[2]
-        puffing_matrix_pf = matrices[3]
 
         dimension = len(cftelematrix) + 2
-        dimension_pf = len(cftelematrix_pf) + 2
-
         cftelematrix_full = numpy.zeros((2, dimension, dimension, 6))
         cftelematrix_full[1, 1:-1, 1:-1, 0] = cftelematrix
         cftelematrix_full[1, 1:-1, 1:-1, 1] = cftelematrix
         bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = cftelematrix
 
-        # cftelematrix_pf_full = numpy.zeros((dimension_pf, dimension_pf, 6))
-        # cftelematrix_pf_full[1:-1, 1:-1, 0] = cftelematrix_pf
-        # cftelematrix_pf_full[1:-1, 1:-1, 1] = cftelematrix_pf
         bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
         bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
         bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
         bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
-
-        self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix, puffing_matrix_pf], 
-                      ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix', 'puffing_matrix_pf'], 
-                      save_file)
         
-        # self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix], 
-        #               ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix'], 
-        #               save_file)
+        self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix], 
+                      ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix'], 
+                      save_file)
 
         self.set('cftelematrix', cftelematrix_full)
-        # self.set('cftelematrix_pf', cftelematrix_pf_full) # Uncomment after pf matrix has been added to UEDGE
-        # self.set('puffing_matrix', puffing_matrix)
-        # self.set('puffing_matrix_pf', puffing_matrix_pf)
 
         self.getue('isvacuummodel', cp=False)[0] = 1
         # bbb.isvacuummodel[0] = 1
@@ -393,30 +362,19 @@ class VNM_interface:
             main_puffing_array, main_puffing_location = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], puffing_matrix)
             self.main_puffing_array = numpy.transpose(main_puffing_array)
             self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file)
+            a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location)
             self.puffing_matrix = puffing_matrix
-            print('puffing matrix:', self.main_puffing_array)
-
-        if pfr_puff_dict != None:
-            print('enter pfr puffing')
-            pf_puffing_array, pf_puffing_location = self.puffing_array_calc(pfr, pfr_puff_dict['point'], pfr_puff_dict['current'], puffing_matrix_pf)
-            self.pf_puffing_array = numpy.transpose(pf_puffing_array)
-            # a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location, pf_test_surf=pf_puffing_location)
-            self.save_matrices([self.pf_puffing_array], ['puffing_array_pf'], save_file)
-            self.puffing_matrix_pf = puffing_matrix_pf
-            print('puffing matrix pfr:', self.pf_puffing_array)
-
-
-        if pump_dict != None:
+        
+        def pump_helper(region, pump_dictionary, plot):
             from shapely import Polygon, intersects, Point
-
-            (_, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
 
             pumping_surf = []
             points = []
             xbox = []
             ybox = []
-            if len(pump_dict['box_coords']) > 3:
-                for coord in pump_dict['box_coords']:
+            original_R = region.R_dictionary.copy()
+            if 'box_coords' in pump_dictionary and len(pump_dictionary['box_coords']) > 3:
+                for coord in pump_dictionary['box_coords']:
                     points.append(Point(coord))
                     xbox.append(coord[0])
                     ybox.append(coord[1])
@@ -424,51 +382,67 @@ class VNM_interface:
                 ybox.append(ybox[0])
                 box = Polygon(points)
 
-                original_R = pfr.R_dictionary.copy()
-
-                for i in range(pfr.numSurfaces):
-                    if i >= pfr.P:
-                        seg = pfr.surfaces[i].segment
+                for i in range(region.numSurfaces):
+                    if i >= region.P:
+                        seg = region.surfaces[i].segment
                         if intersects(seg, box):
-                            pfr.R_dictionary[i] = pump_dict['albedo']
+                            region.R_dictionary[i] = pump_dictionary['albedo']
                             pumping_surf.append(i)
             else:
-                for i in range(pfr.numSurfaces):
-                    if i >= pfr.P: # Pump on all wall surfaces
-                        pfr.R_dictionary[i] = pump_dict['albedo']
+                for i in range(region.numSurfaces):
+                    if i >= region.P: # Pump on all wall surfaces
+                        region.R_dictionary[i] = pump_dictionary['albedo']
                         pumping_surf.append(i)
 
-            pfr.matrices()
-            pf_pumping_matrix = pfr.getOutputMatrix(pfr.AB_matrix, 1000000)
-            self.pf_pumping_matrix = numpy.transpose(pf_pumping_matrix)
-            self.save_matrices([pf_pumping_matrix], ['pumping_matrix'], save_file)
+            region.matrices()
+            pumping_matrix_general = region.getOutputMatrix(region.AB_matrix, 1000000)
+            pumping_matrix_general = numpy.transpose(pumping_matrix_general)
 
-            if pump_plot:
+            if plot and len(pump_dictionary['box_coords']) > 3:
                 surfx = []
                 surfy = []
                 for i in pumping_surf:
-                    surfx.append(pfr.surfaces[i].start.x)
-                    surfy.append(pfr.surfaces[i].start.y)
+                    surfx.append(region.surfaces[i].start.x)
+                    surfy.append(region.surfaces[i].start.y)
 
-                    surfx.append(pfr.surfaces[i].end.x)
-                    surfy.append(pfr.surfaces[i].end.y)
+                    surfx.append(region.surfaces[i].end.x)
+                    surfy.append(region.surfaces[i].end.y)
                 
-                a = self.plot_grid(sol, pfr)
+                a = self.plot_grid(sol, pfr, label=False)
                 import matplotlib.pyplot as plt
                 ax = plt.gca()
                 ax.plot(surfx, surfy, color='blue')
                 ax.plot(xbox, ybox, color='gray')
 
-            pfr.R_dictionary.update(original_R)
+            region.R_dictionary.update(original_R)
+            
+            return pumping_matrix_general
 
-    def plot_grid(self, sol, pfr, sol_plot=True, pfr_plot=True, sol_test_surf=[], pf_test_surf=[]):
-        if sol and pfr:
-            m = sol.plotGeometry(labels=False, testsurf=sol_test_surf, showCircle=True)
-            p = pfr.plotGeometry(labels=False, ax=m.get_axes()[0], testsurf=pf_test_surf, showCircle=True)
+        if pf_pump_dict != None:
+
+            self.pumping_matrix_pf = pump_helper(self.pfr, pf_pump_dict, pump_plot)
+            self.save_matrices([self.pumping_matrix_pf], ['pumping_matrix_pf'], save_file_name=save_file)
+
+            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
+            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
+            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
+            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
+
+        if sol_pump_dict != None:
+
+            self.pumping_matrix_sol = pump_helper(self.sol, sol_pump_dict, pump_plot)
+            self.save_matrices([self.pumping_matrix_sol], ['pumping_matrix_sol'], save_file_name=save_file)
+
+            bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = self.pumping_matrix_sol
+
+    def plot_grid(self, sol, pfr, sol_plot=True, pfr_plot=True, sol_test_surf=[], pf_test_surf=[], label=False):
+        if sol_plot and pfr_plot:
+            m = sol.plotGeometry(labels=label, testsurf=sol_test_surf, showCircle=True)
+            p = pfr.plotGeometry(labels=label, ax=m.get_axes()[0], testsurf=pf_test_surf, showCircle=True)
         elif sol:
-            m = sol.plotGeometry(labels=False, testsurf=sol_test_surf, showCircle=True)
+            m = sol.plotGeometry(labels=label, testsurf=sol_test_surf, showCircle=True)
         elif pfr:
-            p = pfr.plotGeometry(labels=False, ax=m.get_axes()[0], testsurf=pf_test_surf, showCircle=True)
+            p = pfr.plotGeometry(labels=label, ax=m.get_axes()[0], testsurf=pf_test_surf, showCircle=True)
 
         # input("Press 'Enter' to close plots.")   
 
