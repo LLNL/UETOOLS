@@ -112,7 +112,6 @@ class DEGAS2runner:
                 print(f"Command '{cmd} {arg}' failed with return code {e.returncode}")
                 print(e.stderr)
     
-        # TODO: implement degas_runner here
         return
 
     def write_degas2in(self, problemname='pr', tallyname='tally',

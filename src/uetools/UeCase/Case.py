@@ -870,6 +870,40 @@ class Case:
     def add_DEGAS2runner(self, degas2_input_path, degas2_run_path, **kwargs):
         self.degas2 = DEGAS2runner(self, degas2_input_path, degas2_run_path, **kwargs)
 
+    def run_DEGAS2_docker(self, degas2_input_path, degas2_run_path, 
+                overwrite=False,mpi_np=0,**kwargs
+    ):
+        """ Executes DEGAS2 from docker container
+        Arguments:
+        ----------
+        degas2_input_path - path to DEGAS2 input files. Directory must contain 
+                    pr.input and tally.input
+        degas2_run_path - output directory
+
+        Keyword arguments:
+        ------------------
+        overwrite - bool (defgault: False) 
+            Switch whether to purge and overwrite files in degas2_run_path
+            run directory
+        mpi_np - int (default: 0)
+            Number of MPI processes to use with DEGAS2 run
+        """
+        try:
+            from pls_erd import Degas2Runner
+        except:
+            raise Exception("pls_erd not found/loaded!")
+        
+        with Degas2Runner() as runner:
+            self.add_DEGAS2runner(
+                degas2_input_path,
+                degas2_run_path,
+                overwrite = overwrite,
+                **kwargs
+            )
+            self.degas2.setup_degas2()
+            results = runner.run(self.degas2, mpi_np=mpi_np)
+        self.degas2.result = results
+        
 
 class GetSetMemory:
     """Duck typing helper class for cases using UEDGE
