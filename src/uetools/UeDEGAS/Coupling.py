@@ -5,21 +5,54 @@ class DEGAS2runner:
     """
     def __init__(self, case, inpath, runpath, material='C', recyc_coef=1.,
         overwrite=False, vesselfile='vessel.dat', uefile='uedata.u', **kwargs):
-        from os import getenv, makedirs
+        from os import getenv, makedirs, symlink
         from os.path import isdir
+        from pathlib import Path
 
         self.degas2path = getenv("DEGAS2_PATH")
         if self.degas2path is None:
             raise OSError("$DEGAS2_PATH not set. Aborting")
-        self.inpath = inpath
+        self.inpath = Path(inpath).resolve()
         if not isdir(self.inpath):
             raise OSError(f"DEGAS2 input file path {self.inpath} does not exist")
-        self.runpath = runpath
+        else:
+            missing = []
+            for infile in ['pr.input', 'tally.input']:
+                file = self.inpath / infile
+                if not file.is_file():
+                    missing.append(infile)
+            if len(missing) > 0:
+                raise OSError(f"Missing file(s) in {inpath}: {' '.join(missing)}")
+        self.runpath = Path(runpath).resolve()
         makedirs(self.runpath, exist_ok=overwrite)
-        self.runfilepath = f"{self.runpath}/degas2infiles"
+        self.runfilepath = Path(f"{self.runpath}/degas2infiles").resolve()
         makedirs(self.runfilepath, exist_ok=overwrite)
-        self.outpath = f"{self.runpath}/degas2output"
-        makedirs(self.outpath, exist_ok=overwrite)
+        self.outpath = Path(f"{self.runpath}/degas2output").resolve()
+        # Set up temporary symlink dirs
+        self.tmp_inpath = Path("/tmp/uetools/degas2_in")
+        self.tmp_outpath = Path("/tmp/uetools/degas2_out")
+        self.tmp_runfilepath = Path("/tmp/uetools/degas2_run")
+        # Create nested temp dirs
+        self.tmp_inpath.parent.mkdir(parents=True, exist_ok=True)
+        self.tmp_outpath.parent.mkdir(parents=True, exist_ok=True)
+        self.tmp_runfilepath.parent.mkdir(parents=True, exist_ok=True)
+        makedirs(str(self.outpath), exist_ok=overwrite)
+        # Unlink existing symlinks
+        if self.tmp_inpath.exists() or self.tmp_inpath.is_symlink():
+            self.tmp_inpath.unlink()
+        if self.tmp_outpath.exists() or self.tmp_outpath.is_symlink():
+            self.tmp_outpath.unlink()
+        if self.tmp_runfilepath.exists() or self.tmp_runfilepath.is_symlink():
+            self.tmp_runfilepath.unlink()
+        # Create new symlinks
+        symlink(str(self.inpath), str(self.tmp_inpath))
+        symlink(str(self.outpath), str(self.tmp_outpath))
+        symlink(str(self.runfilepath), str(self.tmp_runfilepath))
+
+        self.tmp_inpath = str(self.tmp_inpath)
+        self.tmp_outpath = str(self.tmp_outpath)
+        self.tmp_runfilepath = str(self.tmp_runfilepath)
+
 
         # Store filenames
         self.vesselfile = vesselfile
@@ -35,9 +68,15 @@ class DEGAS2runner:
         self.get = case.get
         self.plot = case.plot
 
-    def setup_degas2_run(self, vesselfile=None, **kwargs):
+    def run(self, **kwargs):
+        self.setup_degas2(**kwargs)
+        self.trigger_degas2(**kwargs)
+        
+
+    def setup_degas2(self, vesselfile=None, **kwargs):
         """ Creates DEGAS2 input files and intializes directories """
         from shutil import copytree
+
         if vesselfile is None:
             vesselfile = self.vesselfile
         else:
@@ -52,20 +91,23 @@ class DEGAS2runner:
         self.write_dgin("dg.in", **kwargs)
 
 
-    def run_degas2(self):
+    def trigger_degas2(self):
+        import subprocess
+        # TODO: add structures to choose run commands
         """ Exectures DEGAS2 run commands """
         command = {
             "datasetup": "",
-            "problemsetup": f"{self.runfilepath}/pr.in",
-            "definegeometry2d": f"{self.runfilepath}/dg.in",
-            "defineback": f"{self.runfilepath}/db.in",
-            "tallysetup": f"{self.runfilepath}/tally.input",
+            "problemsetup": f"{self.tmp_runfilepath}/pr.in",
+            "definegeometry2d": f"{self.tmp_runfilepath}/dg.in",
+            "defineback": f"{self.tmp_runfilepath}/db.in",
+            "tallysetup": f"{self.tmp_runfilepath}/tally.input",
             "flighttest": ""
         }
         for cmd, arg in command.items():
             try:
                 subprocess.run(f"{cmd} {arg}", shell=True, check=True,
-                                        capture_output=False, text=True)
+                                        capture_output=False, text=True,
+                                        cwd=self.tmp_runfilepath)
             except subprocess.CalledProcessError as e:
                 print(f"Command '{cmd} {arg}' failed with return code {e.returncode}")
                 print(e.stderr)
@@ -75,7 +117,7 @@ class DEGAS2runner:
 
     def write_degas2in(self, problemname='pr', tallyname='tally',
         geometryout='dg', backgroundout='bk', outputfile='degas2_output'):
-        print(f"Writing degas2.in to {self.runfilepath}")
+        print(f"Writing degas2.in to {self.tmp_runfilepath}")
         # TODO: harden with lookups? Or standardized locations
         inoutfilepaths = {
             'elements': 'data',
@@ -94,13 +136,14 @@ class DEGAS2runner:
             'output': outputfile
         }
         inout = {
-            '_infile': ['.input', f"{self.runfilepath}"],
-            'file': ['.nc', f"{self.outpath}"]
+            '_infile': ['.input', f"{self.tmp_runfilepath}"],
+            'file': ['.nc', f"{self.tmp_outpath}"]
         }
-        with open(f"{self.runfilepath}/degas2.in", 'w') as f:
+        with open(f"{self.tmp_runfilepath}/degas2.in", 'w') as f:
             for key, path in inoutfilepaths.items():
                 for keyapp, fileapp in inout.items():
-                    f.write(f"{key}{keyapp} {self.degas2path}/{path}/{key}{fileapp[0]}\n")
+                    fname = key.replace("reaction", "reactions")
+                    f.write(f"{key}{keyapp} {self.degas2path}/{path}/{fname}{fileapp[0]}\n")
                 f.write('\n')
             for key, file in degasin.items():
                 for keyapp, fileapp in inout.items():
@@ -112,21 +155,21 @@ class DEGAS2runner:
         print(f"    Successfully wrote degas2.in to {self.runfilepath}")
                 
     def write_rb(self):
-        print(f"Writing db.in to {self.runfilepath}")
-        with open(f"{self.runfilepath}/db.in", 'w') as f:
-            f.write(f"plasma_file {self.runfilepath}/rb.in\n")
-        print(f"    Successfully wrote db.in to {self.runfilepath}")
+        print(f"Writing db.in to {self.tmp_runfilepath}")
+        with open(f"{self.tmp_runfilepath}/db.in", 'w') as f:
+            f.write(f"plasma_file {self.tmp_runfilepath}/rb.in\n")
+        print(f"    Successfully wrote db.in to {self.tmp_runfilepath}")
 
         ion_species = ''
         for species in self.ionspecies:
             if 'D0' not in species.upper():
                 ion_species = f"{ion_species} {species.strip().replace('1','')}"
-        print(f"Writing rb.in to {self.runfilepath}")
-        with open(f"{self.runfilepath}/rb.in", 'w') as f:
-            f.write(f"uedge_file {self.runfilepath}/{self.uefile}\n")
+        print(f"Writing rb.in to {self.tmp_runfilepath}")
+        with open(f"{self.tmp_runfilepath}/rb.in", 'w') as f:
+            f.write(f"uedge_file {self.tmp_runfilepath}/{self.uefile}\n")
             f.write(f"ion_species {ion_species}\n")
-            f.write(f"polygon_file {self.outpath}/polygons.nc")
-        print(f"    Successfully wrote rb.in to {self.runfilepath}")
+            f.write(f"polygon_file {self.tmp_outpath}/polygons.nc")
+        print(f"    Successfully wrote rb.in to {self.tmp_runfilepath}")
 
     def write_uedge_data(self, uefile=None):
         from Forthon import packageobject
@@ -137,23 +180,24 @@ class DEGAS2runner:
         runid = self.get('runid')
         if runid is None:
             runid = ""
-        print(f"Writing {self.uefile} to {self.runfilepath}")
+        print(f"Writing {self.uefile} to {self.tmp_runfilepath}")
         packageobject('bbb').__getattribute__('writemcnfile')(
-            f"{self.runfilepath}/{uefile}", 
+            f"{self.tmp_runfilepath}/{uefile}", 
             runid
         )
-        print(f"    Successfully wrote {self.uefile} to {self.runfilepath}")
+        print(f"    Successfully wrote {self.uefile} to {self.tmp_runfilepath}")
 
     def define_boundaries(self, bounds=None,  **kwargs):
         print("Identifying geometry and setting up zones")
         rm, zm = self.get('rm'), self.get('zm')
+        xlim, ylim = self.get('xlim'), self.get('ylim')
         # Define bounding box
         if bounds is None:
             self.bounds = [
-                rm.min()*0.95,
-                rm.max()*1.05,
-                zm.min()*0.95,
-                zm.max()*1.05
+                xlim.min()-0.25,
+                xlim.max()+0.25,
+                ylim.min()-0.25,
+                ylim.max()+0.25
             ]
         else: 
             self.bounds = bounds
@@ -245,7 +289,7 @@ class DEGAS2runner:
                 'SOL': {
                     'type': 'plasma',
                     'boundaries': {
-                        '1-edge-reverse': [self.get('ny'), self.get('ny')],
+                        '1-edge-reverse': ['*', self.get('ny'), self.get('ny')],
                         '2-wall': {
                             'intersects': self.boundaries['SOL'],
                             'connection': True,
@@ -411,8 +455,8 @@ class DEGAS2runner:
 
                 
     def write_vessel_file(self, outfile, **kwargs):
-        print(f"Writing {outfile} to {self.runfilepath}")
-        with open(f"{self.runfilepath}/{outfile}", 'w') as f:
+        print(f"Writing {outfile} to {self.tmp_runfilepath}")
+        with open(f"{self.tmp_runfilepath}/{outfile}", 'w') as f:
             f.write(f'1\n{len(self.limiter_array)}\n')
             for p in self.limiter_array:
                 f.write(f'{p[0]:.8f} {p[1]:.8f}\n')
@@ -421,13 +465,13 @@ class DEGAS2runner:
 
 
     def write_dgin(self, outfile, tab=4*' ', **kwargs):
-        i = 1
-        print(f"Writing {outfile} to {self.runfilepath}")
-        with open(f"{self.runfilepath}/{outfile}", 'w') as f:
+        stra = 1
+        print(f"Writing {outfile} to {self.tmp_runfilepath}")
+        with open(f"{self.tmp_runfilepath}/{outfile}", 'w') as f:
             # Write initialization block
             f.write("symmetry cylindrical\n")
-            f.write(f"uedge_mesh {self.runfilepath}/{self.uefile}\n")
-            f.write(f"wallfile {self.runfilepath}/{self.vesselfile}\n")
+            f.write(f"uedge_mesh {self.tmp_runfilepath}/{self.uefile}\n")
+            f.write(f"wallfile {self.tmp_runfilepath}/{self.vesselfile}\n")
             f.write(f"bounds {self.bounds[0]:.3f} {self.bounds[1]:.3f} {self.bounds[2]:.3f} {self.bounds[3]:.3f}\n")
             f.write("end_prep\n")
             # Start writing zones
@@ -435,7 +479,7 @@ class DEGAS2runner:
                 # Required entries
                 f.write(f'\n# {zone.upper()}\n')
                 f.write(f'new_zone {data["type"]}\n')
-                f.write(f'new_polygon\n{tab}stratum {i}\n')
+                f.write(f'new_polygon\n{tab}stratum {stra}\n')
                 # Wall material data
                 if data['type'].strip().lower() == 'solid':
                     f.write(f'{tab}material {data["material"]}\n') 
@@ -467,11 +511,10 @@ class DEGAS2runner:
                                 wallrange = f"{wallrange} {i}"
                         f.write(f'{tab}{pre} 1 {wallrange.strip()} {app}\n')
                         
-                f.write(f'{tab}triangulate {data["triangulation"]}\n')
-
-                i += 1
+                f.write(f'{tab} {data["triangulation"]}\n')
+                stra += 1
         
-            f.write(f'\npolygon_nc_file {self.runfilepath}/polygons.nc\n')
+            f.write(f'\npolygon_nc_file {self.tmp_outpath}/polygons.nc\nend\n')
         print(f"{tab}{outfile} written successfully.")
 
 
