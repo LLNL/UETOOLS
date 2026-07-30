@@ -1,11 +1,12 @@
 # Object for plotting
 from matplotlib.pyplot import ion
+from uetools.UePlot import PlotHelpers
 
 ion()
 
 # TODO: implement divergence plotting/calculation
 
-class Plot:
+class Plot(PlotHelpers):
     def __init__(self, *args, rm=None, zm=None, snull=True, usn=False, 
             dnull=False, snowflake=False, slab=False, **kwargs):
         """Constructs patches objects
@@ -61,55 +62,68 @@ class Plot:
     def createvertices(self, rm, zm):
         from numpy import zeros, transpose, cross, sum
         # CREATE POLYGON COLLECTIONS TO USE
+
+        nx, ny = self.get("nx"), self.get("ny")
+        rm, zm = self.get("rm"), self.get("zm")
+        rmagx, zmagx = self.get("rmagx"), self.get("zmagx")
+
         self.vertices = self.createpolycollection(self.getomit(rm), self.getomit(zm))
         self.disp=0
         if self.get("geometry")[0].strip().lower().decode("UTF-8") == "uppersn":
             self.disp = 0
-            if self.get("rmagx") + self.get("zmagx") == 0:
+            if rmagx + zmagx == 0:
                 # Normalizing to -min(-zm) results in "jumping" USN cases when
                 # the core surfaces change: revert to using set 2.8m displacement
                 self.disp = 2.8
             else:
-                self.disp = 2 * self.get("zmagx")
+                self.disp = 2 * zmagx
             self.uppersnvertices = self.createpolycollection(
                 self.getomit(rm), self.getomit(self.disp -zm), setparams=False
             )
 
         # CREATE NORMAL VECTOR IN LOCAL CELL COORDINATES
-        nodes = zeros((self.get("nx") + 2, self.get("ny") + 2, 5, 2))
-        nodes[:, :, :, 0] = self.getomit("rm")
-        nodes[:, :, :, 1] = self.getomit("zm")
-        nodes = transpose(nodes, (2, 3, 0, 1))
+        try:
+            nodes = zeros((self.get("nx") + 2, self.get("ny") + 2, 5, 2))
+            nodes[:, :, :, 0] = self.getomit("rm")
+            nodes[:, :, :, 1] = self.getomit("zm")
+            nodes = transpose(nodes, (2, 3, 0, 1))
+        except:
+            nodes = zeros((self.get("nxm") + 2, self.get("nym") + 2, 5, 2))
+            nodes[:, :, :, 0] = self.getomit("rm")
+            nodes[:, :, :, 1] = self.getomit("zm")
+            nodes = transpose(nodes, (2, 3, 0, 1))
 
-        # TODO: rather than align poloidal/radial in direction of cell,
-        # evaluate face normal locally at cell face?
+
         # Find midpoints of y-faces
-        self.symid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
-        self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
-        self.symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
+        try:
+            self.symid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
+            self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
+            self.symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
+        except:
+            self.symid = zeros((2, 2, self.get("nxm") + 2, self.get("nym") + 2))
+            self.symid[0] = (nodes[2] + nodes[1]) / 2  # Lower face center
+            self.symid[1] = (nodes[4] + nodes[3]) / 2  # Upper face center
+
         # Find midpoints of x-faces
-        self.sxmid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
-        self.sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
-        self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
+        try:
+            self.sxmid = zeros((2, 2, self.get("nx") + 2, self.get("ny") + 2))
+            self.sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
+            self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
+        except:
+            self.sxmid = zeros((2, 2, self.get("nxm") + 2, self.get("nym") + 2))
+            self.sxmid[0] = (nodes[3] + nodes[1]) / 2  # Left face center
+            self.sxmid[1] = (nodes[4] + nodes[2]) / 2  # Right face center
 
         # Find vectors of east faces
-        eastface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
-        eastface[:-1] = nodes[4] - nodes[2]
-        # Find vectors of north faces
-        northface = zeros((3, self.get("nx") + 2, self.get("ny") + 2))
-        northface[:-1] = nodes[4] - nodes[3]
-        # Find normals to faces
-        northnormal = self.symid[1]-self.symid[0]
-        eastnormal = self.sxmid[1]-self.sxmid[0]
-
-        self.northnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
-        for i in range(2):
-            self.northnormaln[i] = northnormal[i] / (sum(northnormal**2, 
-                axis=0) ** 0.5 + 1e-20)
-        self.eastnormaln = zeros((2, self.get("nx") + 2, self.get("ny") + 2))
-        for i in range(2):
-            self.eastnormaln[i] = eastnormal[i] / (sum(eastnormal**2, 
-                axis=0) ** 0.5 + 1e-20)
+        self.eastnormaln = zeros((2, nx + 2, ny + 2))
+        self.northnormaln = zeros((2, nx + 2, ny + 2))
+        for ix in range(nx+2):
+            for iy in range(ny+2):
+                dR = rm[ix, iy, 2] - rm[ix, iy, 1]
+                dZ = zm[ix, iy, 2] - zm[ix, iy, 1]
+                mag = (dR**2 + dZ**2) ** 0.5 + 1e-20
+                self.eastnormaln[:,ix,iy] = [dR / mag, dZ / mag]
+                self.northnormaln[:,ix,iy] = [-dZ / mag, dR / mag]
 
     def newplot(self, **kwargs):
         """ Creates a figure for 'dump' plots """
@@ -124,6 +138,9 @@ class Plot:
             new=False,
             xlabel='', 
             ylabel='', 
+            label=None,
+            labelsize=12,
+            labelweight='bold',
             xlim=(None, None),
             ylim=(None, None),
             iax=0, 
@@ -141,7 +158,7 @@ class Plot:
         if (not fignum_exists(self.dumpfig.number)) or new:
             self.newplot(nrows=nrows, ncols=ncols, figsize=figsize)
 
-        getattr(self.dumpfig.get_axes()[iax], plottype)(
+        line, = getattr(self.dumpfig.get_axes()[iax], plottype)(
             x, y, color=color, **kwargs
         )
         if xlim != (None, None):
@@ -150,6 +167,8 @@ class Plot:
             self.dumpfig.get_axes()[iax].set_ylim(ylim)
         self.dumpfig.get_axes()[iax].set_xlabel(xlabel)
         self.dumpfig.get_axes()[iax].set_ylabel(ylabel)
+        if label is not None:
+            self.add_inline_label(self.dumpfig.get_axes()[iax], line, label, labelsize, fontweight=labelweight)
 
     def savefig(self, fname, **kwargs):
         from matplotlib.pyplot import fignum_exists
@@ -165,7 +184,7 @@ class Plot:
     def createpolycollection(self, rm, zm, margins=0.05, setparams=True):
         """Creates a poly collection and records boundaries"""
         from matplotlib.collections import PolyCollection
-        from numpy import append
+        from numpy import append, where
         try:
             from uedge import com
         except:
@@ -288,22 +307,22 @@ class Plot:
                             ixpt2[1], iysptrx2[0]+1, 2]
                     )
             elif self.snowflake is not False:
+                from numpy import zeros
                 iysptrx1 = self.get("iysptrx1")
                 iysptrx2 = self.get("iysptrx2")
                 ixpt1 = self.get("ixpt1")
                 ixpt2 = self.get("ixpt2")
                 ixlb = self.get("ixlb")
                 ixrb = self.get("ixrb")
+                nx = self.get("nx")
                 common_lines = ['plate1', 'plate2', 'plate3', 'plate4', 
-                                'core']
-                if self.snowflake == 75:
-                    for line in common_lines + [  
-                                'p1xp1', 'p1xpc1', 'bp1p2', 'bp1xpc1',
-                                'p2xp1', 'p2xp2', 'bp2xpc2',
-                                'p3xp2', 'bp3p4', 'bp3xpc2',
-                                'p4xp2', 'bp4xpc1',
-                                'bxpc1xpc2', 'xp1xp2', 'sep'
-                                ]:
+                                'core', 'outer_sol', 'pfr1', 'pfr2', 'pfr3', 'sep']
+                if self.snowflake == 15:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if (ix > ixpt1[0] and ix <= ixpt2[0]) or (ix > ixpt1[1] and ix <= ixpt2[1]):
+                            isixcore[ix] = 1
+                    for line in common_lines + ['sep2', 'p2p4']:
                         self.sep[line] = {}
                     for xy in ['r', 'z']:
                         self.sep['plate1'][xy] = locals()[f"{xy}m"][\
@@ -324,66 +343,370 @@ class Plot:
                         self.sep['core'][xy] = append( self.sep['core'][xy],
                                 locals()[f"{xy}m"][ixpt2[0], 0, 4]
                         )
-                        self.sep['p1xp1'][xy] = locals()[f"{xy}m"][\
-                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
-                        ]
-                        self.sep['p1xpc1'][xy] = locals()[f"{xy}m"][\
-                                ixlb[0]:ixpt1[0]+1, iysptrx1[1], 4
-                        ]
-                        self.sep['bp1p2'][xy] = locals()[f"{xy}m"][\
+                        self.sep['core'][xy] = append( self.sep['core'][xy],
+                                locals()[f"{xy}m"][ixpt1[1]+1:ixpt2[1]+1, 0, 4]
+                        )
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
                                 ixlb[0]:ixrb[0]+1, -2, 4
                         ]
-                        self.sep['bp1xpc1'][xy] = locals()[f"{xy}m"][\
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
                                 ixlb[0]:ixpt1[0]+1, 0, 4
                         ]
-                        self.sep['p2xp1'][xy] = locals()[f"{xy}m"][\
-                                ixpt1[1]:ixrb[0]+1, iysptrx1[1], 4
-                        ]
-                        self.sep['p2xp2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[0]:ixrb[0]+1, iysptrx1[0], 4
-                        ]
-                        self.sep['bp2xpc2'][xy] = locals()[f"{xy}m"][\
-                                ixpt1[1]+1:ixrb[0]+2, 0, 3
-                        ]
-                        self.sep['p3xp2'][xy] = locals()[f"{xy}m"][\
-                                ixlb[1]:ixpt2[1]+1, iysptrx1[1], 4
-                        ]
-                        self.sep['bp3p4'][xy] = locals()[f"{xy}m"][\
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
                                 ixlb[1]:ixrb[1]+1, -2, 4
                         ]
-                        self.sep['bp3xpc2'][xy] = locals()[f"{xy}m"][\
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0]+2:ixpt1[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt1[0]:ixpt2[0]+1, iysptrx1[0], 4
+                        ])
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]+1:, iysptrx1[0], 4
+                        ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt2[0]+1, iysptrx2[0], 4
+                        ]
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt1[1]+1, iysptrx1[1], 4
+                        ][::-1])
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[0]:ixrb[0]+1, iysptrx2[0], 4
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]:ixpt2[1]+1, iysptrx1[1], 4
+                        ])
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, iysptrx1[1], 3
+                        ])
+                elif self.snowflake == 45:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt1[0] and ix <= ixpt2[0]:
+                            isixcore[ix] = 1
+                    for line in common_lines + ['sep2', 'p2p4']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, 0, 3
+                        ]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], locals()[f"{xy}m"][\
+                                ixpt2[0], 0, 4
+                        ])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] =locals()[f"{xy}m"][\
                                 ixlb[1]:ixpt2[1]+1, 0, 4
                         ]
-                        self.sep['p4xp2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[1]+1:ixrb[1]+2, iysptrx1[1], 3
-                        ]
-                        self.sep['bp4xpc1'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[1]+1:ixrb[1]+2, 0, 3
-                        ]
-#                                'bxpc1xpc2', 'xp1xp2' 'sep'
-                        self.sep['bxpc1xpc2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[0]+1:ixpt1[1]+1, 0, 3
-                         ]
-                        self.sep['xp1xp2'][xy] = locals()[f"{xy}m"][\
-                                ixpt2[0]+1:ixpt1[1]+1, iysptrx2[1], 3
-                        ]
-                        self.sep['bxpc1xpc2'][xy] = append(
-                                self.sep['bxpc1xpc2'][xy], 
-                                locals()[f"{xy}m"][ixpt1[1], 0, 4]
-                        )
-                        self.sep['xp1xp2'][xy] = append(
-                                self.sep['xp1xp2'][xy], 
-                                locals()[f"{xy}m"][ixpt1[1], iysptrx2[1], 4]
-                        )
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
                         self.sep['sep'][xy] = locals()[f"{xy}m"][\
-                                ixpt1[0]+1:ixpt2[0]+2, iysptrx2[0], 3
+                                ixlb[0]:ixpt1[1]+1, iysptrx1[0], 4
                         ]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[0], 4
+                        ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[1]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]+1:ixpt2[1]+2, iysptrx1[1], 3
+                        ][::-1])
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, iysptrx1[1], 3
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[1], 4
+                        ])
+                elif self.snowflake == 75:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt1[0] and ix <= ixpt2[0]:
+                            isixcore[ix] = 1
+                    for line in common_lines + ['p1p3', 'p2p4']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                where(isixcore==1), 0, 3
+                        ][0]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], self.sep['core'][xy][0])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]:ixrb[0]+1, iysptrx2[1], 4
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[1], 4
+                        ])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx2[1], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixpt1[1]+1, iysptrx2[1], 4
+                        ])
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, iysptrx1[1], 4
+                        ][::-1])
+                elif self.snowflake == 105:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt2[0] and ix <= ixpt1[1]:
+                            isixcore[ix] = 1
+                    for line in common_lines + ['p1p3', 'p2p4']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                where(isixcore==1), 0, 3
+                        ][0]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], self.sep['core'][xy][0])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy], locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['p2p4'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, iysptrx2[1], 3
+                        ][::-1]
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, iysptrx2[1], 3
+                        ][::-1])
+                        self.sep['p2p4'][xy] = append(self.sep['p2p4'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, iysptrx2[1], 3
+                        ])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx2[1], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, iysptrx2[1], 4
+                        ][::-1])
+                elif self.snowflake == 135:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if ix > ixpt2[0] and ix <= ixpt1[1]:
+                            isixcore[ix] = 1
+                    for line in common_lines + ['sep2', 'p1p3']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                where(isixcore==1), 0, 3
+                        ][0]
+                        self.sep['core'][xy] = append(self.sep['core'][xy], self.sep['core'][xy][0])
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] =locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt1[1]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]:ixrb[0]+1, iysptrx1[0], 4
+                        ][::-1]
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:, iysptrx1[0], 4
+                        ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[0]:ixrb[0]+1, iysptrx1[1], 4
+                        ][::-1]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, iysptrx1[1], 3
+                        ][::-1])
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]+1:ixpt2[1]+1, iysptrx1[1], 3
+                        ][::-1])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1], iysptrx1[0], 4
+                        ][::-1])
+                elif self.snowflake == 165:
+                    isixcore = zeros(nx+2,dtype=int)
+                    for ix in range(nx+2):
+                        if (ix > ixpt1[0] and ix <= ixpt2[0]) or (ix > ixpt1[1] and ix <= ixpt2[1]):
+                            isixcore[ix] = 1
+                    for line in common_lines + ['sep2', 'p1p3']:
+                        self.sep[line] = {}
+                    for xy in ['r', 'z']:
+                        self.sep['plate1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0], 1:, 2
+                        ]
+                        self.sep['plate2'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0], 1:, 2
+                        ]
+                        self.sep['plate3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1], 1:, 2
+                        ]
+                        self.sep['plate4'][xy] = locals()[f"{xy}m"][\
+                                ixrb[1], 1:, 2
+                        ]
+                        self.sep['core'][xy] = locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixpt2[0]+1, 0, 3
+                        ]
+                        self.sep['core'][xy] = append( self.sep['core'][xy],
+                                locals()[f"{xy}m"][ixpt2[0], 0, 4]
+                        )
+                        self.sep['core'][xy] = append( self.sep['core'][xy],
+                                locals()[f"{xy}m"][ixpt1[1]+1:ixpt2[1]+1, 0, 4]
+                        )
+                        self.sep['outer_sol'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixrb[0]+1, -2, 4
+                        ]
+                        self.sep['pfr1'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, 0, 4
+                        ]
+                        self.sep['pfr1'][xy] = append(self.sep['pfr1'][xy], locals()[f"{xy}m"][\
+                                ixpt2[1]+1:ixrb[1]+2, 0, 3
+                        ])
+                        self.sep['pfr2'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixrb[1]+1, -2, 4
+                        ]
+                        self.sep['pfr3'][xy] = locals()[f"{xy}m"][\
+                                ixrb[0]+2:ixpt1[1]+1, 0, 4
+                        ]
+                        self.sep['pfr3'][xy] = append(self.sep['pfr3'][xy],locals()[f"{xy}m"][\
+                                ixpt2[0]+1:ixrb[0]+2, 0, 3
+                                ])
+                        self.sep['sep2'][xy] = locals()[f"{xy}m"][\
+                                ixpt2[1]:, iysptrx1[0], 4
+                        ][::-1]
+                        
+                        self.sep['sep2'][xy] = append(self.sep['sep2'][xy],locals()[f"{xy}m"][\
+                                ixpt1[0]:ixrb[0]+1, iysptrx1[0], 4
+                        ])
+                        self.sep['sep'][xy] = locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt1[1]+1, iysptrx1[1], 4
+                        ]
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy],locals()[f"{xy}m"][\
+                                ixpt1[1]:ixpt2[1]+1, iysptrx2[0], 4
+                        ])
+                        self.sep['sep'][xy] = append(self.sep['sep'][xy],locals()[f"{xy}m"][\
+                                ixpt1[0]+1:ixrb[0]+2, iysptrx2[0], 3
+                        ])
+                        self.sep['p1p3'][xy] = locals()[f"{xy}m"][\
+                                ixlb[0]:ixpt1[0]+1, iysptrx1[0], 4
+                        ]
+                        self.sep['p1p3'][xy] = append(self.sep['p1p3'][xy], locals()[f"{xy}m"][\
+                                ixlb[1]:ixpt2[1], iysptrx1[0], 4
+                        ][::-1])
                 else:
                     print(  20*'='+
                         "\nWarning! Snowflake geometries not implemented in " +
                         "UETOOLS plotting routines. Visualization will not " +
                         "be shown correctly.\n" + 20*"=")
-            
 
             
 
@@ -476,6 +799,9 @@ class Plot:
         figsize=(7, 5),
         xlabel=None,
         ylabel=None,
+        label=None,
+        labelsize=12,
+        labelweight='bold',
         title=None,
         logx=False,
         logy=False,
@@ -501,7 +827,10 @@ class Plot:
         else:
             plot = ax.plot
 
-        plot(x, y, color=color, **kwargs)
+
+
+
+        line, = plot(x, y, color=color, **kwargs)
 
         ax.set_title(title)
         ax.set_xlabel(xlabel)
@@ -512,6 +841,8 @@ class Plot:
         if watermark is True:
             self.watermark(ax.get_figure())
 
+        if label is not None:
+            self.add_inline_label(ax, line, label, labelsize, fontweight=labelweight)
         return ax.get_figure()
 
     def mesh(
@@ -594,8 +925,8 @@ class Plot:
             vertices.set_linewidths(1)
             vertices.set_edgecolors("face")
         else:
-            vertices.set_edgecolors("lightgrey")
-            vertices.set_linewidths(0.08)
+            vertices.set_edgecolors(linecolor)
+            vertices.set_linewidths(linewidth)
         if z is None:  # Plot grid
             vertices.set_facecolor((0, 0, 0, 0))
             vertices.set_edgecolors(linecolor)
@@ -630,6 +961,7 @@ class Plot:
         if (z is not None) or (colorbar is True):
             cbar = ax.get_figure().colorbar(vertices, ax=ax)
             cbar.ax.set_ylabel(units, va="bottom")
+#            cbar.ax.yaxis.labelpad(100)
 
         if watermark is True:
             self.watermark(ax.get_figure(), bottom=0.1, left=0.02, right=0.95)
@@ -954,6 +1286,8 @@ class Plot:
         rad,
         resolution=(500j, 800j),
         linewidth="magnitude",
+        linewidth_mult=1,
+        logscale_linewidth=False,
         broken_streamlines=False,
         color="k",
         maxlength=0.4,
@@ -961,10 +1295,30 @@ class Plot:
         density=2,
         xlim=(None, None),
         ylim=(None, None),
+        lcfs = True,
+        lcfscolor="grey",
         **kwargs
     ):
-        from numpy import zeros, sum, transpose, mgrid, nan, array, cross, nan_to_num
-        from scipy.interpolate import griddata, bisplrep
+        """Plot streamlines of a vector variable with poloidal and radial components (pol, rad). Based on the function streamline() in UETools (https://github.com/LLNL/UETOOLS/blob/aaa823222ecc8ae76647aa8bf5299cd9804b61b1/src/uetools/UePlot/Plot.py)
+
+            :param pol: Poloidal component of variable on UEDGE mesh
+            :param rad: Radial component of variable on UEDGE mesh
+            :param resolution: Resolution of a Cartesian grid on which to interpolate x-y components of vector field directions, defaults to (500j, 800j)
+            :param linewidth: Method of calculating linewidths, "magnitude" (in which case all linewidths are scaled to the maximum vector magnitude) or "absolute" (used in conjunction with linewidth_mult to set linewidths in absolute terms; useful for comparisons with other streamline plots), defaults to "magnitude"
+            :param linewidth_mult: Linewidth multiplier (useful if using linewidth="magnitude"), defaults to 1
+            :param logscale_linewidth: Linewidths are calculated on a logarithmic scale, defaults to False
+            :param broken_streamlines: Whether streamlines are brroken, defaults to True
+            :param color: Colour of streamlines, defaults to "red"
+            :param maxlength: Max length of streamlines, defaults to 0.4
+            :param mask: Whether to mask regions outside of simulation domain, defaults to True
+            :param density: Density of streamlines, defaults to 2
+            :param xlim: x-axis limits, defaults to (None, None)
+            :param ylim: y-axis limits, defaults to (None, None)
+            :param lcfs: Whether to display the separatrix/separatrices
+            :param lcfscolor: Colour of lcfs
+        """
+        from numpy import mgrid, nan, array, nan_to_num, log
+        from scipy.interpolate import griddata
         from matplotlib.patches import Polygon
         from copy import deepcopy
 
@@ -973,21 +1327,42 @@ class Plot:
         nx = self.get("nx")
         ny = self.get("ny")
         # Create polygons for masking
-        outerx = []
-        outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
-        outerx = outerx + list(rm[0, :, 1])
-        outerx = outerx + list(rm[:, -1, 3])
-        outerx = outerx + list(rm[:, ::-1][-1, :, 4])
-        outerx = outerx + list(rm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
-        outery = []
-        outery = outery + list(zm[::-1][-self.get("ixpt1")[0] :, 0, 2])
-        outery = outery + list(zm[0, :, 1])
-        outery = outery + list(zm[:, -1, 3])
-        outery = outery + list(zm[:, ::-1][-1, :, 4])
-        outery = outery + list(zm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+        if self.snowflake is False:
+            outerx = []
+            outerx = outerx + list(rm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+            outerx = outerx + list(rm[0, :, 1])
+            outerx = outerx + list(rm[:, -1, 3])
+            outerx = outerx + list(rm[:, ::-1][-1, :, 4])
+            outerx = outerx + list(rm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
+            outery = []
+            outery = outery + list(zm[::-1][-self.get("ixpt1")[0] :, 0, 2])
+            outery = outery + list(zm[0, :, 1])
+            outery = outery + list(zm[:, -1, 3])
+            outery = outery + list(zm[:, ::-1][-1, :, 4])
+            outery = outery + list(zm[::-1][: nx - self.get("ixpt2")[0], 0, 1])
 
-        innerx = rm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
-        innery = zm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+            innerx = rm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+            innery = zm[self.get("ixpt1")[0] + 1 : self.get("ixpt2")[0] + 1, 0, 1]
+        else:
+            from numpy import concatenate
+            outerx = concatenate([self.sep['outer_sol']['r'], 
+                                  self.sep['plate2']['r'][::-1], 
+                                  self.sep['pfr3']['r'][::-1], 
+                                  self.sep['plate3']['r'], 
+                                  self.sep['pfr2']['r'], 
+                                  self.sep['plate4']['r'], 
+                                  self.sep['pfr1']['r'][::-1],
+                                  self.sep['plate1']['r']])
+            outery = concatenate([self.sep['outer_sol']['z'], 
+                                  self.sep['plate2']['z'][::-1], 
+                                  self.sep['pfr3']['z'][::-1], 
+                                  self.sep['plate3']['z'], 
+                                  self.sep['pfr2']['z'], 
+                                  self.sep['plate4']['z'], 
+                                  self.sep['pfr1']['z'][::-1],
+                                  self.sep['plate1']['z']])
+            innerx = self.sep['core']['r']
+            innery = self.sep['core']['z']
 
         outer = Polygon(
             array([outerx, outery]).transpose(),
@@ -1003,6 +1378,8 @@ class Plot:
         )
         x = pol * self.eastnormaln[0] + rad * self.northnormaln[0]
         y = pol * self.eastnormaln[1] + rad * self.northnormaln[1]
+        # Convert input vector to R-Z coordinates
+        # x, y = self.get_vector_rz(pol,rad)
 
         gx, gy = mgrid[
             rm.min() : rm.max() : resolution[0], zm.min() : zm.max() : resolution[1]
@@ -1028,11 +1405,25 @@ class Plot:
                         yinterp[i, j] = nan
 
         f = self.mesh()
+
+        # Determine the linewidth of the streamlines
         if linewidth == "magnitude":
+            lw_setting = linewidth
             linewidth = (xinterp**2 + yinterp**2) ** 0.5
             linewidth = linewidth.transpose()
             maxwidth = nan_to_num(deepcopy(linewidth)).max()
             linewidth /= maxwidth
+            linewidth *= linewidth_mult
+            if logscale_linewidth:
+                linewidth = log(linewidth + 1)
+        elif linewidth == "absolute":
+            linewidth = (xinterp**2 + yinterp**2) ** 0.5
+            linewidth = linewidth.transpose()
+            linewidth *= linewidth_mult
+            if logscale_linewidth:
+                linewidth = log(linewidth + 1)
+        else:
+            linewidth *= linewidth_mult
 
         f.get_axes()[0].streamplot(
             gx.transpose(),
@@ -1046,12 +1437,14 @@ class Plot:
             density=density,
             **kwargs
         )
-
         ax = f.get_axes()[0]
+        if lcfs:
+            self.lcfs(ax, flip=False, color=lcfscolor, zorder=1)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
+
         return f
 
 

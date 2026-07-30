@@ -11,6 +11,9 @@ def rewrite_case(restorefile, savefile):
 
 
 class Database(DB_1DPlots, DB_2DPlots):
+    from os import environ
+    environ["UETOOLS_SILENT"] = "1"
+
     def __init__(
         self,
         database,
@@ -20,6 +23,7 @@ class Database(DB_1DPlots, DB_2DPlots):
         sortlocation="OMPsep",
         rerun=False,
         rerun_dir="UeDB_rerun",
+        resolution=1
     ):
         """
         
@@ -27,6 +31,7 @@ class Database(DB_1DPlots, DB_2DPlots):
         from os import getcwd 
         from os.path import isfile, isdir, exists
 
+        self.resolution = resolution
         self.cwd = getcwd()
         self.cases = {}
         self.dbidentifier = dbidentifier
@@ -36,8 +41,10 @@ class Database(DB_1DPlots, DB_2DPlots):
         self.create_database(database)
         self.ixmp = self.get("ixmp")[0]
         self.iysptrx = self.get("iysptrx")[0]
-        self.ixpt1 = self.get("ixpt1")[0][0]
-        self.ixpt2 = self.get("ixpt2")[0][0]
+        self.iysptrx1 = self.get("iysptrx1")[0]
+        self.iysptrx2 = self.get("iysptrx2")[0]
+        self.ixpt1 = self.get("ixpt1")[0]
+        self.ixpt2 = self.get("ixpt2")[0]
         self.nx = self.get("nx")[0]
         self.ny = self.get("ny")[0]
         # TODO: Store commonly used grid locations
@@ -190,12 +197,20 @@ class Database(DB_1DPlots, DB_2DPlots):
         self.sortlabel = "{} {}".format(self.sortlocation, self.sortvar)
 
 
+    @staticmethod
+    def _load_case(file, inplace=True, verbose=False):
+        """Static method for multiprocessing pickling compatibility."""
+        try:
+            return file.replace(".hdf5", ""), Case(file, inplace=inplace, verbose=verbose)
+        except Exception as e:
+            print(f"Failed reading case {file}: {e}")
+            return None
+
     def create_database(self, path):#, database):
         from  os.path import join, exists, isdir, isfile
         from os import walk
         from pathlib import Path
-        from multiprocessing import Process
-
+        from multiprocessing import Pool, get_context
 
         createdb = []
         databases = {}
@@ -227,20 +242,19 @@ class Database(DB_1DPlots, DB_2DPlots):
                         filelist.append(plainline)
         else:
             raise ValueError('Folder/file "{}" does not exist!'.format(path))
+
         if self.rerun is False:
-            for file in filelist:
-                # NOTE: This should never happen, as any yamls are removed
-                # by is_case function
-                try:
-                    self.cases[file.replace(".hdf5", "")] = Case(
-                        file,
-                        inplace=True,
-                        verbose=False,
-                    )
-                except Exception as e:
-                    print(f"Failed reading case {file}: {e}")
+            ctx = get_context("fork")  # force fork — inherits parent env as-is
+            with ctx.Pool(processes=4) as pool:
+                results = pool.map(self._load_case, filelist[::self.resolution])
+            
+            self.cases.update({
+                key: case
+                for result in results
+                if result is not None
+                for key, case in [result]
+            })
         else:
-            # Tries to restore cases from file
             for file in filelist:
                 createdb.append(file)
         # Now, create and read any files not created

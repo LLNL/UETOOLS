@@ -347,7 +347,7 @@ class Solver(UeRun):
             savedir=savedir,
             commands=[
                 f"self.setue('manualgrid',1);self.setue('newgeo',1);self.morphed_mesh('{newgrid}',"
-                + "self.getue('gridmorph'))",
+                + "self.getue('gridmorph'), standalone=False)",
             ],
             newgeo=True,
             **kwargs,
@@ -383,7 +383,8 @@ class Solver(UeRun):
 
         # List of variables to morph
         variables = ["rm", "zm", "psi", "br", "bz", "bpol", "bphi", "b", 
-                "sibdrys", "simagxs"]
+        ]
+#                "sibdrys", "simagxs"]
         # "nlim", "xlim", "ylim", "nplate1", "nplate2", "rplate1", "rplate2",
         # "zplate1", "zplate2"
         if "griddata" not in dir(self):
@@ -405,7 +406,8 @@ class Solver(UeRun):
             self.setue("iprint", 0)
             self.populate(silent=True, verbose=False)
             self.setue("iprint", iprint)
-        del self.griddata
+        self.update()
+#        del self.griddata
 
     def populate(self, silent=True, verbose=None, **kwargs):
         """Populates all UEDGE arrays by evaluating static 'time-step'

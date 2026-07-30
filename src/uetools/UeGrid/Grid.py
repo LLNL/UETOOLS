@@ -407,9 +407,13 @@ class GridPlot:
                     "k-",
                     linewidth=0.3,
                 )
+                points_use = max(
+                    len(xcurve[:, i][abs(xcurve[:, i]) > 0]),
+                    len(ycurve[:, i][abs(ycurve[:, i]) > 0]),
+                )
                 ax.plot(
-                    xcurve[:, i][abs(xcurve[:, i]) > 0][ijumpf[i] :],
-                    ycurve[:, i][abs(ycurve[:, i]) > 0][ijumpf[i] :],
+                    xcurve[:, i][:points_use][ijumpf[i] :],
+                    ycurve[:, i][:points_use][ijumpf[i] :],
                     "k-",
                     linewidth=0.3,
                 )
@@ -431,6 +435,7 @@ class GridPlot:
         aeqdsk=None,
         plot_vessel=True,
         plot_sep=True,
+        read_data=True,
         **kwargs):
         """Function to plot EFIT contours
 
@@ -454,6 +459,8 @@ class GridPlot:
             color of separatrices
         linewidth : float (default = 0.5)
             line width of contours
+        read_data : bool (default = True)
+            re-reads x, y, and psi data from GRIDUE memory
 
         Returns
         -------
@@ -487,20 +494,35 @@ class GridPlot:
         self.reload()
 
         # Reconstruct EFIT grid
-        x = linspace(0, self.get("xdim"), self.get("nxefit")) + self.get("rgrid1")
-        y = linspace(0, self.get("zdim"), self.get("nyefit")) - (
-            self.get("zdim") * 0.5 - self.get("zmid")
-        )
-
-        fold = self.get("fold").transpose()
+        if read_data is True:
+            self.x = linspace(0, self.get("xdim"), self.get("nxefit")) + self.get("rgrid1")
+            self.y = linspace(0, self.get("zdim"), self.get("nyefit")) - (
+                self.get("zdim") * 0.5 - self.get("zmid")
+            )
+            self.fold = self.get("fold").transpose()
+        else:
+            try:
+                self.x
+                self.y
+                self.fold
+            except:
+                print("x, y, and fold not found, reading from memory")
+                self.x = linspace(0, self.get("xdim"), self.get("nxefit")) + self.get("rgrid1")
+                self.y = linspace(0, self.get("zdim"), self.get("nyefit")) - (
+                    self.get("zdim") * 0.5 - self.get("zmid")
+                )
+                self.fold = self.get("fold").transpose()
+                            
 
         f = self.contour(
-            x, y, fold, **kwargs
+            self.x, self.y, self.fold, **kwargs
         )
         if plot_sep:
-            self.add_sep(x, y, fold, ax=f, 
-                    lower=(self.get("rseps"), self.get("zseps")),
-                    upper=(self.get("rseps2"), self.get("zseps2")),
+            self.lowerxpoint=(self.get("rseps"), self.get("zseps"))
+            self.upperxpoint=(self.get("rseps2"), self.get("zseps2"))
+            self.add_sep(self.x, self.y, self.fold, ax=f, 
+                    lowerxpoint=self.lowerxpoint,
+                    upperxpoint=self.upperxpoint,
                     **kwargs)
 
         if plot_vessel:
@@ -564,8 +586,40 @@ class GridPlot:
         return ax.get_figure()
 
 
-    def add_sep(self, x, y, psi, ax=None, lower=None, upper=None, sepcolor='k',
-        **kwargs):
+    def add_contour(self, x=None, y=None, psi=None, ax=None, sepcolor='k', contours=None, **kwargs):
+        from matplotlib.pyplot import subplots, Figure, Axes
+        if x is None:
+            x = self.x
+        if y is None:
+            y = self.y
+        if psi is None:
+            psi = self.fold
+
+        if ax is None:
+            f, ax = subplots(figsize=(7, 9))
+        elif isinstance(ax, Axes):
+            pass
+        elif isinstance(ax, Figure):
+            ax = ax.get_axes()[0]
+        else:
+            raise TypeError("Axes type {} not compatible".format(type(ax)))
+
+
+        ax.contour(
+            x,
+            y,
+            psi,
+            contours,
+            colors=sepcolor,
+            linewidths=1,
+            linestyles="solid",
+        )
+
+
+
+
+    def add_sep(self, x, y, psi, ax=None, lowerxpoint=None, upperxpoint=None, sepcolor='k',
+    **kwargs):
         from matplotlib.pyplot import subplots, Figure, Axes
         from scipy.interpolate import RectBivariateSpline
 
@@ -582,36 +636,37 @@ class GridPlot:
         else:
             raise TypeError("Axes type {} not compatible".format(type(ax)))
 
-        if upper is not None:
+        if upperxpoint is not None:
             # Check whether the upper X-point exists
-            if (x.min() <= upper[0] <= x.max()) and (y.min() <= upper[1] <= y.max()):
-                upperxpoint = interp(*upper)
-                ax.contour(
+            if (x.min() <= self.upperxpoint[0] <= x.max()) and (y.min() <= self.upperxpoint[1] <= y.max()):
+                self.upperpsi = interp(*self.upperxpoint)
+                self.add_contour(
                     x,
                     y,
                     psi,
-                    [upperxpoint],
+                    ax=ax,
+                    contours=[self.upperpsi],
                     colors=sepcolor,
                     linewidths=1,
                     linestyles="solid",
                 )
 
-        if lower is not None:
+        if lowerxpoint is not None:
             # Check whether the lower X-point exists
-            if (x.min() <= lower[0] <= x.max()) and (y.min() <= lower[1] <= y.max()):
-                lowerxpoint = interp(*lower)
-                ax.plot(*lower, 'ro')
-                ax.contour(
+            if (x.min() <= self.lowerxpoint[0] <= x.max()) and (y.min() <= self.lowerxpoint[1] <= y.max()):
+                self.lowerpsi = interp(*self.lowerxpoint)
+                self.add_contour(
                     x,
                     y,
                     psi,
-                    [lowerxpoint],
+                    ax=ax,
+                    contours=[self.lowerpsi],
                     colors=sepcolor,
                     linewidths=1,
-                    linestyles="solid",
-                )
+                            linestyles="solid",
+                        )
 
-        return ax.get_figure()
+            return ax.get_figure()
 
 
     def goat(self, rzpsifile, structfile):

@@ -245,7 +245,8 @@ class Save:
             return
         if postprocess is True:
             bbb = packageobject("bbb")
-            bbb.engbal(self.get("pcoree") + self.get("pcorei"))
+            pcore = bbb.pcoree + bbb.pcorei
+            bbb.engbal(pcore)
             bbb.plateflux()
             bbb.wallflux()
         # Check and store any changes since case last saved/read
