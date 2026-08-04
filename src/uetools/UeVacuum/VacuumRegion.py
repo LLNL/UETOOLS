@@ -272,7 +272,7 @@ class VNM_interface:
          'current' is a value that determines the strength of the gas puff.
         - sol_pump_dict -- {'box_coords':__, 'albedo':__} (default None).
          'box_coords' should be a list of four or more coordinates that create a box around the pumping portion.
-           Note: even if the full surfaces is not within the box, it will be counted as a pumping surface. Additionally, if not enough points are provided for a box (3 or less or None),
+           Note: even if the full surfaces is not within the box, it will be counted as a pumping surface. Additionally, if not enough points are provided for a box (3 or less),
            all wall surfaces in the region will be taken as pumping with the specified albedo.
          'albedo' is a value between 0 and 1 that determines the strength of the pumping
         - pf_pump_dict -- {'box_coords': __, 'albedo': __} (default None).
@@ -288,6 +288,7 @@ class VNM_interface:
 
         (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
         self.pfrPoints = pfr_user ########
+        self.box_loop = True
         pf_plasma_number = pf[1] ########
         if pfr_user is not None: ########
             pf = [pfr_user, pf_plasma_number] ########
@@ -375,7 +376,7 @@ class VNM_interface:
             main_puffing_array, main_puffing_location = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], puffing_matrix)
             self.main_puffing_array = numpy.transpose(main_puffing_array)
             self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file)
-            a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location)
+            # a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location)
             self.puffing_matrix = puffing_matrix
         
         def pump_helper(region, pump_dictionary, plot):
@@ -386,7 +387,8 @@ class VNM_interface:
             xbox = []
             ybox = []
             original_R = region.R_dictionary.copy()
-            if (self.pfrPoints is not None) or ('box_coords' in pump_dictionary and len(pump_dictionary['box_coords']) > 3):
+            # print('Reflection coefficients:', region.R_dictionary)
+            if region==self.pfr and (self.pfrPoints is not None) or ('box_coords' in pump_dictionary and len(pump_dictionary['box_coords']) > 3):
                 # print('box error')
                 for coord in pump_dictionary['box_coords']:
                     points.append(Point(coord))
@@ -403,6 +405,7 @@ class VNM_interface:
                             region.R_dictionary[i] = pump_dictionary['albedo']
                             pumping_surf.append(i)
             else:
+                print('pumping all walls')
                 for i in range(region.numSurfaces):
                     if i >= region.P: # Pump on all wall surfaces
                         region.R_dictionary[i] = pump_dictionary['albedo']
@@ -435,10 +438,14 @@ class VNM_interface:
 
         if pf_pump_dict != None:
             # print('enter pump loop')
+            self.box_loop = False
             self.pumping_matrix_pf = pump_helper(self.pfr, pf_pump_dict, pump_plot)
             self.save_matrices([self.pumping_matrix_pf], ['pumping_matrix_pf'], save_file_name=save_file)
-            
+
+            # a = self.plot_grid(sol, pfr, pf_test_surf=[334], label=False)
+
             print(self.pfr.numSurfaces)
+            print('pfr albedo:', pf_pump_dict['albedo'])
             # print('bbb error')
             bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
             bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
@@ -447,8 +454,10 @@ class VNM_interface:
 
         if sol_pump_dict != None:
 
-            self.pumping_matrix_sol = pump_helper(self.sol, sol_pump_dict, pump_plot)
+            self.pumping_matrix_sol = pump_helper(self.sol, sol_pump_dict, plot=False)
             self.save_matrices([self.pumping_matrix_sol], ['pumping_matrix_sol'], save_file_name=save_file)
+
+            print('sol albedo:', sol_pump_dict['albedo'])
 
             bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = self.pumping_matrix_sol
 
