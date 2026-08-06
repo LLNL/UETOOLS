@@ -116,3 +116,9 @@ postprocessed:
         - 'swbind'
         - 'swallt'
 
+vnm:
+    bbb:
+        - cftelematrix
+        - fngyo_use
+        - fngyi_use
+

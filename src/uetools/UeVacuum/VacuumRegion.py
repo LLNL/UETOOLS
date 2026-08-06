@@ -94,7 +94,8 @@ class VacuumTests:
     #     # f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
     #     # f = test.plotGeometry(labels=False, testsurf=4)
     #     return test
-       
+
+
 class VNM_interface:
     def __init__(self, case):
         self.coupling = case.coupling
@@ -258,7 +259,8 @@ class VNM_interface:
         print('finished execution')
     
     def generate(self, sol=None, pfr=None, save_file=None, sol_puff_dict=None, 
-                 sol_pump_dict=None, pf_pump_dict=None, save=False, pump_plot=True, pfr_user=None):
+                 sol_pump_dict=None, pf_pump_dict=None, save=False, pump_plot=True, pfr_user=None,
+                 overwrite=False):
         """Generates telematrices for given VacuumRegions.
         
         Keyword arguments:
@@ -280,6 +282,7 @@ class VNM_interface:
         - save -- if True, will save new pkl file with names 'SOL_Vacuum.pkl' and 'PFR_Vacuum.pkl' (default False).
         - pump_plot -- if True, plots the pumping surfaces (default True).
         - pfr_user -- set of user supplied points to define the private flux region (default None).
+        - overwrite -- decides whether or not to write generated matrices into save file (default False).
         """
 
         import h5py
@@ -354,18 +357,19 @@ class VNM_interface:
         cftelematrix_full = numpy.zeros((2, dimension, dimension, 6))
         cftelematrix_full[1, 1:-1, 1:-1, 0] = cftelematrix
         cftelematrix_full[1, 1:-1, 1:-1, 1] = cftelematrix
-        bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = cftelematrix
 
-        bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
-        bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
-        bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
-        bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
-        
-        self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix], 
-                      ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix'], 
-                      save_file)
+        if overwrite:
+            bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = cftelematrix
 
-        self.set('cftelematrix', cftelematrix_full)
+            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
+            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
+            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
+            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
+            self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix], 
+                            ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix'], 
+                            save_file)
+
+            self.set('cftelematrix', cftelematrix_full)
 
         self.getue('isvacuummodel', cp=False)[0] = 1
         # bbb.isvacuummodel[0] = 1
@@ -375,7 +379,8 @@ class VNM_interface:
             # print('enter puff sol')
             main_puffing_array, main_puffing_location = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], puffing_matrix)
             self.main_puffing_array = numpy.transpose(main_puffing_array)
-            self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file)
+            if overwrite:
+                self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file)
             # a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location)
             self.puffing_matrix = puffing_matrix
         
@@ -440,26 +445,24 @@ class VNM_interface:
             # print('enter pump loop')
             self.box_loop = False
             self.pumping_matrix_pf = pump_helper(self.pfr, pf_pump_dict, pump_plot)
-            self.save_matrices([self.pumping_matrix_pf], ['pumping_matrix_pf'], save_file_name=save_file)
-
-            # a = self.plot_grid(sol, pfr, pf_test_surf=[334], label=False)
-
             print(self.pfr.numSurfaces)
             print('pfr albedo:', pf_pump_dict['albedo'])
-            # print('bbb error')
-            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
-            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
-            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
-            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
+            # a = self.plot_grid(sol, pfr, pf_test_surf=[334], label=False)
+            if overwrite:
+                self.save_matrices([self.pumping_matrix_pf], ['pumping_matrix_pf'], save_file_name=save_file)
+                # print('bbb error')
+                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
+                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
+                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
+                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
 
         if sol_pump_dict != None:
 
             self.pumping_matrix_sol = pump_helper(self.sol, sol_pump_dict, plot=False)
-            self.save_matrices([self.pumping_matrix_sol], ['pumping_matrix_sol'], save_file_name=save_file)
-
             print('sol albedo:', sol_pump_dict['albedo'])
-
-            bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = self.pumping_matrix_sol
+            if overwrite:
+                self.save_matrices([self.pumping_matrix_sol], ['pumping_matrix_sol'], save_file_name=save_file)
+                bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = self.pumping_matrix_sol
 
         # print('completed')
 
