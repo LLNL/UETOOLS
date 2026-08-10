@@ -144,7 +144,11 @@ class VNM_interface:
                     if hasattr(matrix, 'toarray'):
                         matrix = matrix.toarray()
                     if name in subgroup:
-                        subgroup[name][...] = matrix
+                        if subgroup[name].shape == matrix.shape:
+                            subgroup[name][...] = matrix
+                        else:
+                            del subgroup[name]
+                            subgroup.create_dataset(name, data=matrix)
                     else:
                         subgroup.create_dataset(name, data=matrix)
 
@@ -174,11 +178,15 @@ class VNM_interface:
             if 'vnm/bbb/cftelematrix' not in f: # Check for main telematrix
                 warnings.warn('SOL telematrix not found in save file. Call self.vnm.generate()')
             else: # re-save main telematrix
-                dimension = len(f['vnm/bbb/cftelematrix'][:]) + 2
-                cftelematrix_full = numpy.zeros((2, dimension, dimension, 6))
-                cftelematrix_full[1, 1:-1, 1:-1, 0] = f['vnm/bbb/cftelematrix'][:]
+                if len(f['vnm/bbb/cftelematrix'].shape) == 2:
+                    dimension = len(f['vnm/bbb/cftelematrix'][:]) + 2
+                    cftelematrix_full = numpy.zeros((2, dimension, dimension, 6))
+                    cftelematrix_full[1, 1:-1, 1:-1, 0] = f['vnm/bbb/cftelematrix'][:]
 
-                bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = f['vnm/bbb/cftelematrix'][:]
+                    bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = f['vnm/bbb/cftelematrix'][:]
+                elif len(f['vnm/bbb/cftelematrix'].shape) == 2:
+                    bbb.cftelematrix[1, 1:-1, 1:-1, 0] = f['vnm/bbb/cftelematrix'][1, 1:-1, 1:-1, 0]
+
                 self.save_matrices([f['vnm/bbb/cftelematrix']], ['cftelematrix'], save_file, open_file=f)
 
             if 'vnm/bbb/cftelematrix_pf' not in f: # check for pfr telematrix
@@ -190,7 +198,8 @@ class VNM_interface:
                     warnings.warn('Generate main SOL telematrix before generating PFR telematrix.')
                 else:
                     dimension = len(f['vnm/bbb/cftelematrix'][:]) + 2
-
+                    print(dimension)
+                    print(len(f['vnm/bbb/cftelematrix'].shape))
                 cftelematrix_full_pf = numpy.zeros((2, dimension, dimension, 6))
                 cftelematrix_full_pf[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = small_matrix[:com.ixpt1[0], :com.ixpt1[0]] # 1
                 cftelematrix_full_pf[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = small_matrix[:com.ixpt1[0], com.ixpt1[0]:] # 2
@@ -239,7 +248,7 @@ class VNM_interface:
                 warnings.warn('PFR pumping matrix not found. Call self.vnm.generate.')
             else:
                 pump = f['vnm/bbb/pumping_matrix_pf'][:]
-                self.save_matrices([pump], ['pumping_matrix_pf'], save_file_name=save_file, open_file=f)
+                self.save_matrices([pump], ['cftelematrix_pf'], save_file_name=save_file, open_file=f)
                 bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = pump[:com.ixpt1[0], :com.ixpt1[0]] # 1
                 bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = pump[:com.ixpt1[0], com.ixpt1[0]:] # 2
                 bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = pump[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
@@ -249,8 +258,12 @@ class VNM_interface:
                 warnings.warn('SOL pumping matrix not found. Call self.vnm.generate.')
             else:
                 pump = f['vnm/bbb/pumping_matrix_sol'][:]
-                self.save_matrices([pump], ['pumping_matrix_sol'], save_file_name=save_file, open_file=f)
-                bbb.cftelematrix[1, 1:-1, 1:-1, 0] = pump
+                self.save_matrices([pump], ['cftelematrix'], save_file_name=save_file, open_file=f)
+
+                if len(f['vnm/bbb/pumping_matrix_sol'].shape) == 2:
+                    bbb.cftelematrix[1, 1:-1, 1:-1, 0] = pump
+                elif len(f['vnm/bbb/pumping_matrix_sol'].shape) == 4:
+                    bbb.cftelematrix[1, 1:-1, 1:-1, 0] = pump[1, 1:-1, 1:-1, 0]
 
         print('error with one of these')
         self.getue('isvacuummodel', cp=False)[0] = 1
@@ -359,12 +372,14 @@ class VNM_interface:
         cftelematrix_full[1, 1:-1, 1:-1, 1] = cftelematrix
 
         if overwrite:
+
             bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = cftelematrix
 
             bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
             bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
             bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
             bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
+            
             self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix], 
                             ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix'], 
                             save_file)
@@ -444,12 +459,14 @@ class VNM_interface:
         if pf_pump_dict != None:
             # print('enter pump loop')
             self.box_loop = False
-            self.pumping_matrix_pf = pump_helper(self.pfr, pf_pump_dict, pump_plot)
+            pumping_matrix_pf = pump_helper(self.pfr, pf_pump_dict, pump_plot)
+            self.pumping_matrix_pf = pumping_matrix_pf
+            self.cftelematrix_pf = pumping_matrix_pf
             print(self.pfr.numSurfaces)
             print('pfr albedo:', pf_pump_dict['albedo'])
-            # a = self.plot_grid(sol, pfr, pf_test_surf=[334], label=False)
+            a = self.plot_grid(sol, pfr, pf_test_surf=[], label=False)
             if overwrite:
-                self.save_matrices([self.pumping_matrix_pf], ['pumping_matrix_pf'], save_file_name=save_file)
+                self.save_matrices([self.pumping_matrix_pf], ['cftelematrix_pf'], save_file_name=save_file)
                 # print('bbb error')
                 bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
                 bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
@@ -458,10 +475,12 @@ class VNM_interface:
 
         if sol_pump_dict != None:
 
-            self.pumping_matrix_sol = pump_helper(self.sol, sol_pump_dict, plot=False)
+            pumping_matrix_sol = pump_helper(self.sol, sol_pump_dict, plot=False)
+            self.pumping_matrix_sol = pumping_matrix_sol
+            self.cftelematrix = pumping_matrix_sol
             print('sol albedo:', sol_pump_dict['albedo'])
             if overwrite:
-                self.save_matrices([self.pumping_matrix_sol], ['pumping_matrix_sol'], save_file_name=save_file)
+                self.save_matrices([self.pumping_matrix_sol], ['cftelematrix'], save_file_name=save_file)
                 bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = self.pumping_matrix_sol
 
         # print('completed')
