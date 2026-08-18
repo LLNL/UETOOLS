@@ -271,9 +271,9 @@ class VNM_interface:
         self.set('cfteleout', 1.0)
         print('finished execution')
     
-    def generate(self, sol=None, pfr=None, save_file=None, sol_puff_dict=None, 
-                 sol_pump_dict=None, pf_pump_dict=None, save=False, pump_plot=True, pfr_user=None,
-                 overwrite=False):
+    def generate(self, sol=None, pfr=None, save_file=None, 
+                 sol_pump=None, pfr_pump=None, save=False, plot_setup=False, pfr_user=None,
+                 overwrite=False, sol_puff=None, pfr_puff=None):
         """Generates telematrices for given VacuumRegions.
         
         Keyword arguments:
@@ -290,7 +290,7 @@ class VNM_interface:
            Note: even if the full surfaces is not within the box, it will be counted as a pumping surface. Additionally, if not enough points are provided for a box (3 or less),
            all wall surfaces in the region will be taken as pumping with the specified albedo.
          'albedo' is a value between 0 and 1 that determines the strength of the pumping
-        - pf_pump_dict -- {'box_coords': __, 'albedo': __} (default None).
+        - pfr_pump -- 
          Same logic as sol_pump_dict.
         - save -- if True, will save new pkl file with names 'SOL_Vacuum.pkl' and 'PFR_Vacuum.pkl' (default False).
         - pump_plot -- if True, plots the pumping surfaces (default True).
@@ -320,48 +320,41 @@ class VNM_interface:
             t_main.matrices()
             t_pf.matrices()
 
-            cftelematrix_ = t_main.getOutputMatrix(t_main.AB_matrix, 1000000) # transport matrices
+            cftelematrix_ = t_main.getOutputMatrix()#t_main.AB_matrix, 1000000) # transport matrices
             cftelematrix_ = numpy.transpose(cftelematrix_)
-            cftelematrix_pf = t_pf.getOutputMatrix(t_pf.AB_matrix, 1000000)
+            cftelematrix_pf = t_pf.getOutputMatrix()#t_pf.AB_matrix, 1000000)
             cftelematrix_pf = numpy.transpose(cftelematrix_pf)
 
             puffing_matrix = t_main.getPuffingMatrix(1000000)
 
             self.cftelematrix = cftelematrix_
             self.cftelematrix_pf = cftelematrix_pf
+            print("CF TELEMATRIX PF SUM", sum(sum(cftelematrix_pf)))
 
             return [cftelematrix_, cftelematrix_pf, puffing_matrix]
 
         if sol == None or pfr == None: # generate new VacuumRegions
             # print('generate new Vacuum Regions')
-            sol = VacuumRegion(main[0], P=main[1])
-            pfr = VacuumRegion(pf[0], P=pf[1] - 1)
-            matrices = matrix_calculate(sol, pfr)
+            self.sol = VacuumRegion(main[0], P=main[1], pump_setup=sol_pump, puff_setup=sol_puff)
+            self.pfr = VacuumRegion(pf[0], P=pf[1] - 1, pump_setup=pfr_pump, puff_setup=sol_puff)
             if save: # save the new VacuumRegions as pkl files
                 if pfr_user is None:
                     # print('normal save')
-                    sol.saveVacuumRegion('SOL_Vacuum.pkl')
-                    pfr.saveVacuumRegion('PFR_Vacuum.pkl')
+                    self.sol.saveVacuumRegion('SOL_Vacuum.pkl')
+                    self.pfr.saveVacuumRegion('PFR_Vacuum.pkl')
                 else:
                     # print('user save')
-                    sol.saveVacuumRegion('SOL_Vacuum.pkl')
-                    pfr.saveVacuumRegion('PFR_userVacuum.pkl')
+                    self.sol.saveVacuumRegion('SOL_Vacuum.pkl')
+                    self.pfr.saveVacuumRegion('PFR_userVacuum.pkl')
         elif type(sol) != VacuumRegion or type(pfr) != VacuumRegion: # provide a specific pkl file to read from
             # print('load from pkls')
-            sol = VacuumRegion(sol)
-            pfr = VacuumRegion(pfr)
-            matrices = matrix_calculate(sol, pfr)
-        else: # passing in a VacuumRegion object as sol and pfr arguments
-            matrices = matrix_calculate(sol, pfr)
+            self.sol = VacuumRegion(sol, pump_setup=sol_pump, puff_setup=sol_puff)
+            self.pfr = VacuumRegion(pfr, pump_setup=pfr_pump, puff_setup=pfr_puff)
+        else:
+            self.sol = sol
+            self.pfr = pfr
         
-        # print('error here')
-        self.sol = sol
-        self.pfr = pfr
-        print(self.pfr.numSurfaces)
-        if sol_puff_dict is not None:
-            sol_puff_dict['region'] = sol
-        # print('matrix error')
-        
+        matrices = matrix_calculate(self.sol, self.pfr)
         cftelematrix = matrices[0]
         cftelematrix_pf = matrices[1]
         puffing_matrix = matrices[2]
@@ -390,100 +383,9 @@ class VNM_interface:
         # bbb.isvacuummodel[0] = 1
         self.set('cfteleout', 1.0)
 
-        if sol_puff_dict != None:
-            # print('enter puff sol')
-            main_puffing_array, main_puffing_location = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], puffing_matrix)
-            self.main_puffing_array = numpy.transpose(main_puffing_array)
-            if overwrite:
-                self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file)
-            # a = self.plot_grid(sol, pfr, sol_test_surf=main_puffing_location)
-            self.puffing_matrix = puffing_matrix
-        
-        def pump_helper(region, pump_dictionary, plot):
-            from shapely import Polygon, intersects, Point
-            # print('enter pump helper')
-            pumping_surf = []
-            points = []
-            xbox = []
-            ybox = []
-            original_R = region.R_dictionary.copy()
-            # print('Reflection coefficients:', region.R_dictionary)
-            if region==self.pfr and (self.pfrPoints is not None) or ('box_coords' in pump_dictionary and len(pump_dictionary['box_coords']) > 3):
-                # print('box error')
-                for coord in pump_dictionary['box_coords']:
-                    points.append(Point(coord))
-                    xbox.append(coord[0])
-                    ybox.append(coord[1])
-                xbox.append(xbox[0])
-                ybox.append(ybox[0])
-                box = Polygon(points)
 
-                for i in range(region.numSurfaces):
-                    if i >= region.P:
-                        seg = region.surfaces[i].segment
-                        if intersects(seg, box):
-                            region.R_dictionary[i] = pump_dictionary['albedo']
-                            pumping_surf.append(i)
-            else:
-                print('pumping all walls')
-                for i in range(region.numSurfaces):
-                    if i >= region.P: # Pump on all wall surfaces
-                        region.R_dictionary[i] = pump_dictionary['albedo']
-                        pumping_surf.append(i)
-
-            region.matrices()
-            pumping_matrix_general = region.getOutputMatrix(region.AB_matrix, 1000000)
-            pumping_matrix_general = numpy.transpose(pumping_matrix_general)
-
-            if plot and len(pump_dictionary['box_coords']) > 3:
-                # print('pump plot error')
-                surfx = []
-                surfy = []
-                for i in pumping_surf:
-                    surfx.append(region.surfaces[i].start.x)
-                    surfy.append(region.surfaces[i].start.y)
-
-                    surfx.append(region.surfaces[i].end.x)
-                    surfy.append(region.surfaces[i].end.y)
-                
-                a = self.plot_grid(self.sol, self.pfr, label=False)
-                import matplotlib.pyplot as plt
-                ax = plt.gca()
-                ax.plot(surfx, surfy, color='blue')
-                ax.plot(xbox, ybox, color='gray')
-
-            region.R_dictionary.update(original_R)
-            
-            return pumping_matrix_general
-
-        if pf_pump_dict != None:
-            # print('enter pump loop')
-            self.box_loop = False
-            pumping_matrix_pf = pump_helper(self.pfr, pf_pump_dict, pump_plot)
-            self.pumping_matrix_pf = pumping_matrix_pf
-            self.cftelematrix_pf = pumping_matrix_pf
-            print(self.pfr.numSurfaces)
-            print('pfr albedo:', pf_pump_dict['albedo'])
-            a = self.plot_grid(sol, pfr, pf_test_surf=[], label=False)
-            if overwrite:
-                self.save_matrices([self.pumping_matrix_pf], ['cftelematrix_pf'], save_file_name=save_file)
-                # print('bbb error')
-                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
-                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
-                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
-                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = self.pumping_matrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
-
-        if sol_pump_dict != None:
-
-            pumping_matrix_sol = pump_helper(self.sol, sol_pump_dict, plot=False)
-            self.pumping_matrix_sol = pumping_matrix_sol
-            self.cftelematrix = pumping_matrix_sol
-            print('sol albedo:', sol_pump_dict['albedo'])
-            if overwrite:
-                self.save_matrices([self.pumping_matrix_sol], ['cftelematrix'], save_file_name=save_file)
-                bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = self.pumping_matrix_sol
-
-        # print('completed')
+        if plot_setup:
+            self.plot_grid(self.sol, self.pfr, pf_test_surf=[], label=False)
 
     def plot_grid(self, sol, pfr, sol_plot=True, pfr_plot=True, sol_test_surf=[], pf_test_surf=[], label=False):
         if sol_plot and pfr_plot:
@@ -497,25 +399,66 @@ class VNM_interface:
         # input("Press 'Enter' to close plots.")   
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, variation=True, multiprocess=True, ncores=None, verbose=True):
+    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump_setup=None, puff_setup=None, reflections=1e6):
+        """
+        nodeList
+        P - number of plasma surfaces in region: leads arrays/matrices
+        r_offset_plasma - offset of distribution circle relative to circle radius. 
+            1 - cosine
+            0 - uniform
+        r_offset_material - ditto, for material surfaces
+        multiprocess - Multiprocessing when constructing objects
+        ncores - multiprocessing cores
+        verbose - False supresses output
+        material_recycling - recycling coefficient on material surfaces
+        pump_setup - dictionary defining pumping setup
+            Nested dict of pumping regions. Region name and properties. Sorted by
+            order of appearance, later regions overwrite earlier ones.
+            The required structure is:
+            pump_setup[region_name] = {
+                'type': "region",
+                'recycling': recycling_coefficient,
+                'nodes': nodelist
+            }
+            The required "data" entry is determined by the available types, 
+            listed below:
+                "region" - A closed polygon is created based on the supplied
+                    nodes. All polygons intersecting with the polygon are
+                    assigned a reccyling coefficient as defined by 'recycling'.
+                "recycling" - recycling coefficient to be applied to intersecting
+                    surfaces
+                "nodes" - nested list of (X,Y) nodes that define the pumping surface
+        puff_setup - dictionary defining puffing surfaces 
+        reflections - the number of reflections to be considered: the exponent of the TMM 
+        """
         from shapely import Point, Polygon
         from tqdm import tqdm
         from pickle import load
         from multiprocessing import Process, Pipe, Manager
         from os import cpu_count, environ
         from itertools import islice
-        from numpy import array, array_split
+        from numpy import array, array_split, zeros
         from time import time
         from copy import deepcopy
     
+        self.R_dictionary = {} # TODO: Remove this later
         self.surfaces = {}
+        self.material_recycling = material_recycling
+        self.reflections = int(reflections)
+        self.nodeList = nodeList
 
         starttime = time()
         if isinstance(nodeList, str):
+            # TODO: Check whether requested file exists and is pickle
             with open(nodeList, 'rb') as f:
                 save = load(f)
                 self.surfaces = save['surfaces']
                 self.P = save['P']
+                self.nodeList = save['nodeList']
+            P=self.P
+
+            # Create Polygon of Vacuum region for intersect checks
+            self.geometry = Polygon(self.nodeList) 
         
         else:
             # Set up surfaces of geometry and the polygon object 
@@ -528,17 +471,13 @@ class VacuumRegion:
                     endNode = Point(nodeList[i + 1])
 
                 # Have plasma surfaces use a uniform dist., while wall surfaces use a cosine dist.
-                if variation:
-                    if i >= self.P: # non-plasma surfaces
-                        offset = 1
-                    else:
-                        offset = 0
-                    self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i, r_offset=offset)
-                else:
-                    self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i)
- 
+                if i < self.P: # Plasma surfaces
+                    self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i, r_offset=r_offset_plasma)
+                else: # non-plasma surfaces
+                    self.surfaces[i] = Surface((startNode.x, startNode.y), (endNode.x, endNode.y), i, r_offset=r_offset_material)
+                
             # Create Polygon of Vacuum region for intersect checks
-            self.geometry = Polygon(nodeList) 
+            self.geometry = Polygon(self.nodeList) 
 
             if multiprocess:
                 if ncores is None:
@@ -571,17 +510,35 @@ class VacuumRegion:
                 for _, surface in tqdm(self.surfaces.items()):
                     surface.getNeighbors(self.surfaces, self.geometry)
 
-        self.time = time() - starttime
 
+        self.time = time() - starttime
         self.numSurfaces = len(self.surfaces)
 
         # Dictionary of surface reflection coefficients
-        self.R_dictionary = {}
-        for i in range(self.numSurfaces):
-            if i >= self.P: # non-plasma surfaces
-                self.R_dictionary[i] = 1
-            else:
-                self.R_dictionary[i] = 0
+        """ Set up recycling coefficients """
+        self.R_array = zeros(self.numSurfaces)
+        self.R_array[self.P:] = self.material_recycling
+
+        """ Loop through any pumping regions """
+        self.pumping_regions = {}
+        if pump_setup is not None:
+            self.pump_setup = pump_setup
+            for region_name, data in pump_setup.items():
+                self.pumping_regions[region_name] = self.create_pump_region(data, region_name)
+        
+        """ Compile Transport Matrix Method matrices """
+        self.matrices()
+        self.getOutputMatrix()
+
+
+        """ Loop through any puffs """
+        self.puffs = {}
+        self.puff_vector = zeros((self.P,1))
+        if puff_setup is not None:
+            self.puff_setup = puff_setup
+            for puff_name, data in puff_setup.items():
+                self.puffs[puff_name] = self.create_puff(data, puff_name)
+                self.puff_vector += self.puffs[puff_name]['puff_vector']
 
         '''Print statements to use if surfaces are not conserving flux via line of sight.'''
         # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
@@ -607,7 +564,7 @@ class VacuumRegion:
 
     def matrices(self):
         import numpy
-        from numpy import zeros, identity, percentile, log
+        from numpy import zeros, identity, percentile, log, diag
         from scipy.sparse import csr_array, block_array
         import seaborn as sns
         import matplotlib.pyplot as plt
@@ -616,12 +573,8 @@ class VacuumRegion:
             B (self.B_matrix), and AB (self.AB_matrix) matrices.'''
 
         # Array representations of R and C
-        self.R_array = zeros((self.numSurfaces, self.numSurfaces))
         self.C_array = zeros((self.numSurfaces, self.numSurfaces))
 
-        # Populate R array
-        for surfaceID, rVal in self.R_dictionary.items():
-            self.R_array[surfaceID][surfaceID] = rVal
 
         # Populate C array and take transpose
         for surfaceID, surface in self.surfaces.items(): # self.surfaces.items()
@@ -630,7 +583,7 @@ class VacuumRegion:
         self.C_array = self.C_array.transpose()
 
         # R and C into sparse matrices
-        self.R_matrix = csr_array(self.R_array)
+        self.R_matrix = csr_array(diag(self.R_array))
         self.C_matrix = csr_array(self.C_array)
 
         # Zero and identity sparse matrices
@@ -643,7 +596,64 @@ class VacuumRegion:
 
         # A * B
         self.AB_matrix = self.A_matrix @ self.B_matrix 
+        self.AB_power_A = self.matrixPower(self.AB_matrix, self.reflections) @ self.A_matrix # (AB)^M * A
 
+    def create_puff(self, puff_setup, puff_name):
+        from shapely import Point
+        from numpy import argsort, zeros
+        if "type" not in puff_setup:
+            raise KeyError(f"Define a puff type for {puff_name}")
+        ret = {'type': puff_setup["type"]}
+        
+        if puff_setup['type'] == "point":
+            for key in ['location', 'current']:
+                if key not in puff_setup:
+                    raise KeyError("Required 'point' puff setup entry"+
+                        f" '{key}' not found for {puff_name}.")
+            try:
+                ret['point'] = Point(puff_setup['location'])
+            except Exception:
+                raise  
+            nodes = list(self.geometry.exterior.coords)[self.P:-1]
+            dists = [self.P+ret['point'].distance(Point(n)) for n in nodes]
+            ret['material_surface_index'] = argsort(dists)[:2].max() + self.P
+            ret['current'] = puff_setup['current']
+            drive = zeros((self.numSurfaces*2,1))
+            drive[ret['material_surface_index'], 0] = ret['current']
+            ret['puff_vector'] = (self.AB_power_A @ drive)[self.numSurfaces:][0:self.P]
+            
+        else:
+            raise KeyError(f"Puff type '{pump_setup['type']}' not recognized for {puff_name}!" +
+                "\nAvailable options are: 'point'")
+        return ret
+
+
+
+    def create_pump_region(self, pump_setup, pump_name):
+        from shapely import Polygon, intersects, Point
+        if "type" not in pump_setup:
+            raise KeyError(f"Define a pump type for {pump_name}")
+        ret = {"type": pump_setup['type']}
+
+        if pump_setup['type'] == "region":
+            for key in ['nodes', 'recycling']:
+                if key not in pump_setup:
+                    raise KeyError("Required 'region' pump setup entry"+
+                        f" '{key}' not found for {pump_name}.")
+            if len(pump_setup['nodes'])<3:
+                raise AttributeError("Too few nodes provided: provide "+
+                    "at least three nodes for Polygon!")
+            ret["polygon"] = Polygon(pump_setup['nodes'])
+            ret["pumped_segments"] = []
+            ret["recycling"] = pump_setup["recycling"]
+            for i in range(self.P, self.numSurfaces):
+                if intersects(self.surfaces[i].segment, ret["polygon"]):
+                    self.R_array[i] = ret["recycling"]
+                    ret['pumped_segments'].append(i) 
+        else:
+            raise KeyError(f"Pump type '{pump_setup['type']}' not recognized for {pump_name}!" +
+                "\nAvailable options are: 'region'")
+        return ret
 
     def heatmapPlot(self):
         import numpy
@@ -652,14 +662,7 @@ class VacuumRegion:
         import seaborn as sns
         import matplotlib.pyplot as plt
         from matplotlib.colors import LogNorm
-
         '''Creates a heatmap of C, R, and Transport matrices.'''
-
-        # Get A, B, AB
-        self.matrices()
-
-        # Generate output (transport) matrix
-        self.getOutputMatrix(self.AB_matrix, 1000000)
 
         '''Print statements to check for unity of transport matrix.'''
         # print(f"sum(sum(output)): {sum(sum(self.output))}")
@@ -683,6 +686,7 @@ class VacuumRegion:
                 ax.set_ylabel("Source Surfaces")
 
 
+
         plt.tight_layout()
         plt.show(block=False) 
 
@@ -698,11 +702,8 @@ class VacuumRegion:
 
         return resultMatrix
 
-    def getOutputMatrix(self, AB, power):
-        from numpy import zeros, identity, transpose
-        from scipy.sparse import csr_array, block_array
-
-        AB_power_A = self.matrixPower(self.AB_matrix, power) @ self.A_matrix # (AB)^M * A
+    def getOutputMatrix(self):#, AB, power):
+        from numpy import zeros, transpose
 
         # Final transport matrix
         self.output = zeros((self.P, self.P))
@@ -711,7 +712,7 @@ class VacuumRegion:
         for i in range(0, self.P):
             gamma_array[i, 0] = 1
 
-            rowCalculation = AB_power_A @ gamma_array
+            rowCalculation = self.AB_power_A @ gamma_array
 
             gamma_array[i, 0] = 0
 
@@ -733,24 +734,7 @@ class VacuumRegion:
         puffingMatrix = self.matrixPower(self.AB_matrix, reflections) @ self.A_matrix
 
         return puffingMatrix
-    
-    def getPuffingArray(self, puffingMatrix, surfaceIndex, current):
-        from numpy import zeros, identity, transpose
-        from scipy.sparse import csr_array, block_array
-        '''1-D array (geometric output flux vector) when puffing at one source surface given a
-            source strength.'''
-
-        gamma_array = zeros((self.numSurfaces * 2, 1))
-
-        gamma_array[surfaceIndex, 0] = current
-
-        rowCalculation = puffingMatrix @ gamma_array
-        gammaOut = rowCalculation[self.numSurfaces:]
-        puffingArray = gammaOut[0:self.P]
-
-        return puffingArray
-        
-
+   
     def saveVacuumRegion(self, savename):
         from pickle import dump
         '''Use to save a Vacuum Region to avoid having to generate a new one every time. 
@@ -759,7 +743,8 @@ class VacuumRegion:
 
         save = {
             'surfaces': self.surfaces,
-            'P': self.P
+            'P': self.P,
+            'nodeList': self.nodeList
         }
         with open(savename, 'wb') as f:
             dump(save, f)
@@ -779,6 +764,7 @@ class VacuumRegion:
         from matplotlib.pyplot import subplots, Figure, Axes, ioff
         import matplotlib.pyplot as plt
 
+
         '''Plot the full geometrical representation of the VacuumRegion.'''
 
         if isinstance(ax, Figure):
@@ -793,10 +779,13 @@ class VacuumRegion:
         
         ioff()
             
-        for _, surface in self.surfaces.items():
+        for surfid, surface in self.surfaces.items():
             color = 'k'
             if (surface.ID <  self.P):
                 color = 'red'
+            else:
+                if self.R_array[surfid] != self.material_recycling:
+                    color='grey'
             surface.plotSelf(color=color, ax=ax, label=labels, showCircle=showCircle)
 
         for itest in testsurf:
@@ -805,7 +794,21 @@ class VacuumRegion:
                             linewidth=connectionLineWidth,
                             **kwargs
             )
+        c = 0
+        N_regions = len(self.pumping_regions) + len(self.puffs)
+        colors = [plt.get_cmap("rainbow")(i/N_regions) for i in range(N_regions)]
+        for key, region in self.pumping_regions.items():
+            for i in region['pumped_segments']:
+                self.surfaces[i].plotSelf(color=colors[c], ax=ax, showCircle=False)
+            c += 1
+        for key, puff in self.puffs.items():
+            ax.plot(puff['point'].xy[0][0], puff['point'].xy[1][0], 'o', color=colors[c])
+            self.surfaces[puff['material_surface_index']].plotSelf(color=colors[c], ax=ax, showCircle=False)
+            c += 1
     
+        
+
+
         for line in ax.lines:
             line.set_marker(".")
 
