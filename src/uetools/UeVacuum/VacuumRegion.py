@@ -307,6 +307,7 @@ class VNM_interface:
         self.nx = self.getue('nx')
         self.ixpt1 = self.getue('ixpt1')[0]
         self.ixpt2 = self.getue('ixpt2')[0]
+        self.ngsp = self.getue('ngsp')
         (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
         self.pfrPoints = pfr_user ########
         self.box_loop = True
@@ -358,11 +359,28 @@ class VNM_interface:
             zeros((dimension, dim_expand)),
             cftelematrix_pf_full[:, self.ixpt1+1:],
         ])
+        # Expand puffing arrays along horizontal axis
+        self.fngyi_use = vstack([
+            zeros((1,6)),
+            self.puff_vector_pf[:self.ixpt1],
+            zeros((dim_expand, 6)),
+            self.puff_vector_pf[self.ixpt1:],
+            zeros((1,6)),
+        ])        
+        self.fngyo_use = vstack([
+            zeros((1,6)),
+            self.puff_vector[:self.ixpt1],
+            self.puff_vector[self.ixpt1:],
+            zeros((1,6)),
+        ])        
         # Populate local cftelematrix
         self.cftelematrix_full = zeros((2, dimension, dimension, 6))
+        self.fngyso_full = zeros((dimension,self.ngsp, self.ngsp))
+        self.fngysi_full = zeros((dimension,self.ngsp, self.ngsp))
         for j in range(6):
             self.cftelematrix_full[1, :, :, j] = self.cftelematrix
             self.cftelematrix_full[0, :, :, j] = cftelematrix_pf_full
+
         # TODO: tidy up this part
         if overwrite:
             self.save_matrices([self.cftelematrix, self.cftelematrix_pf, self.puff_vector, self.puff_vector_pf], 
@@ -374,6 +392,9 @@ class VNM_interface:
         self.set('cfteleout', 1.0)
         # Populate UEDGE cftelematrix array
         self.set('cftelematrix', self.cftelematrix_full)
+        # Populate the puffing arrays
+        self.set('fngyi_use', self.fngyi_use[:,:self.ngsp])
+        self.set('fngyo_use', self.fngyo_use[:,:self.ngsp])
         # Plot setup if requested
         if plot_setup:
             self.plot_grid(self.sol, self.pfr, pf_test_surf=[], label=False)
@@ -524,12 +545,12 @@ class VacuumRegion:
 
         """ Loop through any puffs """
         self.puffs = {}
-        self.puff_vector = zeros((self.P,1))
+        self.puff_vector = zeros((self.P,6))
         if puff_setup is not None:
             self.puff_setup = puff_setup
             for puff_name, data in puff_setup.items():
                 self.puffs[puff_name] = self.create_puff(data, puff_name)
-                self.puff_vector += self.puffs[puff_name]['puff_vector']
+                self.puff_vector[:,data['igsp']] += self.puffs[puff_name]['puff_vector'].flatten()
 
         '''Print statements to use if surfaces are not conserving flux via line of sight.'''
         # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
@@ -597,7 +618,7 @@ class VacuumRegion:
         ret = {'type': puff_setup["type"]}
         
         if puff_setup['type'] == "point":
-            for key in ['location', 'current']:
+            for key in ['location', 'current', 'igsp']:
                 if key not in puff_setup:
                     raise KeyError("Required 'point' puff setup entry"+
                         f" '{key}' not found for {puff_name}.")
@@ -609,9 +630,10 @@ class VacuumRegion:
             dists = [self.P+ret['point'].distance(Point(n)) for n in nodes]
             ret['material_surface_index'] = argsort(dists)[:2].max() + self.P
             ret['current'] = puff_setup['current']
+            ret['igsp'] = puff_setup['igsp']
             drive = zeros((self.numSurfaces*2,1))
             drive[ret['material_surface_index'], 0] = ret['current']
-            ret['puff_vector'] = (self.AB_power_A @ drive)[self.numSurfaces:][0:self.P]
+            ret['puff_vector'] = (self.AB_power_A @ drive)[self.numSurfaces:][:self.P]
             
         else:
             raise KeyError(f"Puff type '{pump_setup['type']}' not recognized for {puff_name}!" +
