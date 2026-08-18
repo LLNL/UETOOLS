@@ -98,6 +98,8 @@ class VacuumTests:
 
 class VNM_interface:
     def __init__(self, case):
+        if case.get('geometry')[0].strip().decode('UTF-8') not in ['snull', 'dnull']:
+            raise Exception("VNM model only implemented for singe nulls geometries!")
         self.coupling = case.coupling
         self.set = case.setue
         self.info = case.info
@@ -299,9 +301,12 @@ class VNM_interface:
         """
 
         import h5py
-        import numpy
+        from numpy import zeros, hstack, vstack, pad
         from uedge import com, bbb
 
+        self.nx = self.getue('nx')
+        self.ixpt1 = self.getue('ixpt1')[0]
+        self.ixpt2 = self.getue('ixpt2')[0]
         (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
         self.pfrPoints = pfr_user ########
         self.box_loop = True
@@ -312,27 +317,6 @@ class VNM_interface:
         if save_file == None:
             save_file = self.info['savefile']
         
-        def matrix_calculate(main_vac, pf_vac):
-            """Generates the telematrices."""
-            t_main = main_vac
-            t_pf = pf_vac
-
-            t_main.matrices()
-            t_pf.matrices()
-
-            cftelematrix_ = t_main.getOutputMatrix()#t_main.AB_matrix, 1000000) # transport matrices
-            cftelematrix_ = numpy.transpose(cftelematrix_)
-            cftelematrix_pf = t_pf.getOutputMatrix()#t_pf.AB_matrix, 1000000)
-            cftelematrix_pf = numpy.transpose(cftelematrix_pf)
-
-            puffing_matrix = t_main.getPuffingMatrix(1000000)
-
-            self.cftelematrix = cftelematrix_
-            self.cftelematrix_pf = cftelematrix_pf
-            print("CF TELEMATRIX PF SUM", sum(sum(cftelematrix_pf)))
-
-            return [cftelematrix_, cftelematrix_pf, puffing_matrix]
-
         if sol == None or pfr == None: # generate new VacuumRegions
             # print('generate new Vacuum Regions')
             self.sol = VacuumRegion(main[0], P=main[1], pump_setup=sol_pump, puff_setup=sol_puff)
@@ -354,36 +338,43 @@ class VNM_interface:
             self.sol = sol
             self.pfr = pfr
         
-        matrices = matrix_calculate(self.sol, self.pfr)
-        cftelematrix = matrices[0]
-        cftelematrix_pf = matrices[1]
-        puffing_matrix = matrices[2]
-
-        dimension = len(cftelematrix) + 2
-        cftelematrix_full = numpy.zeros((2, dimension, dimension, 6))
-        cftelematrix_full[1, 1:-1, 1:-1, 0] = cftelematrix
-        cftelematrix_full[1, 1:-1, 1:-1, 1] = cftelematrix
-
+        self.cftelematrix = pad(self.sol.telematrix.transpose(), pad_width=1)
+        self.cftelematrix_pf = pad(self.pfr.telematrix.transpose(), pad_width=1)
+        self.puff_vector = self.sol.puff_vector
+        self.puff_vector_pf = self.pfr.puff_vector
+        # Expand PF matrix  along core cut: get dimensions and mismatch
+        dimension = len(self.cftelematrix)
+        dimpf = len(self.cftelematrix_pf)
+        dim_expand = dimension - dimpf
+        # Expand PF matrix along vertical axis
+        cftelematrix_pf_full = vstack([
+            self.cftelematrix_pf[:self.ixpt1+1],
+            zeros((dim_expand, dimpf)), 
+            self.cftelematrix_pf[self.ixpt1+1:]   
+        ])
+        # Expand PF matrix along horizontal axis
+        cftelematrix_pf_full = hstack([
+            cftelematrix_pf_full[:, :self.ixpt1+1],
+            zeros((dimension, dim_expand)),
+            cftelematrix_pf_full[:, self.ixpt1+1:],
+        ])
+        # Populate local cftelematrix
+        self.cftelematrix_full = zeros((2, dimension, dimension, 6))
+        for j in range(6):
+            self.cftelematrix_full[1, :, :, j] = self.cftelematrix
+            self.cftelematrix_full[0, :, :, j] = cftelematrix_pf_full
+        # TODO: tidy up this part
         if overwrite:
-
-            bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = cftelematrix
-
-            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[:com.ixpt1[0], :com.ixpt1[0]] # 1
-            bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[:com.ixpt1[0], com.ixpt1[0]:] # 2
-            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = cftelematrix_pf[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
-            bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = cftelematrix_pf[com.ixpt1[0]:, com.ixpt1[0]:] # 4
-            
-            self.save_matrices([cftelematrix, cftelematrix_pf, puffing_matrix], 
-                            ['cftelematrix', 'cftelematrix_pf', 'puffing_matrix'], 
+            self.save_matrices([self.cftelematrix, self.cftelematrix_pf, self.puff_vector, self.puff_vector_pf], 
+                            ['cftelematrix', 'cftelematrix_pf', 'puff_sol', 'puff_pf'], 
                             save_file)
 
-            self.set('cftelematrix', cftelematrix_full)
-
+        # Turn on the VNM model in UEDGE
         self.getue('isvacuummodel', cp=False)[0] = 1
-        # bbb.isvacuummodel[0] = 1
         self.set('cfteleout', 1.0)
-
-
+        # Populate UEDGE cftelematrix array
+        self.set('cftelematrix', self.cftelematrix_full)
+        # Plot setup if requested
         if plot_setup:
             self.plot_grid(self.sol, self.pfr, pf_test_surf=[], label=False)
 
@@ -528,7 +519,7 @@ class VacuumRegion:
         
         """ Compile Transport Matrix Method matrices """
         self.matrices()
-        self.getOutputMatrix()
+        self.createTeleMatrix()
 
 
         """ Loop through any puffs """
@@ -665,14 +656,12 @@ class VacuumRegion:
         '''Creates a heatmap of C, R, and Transport matrices.'''
 
         '''Print statements to check for unity of transport matrix.'''
-        # print(f"sum(sum(output)): {sum(sum(self.output))}")
-        # print(f"P: {self.P}")
 
         # Plotting heatmaps of C, R, and Output (Transport)
         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
         fig.suptitle("Cosine Distribution", fontsize=16)
 
-        matricesToPlot = [self.C_array, self.R_array, self.output]
+        matricesToPlot = [self.C_array, self.R_array, self.telematrix]
         matricesToPlotNames = ["C", "R", "Output"]
         for i, ax in enumerate(axes):
             sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
@@ -690,7 +679,7 @@ class VacuumRegion:
         plt.tight_layout()
         plt.show(block=False) 
 
-        return self.output
+        return self.telematrix
 
     def matrixPower(self, matrix, power):
         from numpy import zeros, identity
@@ -702,11 +691,11 @@ class VacuumRegion:
 
         return resultMatrix
 
-    def getOutputMatrix(self):#, AB, power):
+    def createTeleMatrix(self):#, AB, power):
         from numpy import zeros, transpose
 
         # Final transport matrix
-        self.output = zeros((self.P, self.P))
+        self.telematrix = zeros((self.P, self.P))
 
         gamma_array = zeros((self.numSurfaces * 2, 1))
         for i in range(0, self.P):
@@ -720,21 +709,9 @@ class VacuumRegion:
             gammaFinal = gammaOut[0:self.P].flatten()
 
             for j in range(self.P):
-                self.output[i, j] = gammaFinal[j]
+                self.telematrix[j, i] = gammaFinal[j]
 
-        self.output = transpose(self.output)
-        return self.output
 
-    def getPuffingMatrix(self, reflections):
-        from numpy import zeros, identity, transpose
-        from scipy.sparse import csr_array, block_array
-        '''Set-up matrix for puffing, gives surface to surface transport.'''
-
-        # Control number of reflections
-        puffingMatrix = self.matrixPower(self.AB_matrix, reflections) @ self.A_matrix
-
-        return puffingMatrix
-   
     def saveVacuumRegion(self, savename):
         from pickle import dump
         '''Use to save a Vacuum Region to avoid having to generate a new one every time. 
