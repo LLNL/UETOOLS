@@ -102,40 +102,20 @@ class VNM_interface:
             raise Exception("VNM model only implemented for singe nulls geometries!")
         self.coupling = case.coupling
         self.set = case.setue
+        self.populate = case.populate
         self.info = case.info
         self.tools = case.tools
         self.getue = case.getue
+        self.hdf5search = case.tools.hdf5search
+        self.uevars = [
+            'isvacuummodel',
+            'cfteleout',
+            'cftelematrix',
+            'fngyi_use',
+            'fngyo_use',
+        ]
 
-    def puffing_array_calc(self, region, point, current, puffing_matrix): # helper
-        """Returns input puffing array based on location as an (R, Z) coordinate, input current, and the puffing transport matrix."""
-        from shapely import Point, intersects
-        import numpy
-        print('enter puffing array calc')
-        puff_point = Point(point)
 
-        puffing_location = 0
-        min_dist = float('inf')
-        for i in range(region.numSurfaces):
-            if i >= region.P:
-                seg = region.surfaces[i]
-                seg_x = seg.normalEndX
-                seg_y = seg.normalEndY
-
-                point_x = puff_point.x
-                point_y = puff_point.y
-
-                dist = numpy.sqrt((seg_x - point_x)**2 + (seg_y - point_y)**2)
-                if dist < min_dist:
-                    min_dist = dist
-                    puffing_location = i
-
-        region.matrices()
-        puffing_array = region.getPuffingArray(puffing_matrix, puffing_location, current)
-        print('error here 1')
-        puffing_array = numpy.transpose(puffing_array)
-        print('error here 2')
-        return puffing_array, puffing_location
-    
     def save_matrices(self, matrix_list, matrix_name_list, save_file_name, open_file=None): # helper
             """Saves matrices to hdf5 file (save file)."""
             import h5py
@@ -173,108 +153,21 @@ class VNM_interface:
 
         if save_file == None:
             save_file = self.info['savefile']
-
-        bbb.cftelematrix[:, :, :, :] = 0
-
-        with h5py.File(save_file, 'a') as f:
-            if 'vnm/bbb/cftelematrix' not in f: # Check for main telematrix
-                warnings.warn('SOL telematrix not found in save file. Call self.vnm.generate()')
-            else: # re-save main telematrix
-                if len(f['vnm/bbb/cftelematrix'].shape) == 2:
-                    dimension = len(f['vnm/bbb/cftelematrix'][:]) + 2
-                    cftelematrix_full = numpy.zeros((2, dimension, dimension, 6))
-                    cftelematrix_full[1, 1:-1, 1:-1, 0] = f['vnm/bbb/cftelematrix'][:]
-
-                    bbb.cftelematrix[1, 1:-1 , 1:-1 , 0] = f['vnm/bbb/cftelematrix'][:]
-                elif len(f['vnm/bbb/cftelematrix'].shape) == 2:
-                    bbb.cftelematrix[1, 1:-1, 1:-1, 0] = f['vnm/bbb/cftelematrix'][1, 1:-1, 1:-1, 0]
-
-                self.save_matrices([f['vnm/bbb/cftelematrix']], ['cftelematrix'], save_file, open_file=f)
-
-            if 'vnm/bbb/cftelematrix_pf' not in f: # check for pfr telematrix
-                warnings.warn('Private flux region telematrix not found in save file. Call self.vnm.generate.')
-            else: # re-save pfr telematrix
-                small_matrix = f['vnm/bbb/cftelematrix_pf'][:]
-
-                if 'vnm/bbb/cftelematrix' not in f:
-                    warnings.warn('Generate main SOL telematrix before generating PFR telematrix.')
-                else:
-                    dimension = len(f['vnm/bbb/cftelematrix'][:]) + 2
-                    print(dimension)
-                    print(len(f['vnm/bbb/cftelematrix'].shape))
-                cftelematrix_full_pf = numpy.zeros((2, dimension, dimension, 6))
-                cftelematrix_full_pf[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = small_matrix[:com.ixpt1[0], :com.ixpt1[0]] # 1
-                cftelematrix_full_pf[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = small_matrix[:com.ixpt1[0], com.ixpt1[0]:] # 2
-                cftelematrix_full_pf[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = small_matrix[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
-                cftelematrix_full_pf[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = small_matrix[com.ixpt1[0]:, com.ixpt1[0]:] # 4
-
-                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = small_matrix[:com.ixpt1[0], :com.ixpt1[0]] # 1
-                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = small_matrix[:com.ixpt1[0], com.ixpt1[0]:] # 2
-                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = small_matrix[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
-                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = small_matrix[com.ixpt1[0]:, com.ixpt1[0]:] # 4
-
-                self.save_matrices([small_matrix], ['cftelematrix_pf'], save_file, open_file=f)
-
-            if 'vnm/bbb/puffing_matrix' not in f: # check for main puffing matrix
-                warnings.warn('SOL puffing matrix not found in save file. Call self.vnm.generate.')
-            else: # re-save main puffing matrix
-                self.save_matrices([f['vnm/bbb/puffing_matrix']], ['puffing_matrix'], save_file, open_file=f)
-
-            if 'vnm/bbb/puffing_array' not in f: # check for main puffing array
-                warnings.warn('SOL puffing array not found in save file. Call self.vnm.restore or self.vnm.generate.')
-            else: # re-save main puffing array
-                self.save_matrices([f['vnm/bbb/puffing_array']], ['puffing_array'], save_file, open_file=f)
-                self.getue('fngyo_use', cp=False)[1:-1, 0] = f['vnm/bbb/puffing_array'][: , 0]
-
-            if sol_puff_dict != None and 'vnm/bbb/puffing_matrix' in f: # creating a new puffing array
-                if 'region' not in sol_puff_dict:
-                    (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
-                    sol = VacuumRegion(main[0], P=main[1])
-                else:
-                    print('error here')
-                    sol = VacuumRegion(sol_puff_dict['region'])
-
-                print('made it here')
-                puffing_array, puff_loc = self.puffing_array_calc(sol, sol_puff_dict['point'], sol_puff_dict['current'], 
-                                                    f['vnm/bbb/puffing_matrix'][:])
-                print('puffing_array:', puffing_array)
-                print('save error')
-                self.main_puffing_array = numpy.transpose(puffing_array)
-                self.save_matrices([self.main_puffing_array], ['puffing_array'], save_file, open_file=f)
-                self.getue('fngyo_use', cp=False)[1:-1, 0] = f['vnm/bbb/puffing_array'][: , 0]
-                print('set error')
-            elif sol_puff_dict != None and 'vnm/bbb/puffing_matrix' not in f: # error if can't make new puffing array
-                warnings.warn('Cannot generate SOL puffing input. Call self.vnm.restore or self.vnm.generate.')
-
-            if 'vnm/bbb/pumping_matrix_pf' not in f:
-                warnings.warn('PFR pumping matrix not found. Call self.vnm.generate.')
-            else:
-                pump = f['vnm/bbb/pumping_matrix_pf'][:]
-                self.save_matrices([pump], ['cftelematrix_pf'], save_file_name=save_file, open_file=f)
-                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, 1:com.ixpt1[0]+1, 0] = pump[:com.ixpt1[0], :com.ixpt1[0]] # 1
-                bbb.cftelematrix[0, 1:com.ixpt1[0]+1, com.ixpt2[0]+1:com.nx+1, 0] = pump[:com.ixpt1[0], com.ixpt1[0]:] # 2
-                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, 1:com.ixpt1[0]+1, 0] = pump[com.ixpt1[0]:, :com.ixpt1[0]] # 3 
-                bbb.cftelematrix[0, com.ixpt2[0]+1:com.nx+1, com.ixpt2[0]+1:com.nx+1, 0] = pump[com.ixpt1[0]:, com.ixpt1[0]:] # 4
-
-            if 'vnm/bbb/pumping_matrix_sol' not in f:
-                warnings.warn('SOL pumping matrix not found. Call self.vnm.generate.')
-            else:
-                pump = f['vnm/bbb/pumping_matrix_sol'][:]
-                self.save_matrices([pump], ['cftelematrix'], save_file_name=save_file, open_file=f)
-
-                if len(f['vnm/bbb/pumping_matrix_sol'].shape) == 2:
-                    bbb.cftelematrix[1, 1:-1, 1:-1, 0] = pump
-                elif len(f['vnm/bbb/pumping_matrix_sol'].shape) == 4:
-                    bbb.cftelematrix[1, 1:-1, 1:-1, 0] = pump[1, 1:-1, 1:-1, 0]
-
-        print('error with one of these')
-        self.getue('isvacuummodel', cp=False)[0] = 1
-        # bbb.isvacuummodel[0] = 1
-        self.set('cfteleout', 1.0)
-        print('finished execution')
     
-    def generate(self, sol=None, pfr=None, save_file=None, 
-                 sol_pump=None, pfr_pump=None, save=False, plot_setup=False, pfr_user=None,
+        for var in self.uevars:
+            val = self.hdf5search(save_file, var)
+            if val is None:
+                raise Exception(f"Variable '{var}' not found in {save_file}!")
+            self.set(var, val)
+        self.populate()
+        print("Successfully restored VNM from {save_file}")
+        return
+
+
+
+    def generate(self, sol=None, pfr=None, sol_savename=None, 
+                 sol_pump=None, pfr_pump=None, pfr_savename=False, plot_setup=False, pfr_nodes=None,
+                 sol_nodes=None, sol_hdf5location=None, pfr_hdf5location=None,
                  overwrite=False, sol_puff=None, pfr_puff=None):
         """Generates telematrices for given VacuumRegions.
         
@@ -296,7 +189,10 @@ class VNM_interface:
          Same logic as sol_pump_dict.
         - save -- if True, will save new pkl file with names 'SOL_Vacuum.pkl' and 'PFR_Vacuum.pkl' (default False).
         - pump_plot -- if True, plots the pumping surfaces (default True).
-        - pfr_user -- set of user supplied points to define the private flux region (default None).
+        - pfr_nodes -- set of user supplied points to define the private flux region (default None).
+                Tuple continaing a list of (x,y) pair nodes as the first entry and
+                the number of leading plasma surfaces as the second entry
+        - sol_nodes -- ditto for the SOL region
         - overwrite -- decides whether or not to write generated matrices into save file (default False).
         """
 
@@ -309,34 +205,42 @@ class VNM_interface:
         self.ixpt2 = self.getue('ixpt2')[0]
         self.ngsp = self.getue('ngsp')
         (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
-        self.pfrPoints = pfr_user ########
         self.box_loop = True
-        pf_plasma_number = pf[1] ########
-        if pfr_user is not None: ########
-            pf = [pfr_user, pf_plasma_number] ########
+        if pfr_nodes is not None: ########
+            pf = pfr_nodes
+        if sol_nodes is not None:
+            main = sol_nodes
 
-        if save_file == None:
-            save_file = self.info['savefile']
-        
-        if sol == None or pfr == None: # generate new VacuumRegions
-            # print('generate new Vacuum Regions')
+
+        if not isinstance(sol, (type(None), str, VacuumRegion)):
+            raise TypeError("sol does not match any accepted type (None, str, VacuumRegion).") 
+        if not isinstance(pfr, (type(None), str, VacuumRegion)):
+            raise TypeError("pfr does not match any accepted type (None, str, VacuumRegion).")       
+
+        if isinstance(sol, type(None)):
+            print("Generating new SOL vacuum region")
             self.sol = VacuumRegion(main[0], P=main[1], pump_setup=sol_pump, puff_setup=sol_puff)
-            self.pfr = VacuumRegion(pf[0], P=pf[1] - 1, pump_setup=pfr_pump, puff_setup=sol_puff)
-            if save: # save the new VacuumRegions as pkl files
-                if pfr_user is None:
-                    # print('normal save')
-                    self.sol.saveVacuumRegion('SOL_Vacuum.pkl')
-                    self.pfr.saveVacuumRegion('PFR_Vacuum.pkl')
-                else:
-                    # print('user save')
-                    self.sol.saveVacuumRegion('SOL_Vacuum.pkl')
-                    self.pfr.saveVacuumRegion('PFR_userVacuum.pkl')
-        elif type(sol) != VacuumRegion or type(pfr) != VacuumRegion: # provide a specific pkl file to read from
-            # print('load from pkls')
-            self.sol = VacuumRegion(sol, pump_setup=sol_pump, puff_setup=sol_puff)
-            self.pfr = VacuumRegion(pfr, pump_setup=pfr_pump, puff_setup=pfr_puff)
-        else:
+            if isinstance(sol_savename, str):
+                self.sol.saveVacuumRegion(sol_savename)                
+        elif isinstance(sol, str):
+            print("Restoring SOL vacuum region from pickle/HDF5")
+            self.sol = VacuumRegion(sol, pump_setup=sol_pump, puff_setup=sol_puff, hdf5location=sol_hdf5location)
+            # TODO: store and load more data from pickle 
+        else: 
+            print("Using VacuumRegion provided for SOL")
             self.sol = sol
+
+        
+        if isinstance(sol, type(None)):
+            print("Generating new PFR vacuum region")
+            self.pfr = VacuumRegion(pf[0], P=pf[1] - 1, pump_setup=pfr_pump, puff_setup=sol_puff)
+            if isinstance(sol_savename, str):
+                self.pfr.saveVacuumRegion(pfr_savename)                
+        elif isinstance(sol, str):
+            print("Restoring PFR vacuum region from pickle/HDF5")
+            self.pfr = VacuumRegion(pfr, pump_setup=pfr_pump, puff_setup=pfr_puff, hdf5location=pfr_hdf5location)
+        else:
+            print("Using VacuumRegion provided for PFR")
             self.pfr = pfr
         
         self.cftelematrix = pad(self.sol.telematrix.transpose(), pad_width=1)
@@ -381,12 +285,6 @@ class VNM_interface:
             self.cftelematrix_full[1, :, :, j] = self.cftelematrix
             self.cftelematrix_full[0, :, :, j] = cftelematrix_pf_full
 
-        # TODO: tidy up this part
-        if overwrite:
-            self.save_matrices([self.cftelematrix, self.cftelematrix_pf, self.puff_vector, self.puff_vector_pf], 
-                            ['cftelematrix', 'cftelematrix_pf', 'puff_sol', 'puff_pf'], 
-                            save_file)
-
         # Turn on the VNM model in UEDGE
         self.getue('isvacuummodel', cp=False)[0] = 1
         self.set('cfteleout', 1.0)
@@ -410,10 +308,38 @@ class VNM_interface:
 
         # input("Press 'Enter' to close plots.")   
 
+    def save_hdf5(self, file, **kwargs):
+        ''' Saves VNM data to HDF5 '''
+        from h5py import File
+        if not isinstance(file, File):
+            raise TypeError("file must be an open HDF5 File object")
+        vnm = file.require_group('vnm')
+        if hasattr(self, "sol"):
+            sol = vnm.require_group("sol")
+            self.sol.writeVacuumSetup(sol, **kwargs)
+        if hasattr(self, "pfr"):
+            pfr = vnm.require_group("pfr")
+            self.pfr.writeVacuumSetup(pfr, **kwargs)
+        for var in self.uevars:
+            try:
+                val = self.getue(var)
+            except:
+                val = None
+            if val is not None:
+                if var in vnm:
+                    del vnm[var]
+                vnm.create_dataset(var, data=val)
+        return
+
+
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump_setup=None, puff_setup=None, reflections=1e6):
+    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump_setup=None, puff_setup=None, reflections=1e6, hdf5location=None):
         """
-        nodeList
+        nodeList - str, list of nodes, or HDF5 file name
+                HDF5 - populates data based on hdf5location pointing to the vnm setup in
+                    the HDF5 file
+                list of nodes - generates from scratch based on input
+                str - reads from pickle and populates based on setup 
         P - number of plasma surfaces in region: leads arrays/matrices
         r_offset_plasma - offset of distribution circle relative to circle radius. 
             1 - cosine
@@ -452,17 +378,43 @@ class VacuumRegion:
         from numpy import array, array_split, zeros
         from time import time
         from copy import deepcopy
-    
-        self.R_dictionary = {} # TODO: Remove this later
+        from h5py import is_hdf5, File
+
         self.surfaces = {}
         self.material_recycling = material_recycling
         self.reflections = int(reflections)
         self.nodeList = nodeList
+        self.r_offset_plasma = r_offset_plasma
+        self.r_offset_material = r_offset_material
 
+        if is_hdf5(nodeList): # Restoring from HDF5 file
+            with File(nodeList, 'r') as f:
+                vnm = f[hdf5location]
+                for var in ['nodeList', 'P', 'r_offset_material', 'r_offset_plasma', 'reflections']:
+                    self.__setattr__(var, vnm[var][()])
+                if 'puffs' in vnm:
+                    puff_setup = {}
+                    for puffname in vnm['puffs'].keys():
+                        print("PUFFNAME", puffname)
+                        puff_setup[puffname] = {}
+                        for var in vnm['puffs'][puffname].keys():
+                            print("VAR", var)
+                            puff_setup[puffname][var] = vnm['puffs'][puffname][var][()]
+                if 'pumps' in vnm:
+                    pump_setup = {}
+                    for pumpname in vnm['pumps'].keys():
+                        pump_setup[pumpname] = {}
+                        for var in vnm['pumps'][pumpname].keys():
+                            pump_setup[pumpname][var] = vnm['pumps'][pumpname][var][()]
+                                    
+    
+
+        # TODO: add option to restore from HDF5 file
         starttime = time()
-        if isinstance(nodeList, str):
+                
+        if isinstance(self.nodeList, str): 
             # TODO: Check whether requested file exists and is pickle
-            with open(nodeList, 'rb') as f:
+            with open(self.nodeList, 'rb') as f:
                 save = load(f)
                 self.surfaces = save['surfaces']
                 self.P = save['P']
@@ -471,16 +423,15 @@ class VacuumRegion:
 
             # Create Polygon of Vacuum region for intersect checks
             self.geometry = Polygon(self.nodeList) 
-        
-        else:
+        else: 
             # Set up surfaces of geometry and the polygon object 
             self.P = P
-            for i in range(len(nodeList)):
-                startNode = Point(nodeList[i])
-                if i == len(nodeList) - 1:
-                    endNode = Point(nodeList[0])
+            for i in range(len(self.nodeList)):
+                startNode = Point(self.nodeList[i])
+                if i == len(self.nodeList) - 1:
+                    endNode = Point(self.nodeList[0])
                 else:
-                    endNode = Point(nodeList[i + 1])
+                    endNode = Point(self.nodeList[i + 1])
 
                 # Have plasma surfaces use a uniform dist., while wall surfaces use a cosine dist.
                 if i < self.P: # Plasma surfaces
@@ -522,7 +473,6 @@ class VacuumRegion:
                 for _, surface in tqdm(self.surfaces.items()):
                     surface.getNeighbors(self.surfaces, self.geometry)
 
-
         self.time = time() - starttime
         self.numSurfaces = len(self.surfaces)
 
@@ -541,7 +491,6 @@ class VacuumRegion:
         """ Compile Transport Matrix Method matrices """
         self.matrices()
         self.createTeleMatrix()
-
 
         """ Loop through any puffs """
         self.puffs = {}
@@ -574,41 +523,61 @@ class VacuumRegion:
         if verbose:
             print(f"Process {getpid()} completed surfaces {surflist[0]}-{surflist[-1]}.")
 
+    def matrixPower(self, matrix, power):
+        '''Raises a given matrix to the specified power.'''
+        from numpy import zeros, identity
+        from scipy.sparse import csr_array, block_array, linalg
+
+        resultMatrix = linalg.matrix_power(matrix, power)
+
+        return resultMatrix
+
+
     def matrices(self):
+        '''Creates R (self.R_matrix), C (self.C_matrix), A (self.A_matrix), 
+            B (self.B_matrix), and AB (self.AB_matrix) matrices.'''
         import numpy
         from numpy import zeros, identity, percentile, log, diag
         from scipy.sparse import csr_array, block_array
         import seaborn as sns
         import matplotlib.pyplot as plt
 
-        '''Creates R (self.R_matrix), C (self.C_matrix), A (self.A_matrix), 
-            B (self.B_matrix), and AB (self.AB_matrix) matrices.'''
-
         # Array representations of R and C
         self.C_array = zeros((self.numSurfaces, self.numSurfaces))
-
-
         # Populate C array and take transpose
         for surfaceID, surface in self.surfaces.items(): # self.surfaces.items()
             for outputID in surface.neighbors.keys():
                 self.C_array[surfaceID][outputID] = surface.neighbors[outputID]['flux']
         self.C_array = self.C_array.transpose()
-
         # R and C into sparse matrices
         self.R_matrix = csr_array(diag(self.R_array))
         self.C_matrix = csr_array(self.C_array)
-
         # Zero and identity sparse matrices
         Zero_matrix = csr_array(zeros((self.numSurfaces, self.numSurfaces)))
         Identity_matrix = csr_array(identity(self.numSurfaces))
-
         # Create A, B, and AB sparse matrices
         self.A_matrix = block_array([[self.C_matrix, Zero_matrix], [Zero_matrix, Identity_matrix]])
         self.B_matrix = block_array([[self.R_matrix, Zero_matrix], [Identity_matrix - self.R_matrix, Identity_matrix]])
-
         # A * B
         self.AB_matrix = self.A_matrix @ self.B_matrix 
-        self.AB_power_A = self.matrixPower(self.AB_matrix, self.reflections) @ self.A_matrix # (AB)^M * A
+        # (AB)^M * A
+        self.AB_power_A = self.matrixPower(self.AB_matrix, self.reflections) @ self.A_matrix 
+
+    def createTeleMatrix(self):
+        from numpy import zeros, transpose
+
+        # Final transport matrix
+        self.telematrix = zeros((self.P, self.P))
+
+        gamma_array = zeros((self.numSurfaces * 2, 1))
+        for i in range(0, self.P):
+            gamma_array[i, 0] = 1
+            rowCalculation = self.AB_power_A @ gamma_array
+            gamma_array[i, 0] = 0
+            gammaOut = rowCalculation[self.numSurfaces:]
+            gammaFinal = gammaOut[0:self.P].flatten()
+            for j in range(self.P):
+                self.telematrix[j, i] = gammaFinal[j]
 
     def create_puff(self, puff_setup, puff_name):
         from shapely import Point
@@ -631,6 +600,7 @@ class VacuumRegion:
             ret['material_surface_index'] = argsort(dists)[:2].max() + self.P
             ret['current'] = puff_setup['current']
             ret['igsp'] = puff_setup['igsp']
+            ret['location'] = puff_setup['location']
             drive = zeros((self.numSurfaces*2,1))
             drive[ret['material_surface_index'], 0] = ret['current']
             ret['puff_vector'] = (self.AB_power_A @ drive)[self.numSurfaces:][:self.P]
@@ -639,8 +609,6 @@ class VacuumRegion:
             raise KeyError(f"Puff type '{pump_setup['type']}' not recognized for {puff_name}!" +
                 "\nAvailable options are: 'point'")
         return ret
-
-
 
     def create_pump_region(self, pump_setup, pump_name):
         from shapely import Polygon, intersects, Point
@@ -657,6 +625,7 @@ class VacuumRegion:
                 raise AttributeError("Too few nodes provided: provide "+
                     "at least three nodes for Polygon!")
             ret["polygon"] = Polygon(pump_setup['nodes'])
+            ret['nodes'] = pump_setup['nodes']
             ret["pumped_segments"] = []
             ret["recycling"] = pump_setup["recycling"]
             for i in range(self.P, self.numSurfaces):
@@ -667,72 +636,6 @@ class VacuumRegion:
             raise KeyError(f"Pump type '{pump_setup['type']}' not recognized for {pump_name}!" +
                 "\nAvailable options are: 'region'")
         return ret
-
-    def heatmapPlot(self):
-        import numpy
-        from numpy import zeros, identity, percentile, log
-        from scipy.sparse import csr_array, block_array
-        import seaborn as sns
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import LogNorm
-        '''Creates a heatmap of C, R, and Transport matrices.'''
-
-        '''Print statements to check for unity of transport matrix.'''
-
-        # Plotting heatmaps of C, R, and Output (Transport)
-        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-        fig.suptitle("Cosine Distribution", fontsize=16)
-
-        matricesToPlot = [self.C_array, self.R_array, self.telematrix]
-        matricesToPlotNames = ["C", "R", "Output"]
-        for i, ax in enumerate(axes):
-            sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
-            ax.set_title(matricesToPlotNames[i])
-            ax.set_aspect('equal')
-            if matricesToPlotNames[i] == "Output":
-                ax.set_xlabel("Source Surfaces")
-                ax.set_ylabel("Receiving Surfaces") 
-            else:
-                ax.set_xlabel("Receiving Surfaces") 
-                ax.set_ylabel("Source Surfaces")
-
-
-
-        plt.tight_layout()
-        plt.show(block=False) 
-
-        return self.telematrix
-
-    def matrixPower(self, matrix, power):
-        from numpy import zeros, identity
-        from scipy.sparse import csr_array, block_array, linalg
-
-        '''Raises a given matrix to the specified power.'''
-
-        resultMatrix = linalg.matrix_power(matrix, power)
-
-        return resultMatrix
-
-    def createTeleMatrix(self):#, AB, power):
-        from numpy import zeros, transpose
-
-        # Final transport matrix
-        self.telematrix = zeros((self.P, self.P))
-
-        gamma_array = zeros((self.numSurfaces * 2, 1))
-        for i in range(0, self.P):
-            gamma_array[i, 0] = 1
-
-            rowCalculation = self.AB_power_A @ gamma_array
-
-            gamma_array[i, 0] = 0
-
-            gammaOut = rowCalculation[self.numSurfaces:]
-            gammaFinal = gammaOut[0:self.P].flatten()
-
-            for j in range(self.P):
-                self.telematrix[j, i] = gammaFinal[j]
-
 
     def saveVacuumRegion(self, savename):
         from pickle import dump
@@ -747,6 +650,78 @@ class VacuumRegion:
         }
         with open(savename, 'wb') as f:
             dump(save, f)
+
+    def writeVacuumSetup(self, obj, write_matrices=False):
+        from h5py import File, Group
+
+        def save_csr(group, mat):
+            for var in ['data', 'indices', 'indptr']:
+                if var in group:
+                    del group[var]
+                group.create_dataset(var, data=mat.__getattribute__(var))
+            group.attrs['shape'] = mat.shape
+
+
+        variables = [
+            "nodeList",
+            "P",
+            "r_offset_plasma",
+            "r_offset_material",
+            "material_recycling",
+            "reflections",
+            "telematrix"
+        ]
+        csr = [
+            "R_matrix",
+            "C_matrix",
+            "A_matrix",
+            "B_matrix",
+            "AB_matrix",
+            "AB_power_A",
+        ]
+        # TODO: Storing CSR matrices?
+
+        if isinstance(obj, str):
+            f = File(obj, 'a')
+            vnm = f.require_group('vnm')
+        elif isinstance(obj, Group):
+            vnm = obj
+        else:
+            raise TypeError("Object must be Group or file name as string where to write.")
+
+        # Store regular data
+        for var in variables:
+            if var in vnm:
+                del vnm[var]
+            vnm.create_dataset(var, data=self.__getattribute__(var))
+        if write_matrices:
+            # Store CSR matrices
+            for mat in csr:
+                matgroup = vnm.require_group(mat)
+                save_csr(matgroup, self.__getattribute__(mat))
+        # Store pump setups
+        if len(self.pumping_regions) > 0:
+            pumps = vnm.require_group("pumps")
+        for pumpname, setup in self.pumping_regions.items():
+            pump = pumps.require_group(pumpname)
+            for var, data in setup.items():
+                if var not in ["polygon"]:
+                    if var in pump:
+                        del pump[var]
+                    pump.create_dataset(var, data=data)
+        # Stor puff setups
+        if len(self.puffs) > 0:
+            puffs = vnm.require_group("puffs")
+        for puffname, setup in self.puffs.items():
+            puff = puffs.require_group(puffname)
+            for var, data in setup.items():
+                if var not in ['point']:
+                    if var in puff:
+                        del puff[var]
+                    puff.create_dataset(var, data=data)    
+    
+        if isinstance(obj, str):
+            f.close()
 
     def checkContinuity(self, verbose=True):
         '''For identifying errors in flux unity for surfaces in the geometry.'''
@@ -822,6 +797,42 @@ class VacuumRegion:
     
 
         return ax.get_figure()
+
+    def heatmapPlot(self):
+        import numpy
+        from numpy import zeros, identity, percentile, log
+        from scipy.sparse import csr_array, block_array
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LogNorm
+        '''Creates a heatmap of C, R, and Transport matrices.'''
+
+        '''Print statements to check for unity of transport matrix.'''
+
+        # Plotting heatmaps of C, R, and Output (Transport)
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        fig.suptitle("Cosine Distribution", fontsize=16)
+
+        matricesToPlot = [self.C_array, self.R_array, self.telematrix]
+        matricesToPlotNames = ["C", "R", "Output"]
+        for i, ax in enumerate(axes):
+            sns.heatmap(matricesToPlot[i], cmap='jet', annot=False, ax=ax, norm=LogNorm(vmin=1e-5, vmax=1))
+            ax.set_title(matricesToPlotNames[i])
+            ax.set_aspect('equal')
+            if matricesToPlotNames[i] == "Output":
+                ax.set_xlabel("Source Surfaces")
+                ax.set_ylabel("Receiving Surfaces") 
+            else:
+                ax.set_xlabel("Receiving Surfaces") 
+                ax.set_ylabel("Source Surfaces")
+
+
+
+        plt.tight_layout()
+        plt.show(block=False) 
+
+        return self.telematrix
+
    
 class Surface:
 
