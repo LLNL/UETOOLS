@@ -115,6 +115,7 @@ class VNM_interface:
             'fngyo_use',
         ]
 
+    # TODO: add vnm.save to main save function
 
     def save_matrices(self, matrix_list, matrix_name_list, save_file_name, open_file=None): # helper
             """Saves matrices to hdf5 file (save file)."""
@@ -199,6 +200,7 @@ class VNM_interface:
         import h5py
         from numpy import zeros, hstack, vstack, pad
         from uedge import com, bbb
+        self.populate(verbose=False)
 
         self.nx = self.getue('nx')
         self.ixpt1 = self.getue('ixpt1')[0]
@@ -210,7 +212,6 @@ class VNM_interface:
             pf = pfr_nodes
         if sol_nodes is not None:
             main = sol_nodes
-
 
         if not isinstance(sol, (type(None), str, VacuumRegion)):
             raise TypeError("sol does not match any accepted type (None, str, VacuumRegion).") 
@@ -230,13 +231,12 @@ class VNM_interface:
             print("Using VacuumRegion provided for SOL")
             self.sol = sol
 
-        
-        if isinstance(sol, type(None)):
+        if isinstance(pfr, type(None)):
             print("Generating new PFR vacuum region")
             self.pfr = VacuumRegion(pf[0], P=pf[1] - 1, pump_setup=pfr_pump, puff_setup=sol_puff)
-            if isinstance(sol_savename, str):
+            if isinstance(pfr_savename, str):
                 self.pfr.saveVacuumRegion(pfr_savename)                
-        elif isinstance(sol, str):
+        elif isinstance(pfr, str):
             print("Restoring PFR vacuum region from pickle/HDF5")
             self.pfr = VacuumRegion(pfr, pump_setup=pfr_pump, puff_setup=pfr_puff, hdf5location=pfr_hdf5location)
         else:
@@ -295,9 +295,11 @@ class VNM_interface:
         self.set('fngyo_use', self.fngyo_use[:,:self.ngsp])
         # Plot setup if requested
         if plot_setup:
-            self.plot_grid(self.sol, self.pfr, pf_test_surf=[], label=False)
+            self.plot_grid(pf_test_surf=[], label=False)
 
-    def plot_grid(self, sol, pfr, sol_plot=True, pfr_plot=True, sol_test_surf=[], pf_test_surf=[], label=False):
+    def plot_grid(self, sol_plot=True, pfr_plot=True, sol_test_surf=[], pf_test_surf=[], label=False):
+        sol = self.sol
+        pfr = self.pfr
         if sol_plot and pfr_plot:
             m = sol.plotGeometry(labels=label, testsurf=sol_test_surf, showCircle=True)
             p = pfr.plotGeometry(labels=label, ax=m.get_axes()[0], testsurf=pf_test_surf, showCircle=True)
@@ -387,27 +389,29 @@ class VacuumRegion:
         self.r_offset_plasma = r_offset_plasma
         self.r_offset_material = r_offset_material
 
-        if is_hdf5(nodeList): # Restoring from HDF5 file
-            with File(nodeList, 'r') as f:
-                vnm = f[hdf5location]
-                for var in ['nodeList', 'P', 'r_offset_material', 'r_offset_plasma', 'reflections']:
-                    self.__setattr__(var, vnm[var][()])
-                if 'puffs' in vnm:
-                    puff_setup = {}
-                    for puffname in vnm['puffs'].keys():
-                        print("PUFFNAME", puffname)
-                        puff_setup[puffname] = {}
-                        for var in vnm['puffs'][puffname].keys():
-                            print("VAR", var)
-                            puff_setup[puffname][var] = vnm['puffs'][puffname][var][()]
-                if 'pumps' in vnm:
-                    pump_setup = {}
-                    for pumpname in vnm['pumps'].keys():
-                        pump_setup[pumpname] = {}
-                        for var in vnm['pumps'][pumpname].keys():
-                            pump_setup[pumpname][var] = vnm['pumps'][pumpname][var][()]
-                                    
+        if isinstance(nodeList, type(None)):
+            raise TypeError("nodeList cannot be None!")
     
+        if isinstance(nodeList, str):
+            if is_hdf5(nodeList): # Restoring from HDF5 file
+                with File(nodeList, 'r') as f:
+                    vnm = f[hdf5location]
+                    for var in ['nodeList', 'P', 'r_offset_material', 'r_offset_plasma', 'reflections']:
+                        self.__setattr__(var, vnm[var][()])
+                    if 'puffs' in vnm:
+                        puff_setup = {}
+                        for puffname in vnm['puffs'].keys():
+                            print("PUFFNAME", puffname)
+                            puff_setup[puffname] = {}
+                            for var in vnm['puffs'][puffname].keys():
+                                print("VAR", var)
+                                puff_setup[puffname][var] = vnm['puffs'][puffname][var][()]
+                    if 'pumps' in vnm:
+                        pump_setup = {}
+                        for pumpname in vnm['pumps'].keys():
+                            pump_setup[pumpname] = {}
+                            for var in vnm['pumps'][pumpname].keys():
+                                pump_setup[pumpname][var] = vnm['pumps'][pumpname][var][()]
 
         # TODO: add option to restore from HDF5 file
         starttime = time()
