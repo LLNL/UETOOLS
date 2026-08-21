@@ -148,17 +148,19 @@ class Save:
         None
         """
         # Bottom level of structure
-        if not isinstance(saveobj, dict):
+        if not isinstance(saveobj, dict): #) and (group[-1].lower() not in ['vnm']):
             # Special setup for saving setup parameters to store
             # actual set values of any setup parameters defined in input
             if group[0] == "setup":
                 variable = group.pop(-1)
-                if variable in [
+                # Custom UETOOLS decks
+                if variable.lower() in [
                     "userdifffname",
                     "radialdifffname",
                     "casename",
                     "commands",
                     "savefile",
+                    "vnm"
                 ]:
                     value = saveobj
                 # Exception for saving objects spawned without any input files
@@ -185,7 +187,14 @@ class Save:
         # Recursively go deeper in structure
         else:
             for key, value in saveobj.items():
-                if isinstance(key, int):
+                try:
+                    currentgroup = group[-1]
+                except:
+                    currentgroup = None
+                # Setup Custom UETOOLS group saves
+                if currentgroup in ['vnm']:
+                    return
+                elif isinstance(key, int):
                     # Save the full array once only
                     variable = group.pop(-1)
                     self.var(savefile, group, variable, self.getue(variable))

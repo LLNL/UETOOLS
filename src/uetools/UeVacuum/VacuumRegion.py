@@ -124,6 +124,7 @@ class VNM_interface:
         }
     
         # TODO: Test saves, restores, write-to-files, etc.
+        # TODO: Add switches for 
 
         def read_txt(file):
             nodes = []
@@ -148,6 +149,8 @@ class VNM_interface:
                 else:
                     if region['location'].lower() not in ['inner', 'outer']:
                         raise Exception("Region 'location' must be 'inner'/'outer'")
+                if 'isvacuummodel' not in region:
+                    raise Exception("Specify VNM model for species using isvacuummodel")
             regions = vnm_setup.pop('regions')
             # Split into generated/restored regions
             restore = [region for region in regions if region.get('restore')]
@@ -287,6 +290,7 @@ class VNM_interface:
                 name = region.pop('name')
             else:
                 name = len(regions)+1
+            isvacuummodel = region.pop('isvacuummodel')
             # Perform inner/outer setup
             location = region.pop('location').lower()
             if location == 'inner':
@@ -351,7 +355,7 @@ class VNM_interface:
             # Populate UEDGE cftelematrixw array
             self.set(f'cftelematrix{savekey[0]}', self.output[name]['telematrix'])
             # Turn on the VNM model in UEDGE
-            self.getue(f'isvacuummodel{savekey[0]}', cp=False)[0] = 1
+            self.set(f'isvacuummodel{savekey[0]}', isvacuummodel)
             self.set(f'cfteleout{savekey[0]}', 1.0)
             # Populate the puffing array
             self.set(f'fngy{savekey[1]}_use', self.output[name]['puff'][:,:self.ngsp])
@@ -392,7 +396,7 @@ class VNM_interface:
 
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump=None, puff=None, reflections=1e6, hdf5location="vnm", savename=None, **kwargs):
+    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump=None, puff=None, reflections=1e6, hdf5location="vnm", savename=None, isvacuummodel=None, **kwargs):
         """
         nodeList - str, list of nodes, or HDF5 file name
                 HDF5 - populates data based on hdf5location pointing to the vnm setup in
