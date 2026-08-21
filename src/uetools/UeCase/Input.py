@@ -40,7 +40,6 @@ class Input:
         self.surfaces = case.surfaces
         # Makes self.populate available in input files
         self.populate = case.populate
-        self.vnm = case.vnm
 
     def readhdf5(self, fname):
         """Reads the UEDGE input deck from setup group of HDF5
@@ -172,10 +171,14 @@ class Input:
                     raise ValueError(f"Input file could not be parsed: {e}")
         setup = deepcopy(self.variables["input"]["setup"])
         # Pop out groups that cannot be parsed by default
-        if "commands" in setup:
-            commands = setup.pop("commands")
-        if "detected" in setup:
-            detected = setup.pop("detected")
+        for entry in list(setup.keys()):
+            if "commands" == entry.lower():
+                commands = setup.pop(entry)
+            if "detected" == entry.lower():
+                detected = setup.pop(entry)
+            if "vnm" == entry.lower():
+                vnm = setup.pop(entry)
+                self.info["vnm"] = vnm
 
         # TODO: Add mist.dat as an optional parameter/etc to allow changing
         #       the name/path to the data file

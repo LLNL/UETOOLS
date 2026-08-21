@@ -97,7 +97,8 @@ class VacuumTests:
 
 
 class VNM_interface:
-    def __init__(self, case):
+    def __init__(self, case, vnm_setup):
+        from numpy import load, array
         if case.get('geometry')[0].strip().decode('UTF-8') not in ['snull', 'dnull']:
             raise Exception("VNM model only implemented for singe nulls geometries!")
         self.coupling = case.coupling
@@ -107,58 +108,93 @@ class VNM_interface:
         self.tools = case.tools
         self.getue = case.getue
         self.hdf5search = case.tools.hdf5search
-        self.uevars = [
-            'isvacuummodelw',
-            'cfteleoutw',
-            'cftelematrixw',
-            'isvacuummodelpf',
-            'cfteleoutpf',
-            'cftelematrixpf',
-            'fngyi_use',
-            'fngyo_use',
-        ]
+        self.uevars = {
+            'inner': [
+                'isvacuummodelpf',
+                'cfteleoutpf',
+                'cftelematrixpf',
+                'fngyi_use',
+            ],
+            'outer': [
+                'isvacuummodelw',
+                'cfteleoutw',
+                'cftelematrixw',
+                'fngyo_use',
+            ]
+        }
+    
+        # TODO: Test saves, restores, write-to-files, etc.
 
-    # TODO: add vnm.save to main save function
+        def read_txt(file):
+            nodes = []
+            with open(file) as f:
+                for line in f:
+                    nodes.append(
+                            tuple(
+                                [float(x) for x in line.replace(',',' ').strip().split(' ')]
+                    ))
+            return nodes
 
-    def save_matrices(self, matrix_list, matrix_name_list, save_file_name, open_file=None): # helper
-            """Saves matrices to hdf5 file (save file)."""
-            import h5py
-
-            def save_helper(f):
-                subgroup = f.require_group('vnm/bbb')
-                for name, matrix in zip(matrix_name_list, matrix_list):
-                    if hasattr(matrix, 'toarray'):
-                        matrix = matrix.toarray()
-                    if name in subgroup:
-                        if subgroup[name].shape == matrix.shape:
-                            subgroup[name][...] = matrix
+        # Parse VNM setup - determine whether to pass to restore or generate
+        if vnm_setup is not None:
+            if not isinstance(vnm_setup, dict):
+                raise TypeError("vnm_setup must be dict")
+            if "regions" not in vnm_setup:
+                raise Exception("At least one region must be defined")
+            # Check that regions are present and satifsy requirements
+            for region in vnm_setup['regions']:
+                if "location" not in region:
+                    raise Exception("Region must have 'location' set to 'inner'/'outer'")
+                else:
+                    if region['location'].lower() not in ['inner', 'outer']:
+                        raise Exception("Region 'location' must be 'inner'/'outer'")
+            regions = vnm_setup.pop('regions')
+            # Split into generated/restored regions
+            restore = [region for region in regions if region.get('restore')]
+            generate = [region for region in regions if not region.get('restore')]
+            # Restore regions from save file as requested
+            for region in restore:
+                self.restore(region['savefile'], self.uevars[region['location']])
+            # Check generated regions satisfy conditions
+            for region in generate:
+                if 'nodes' in region:
+                    if "savefile" in region:
+                        raise Exception("Either specify save file or node list" +
+                        f" for {region['name']}, not both!")
+                    if isinstance(region['nodes'], str):
+                        try:
+                            region['nodes'] = load(region['nodes'])
+                        except:
+                            region['nodes'] = array(read_txt(region['nodes']))
+                if 'pump' in region:
+                    for pump in region['pump']:
+                        if isinstance('nodes', str):
+                            try:
+                                pump['nodes'] = load(pump['nodes'])
+                            except:
+                                pump['nodes'] = array(read_txt(pump['nodes']))
                         else:
-                            del subgroup[name]
-                            subgroup.create_dataset(name, data=matrix)
-                    else:
-                        subgroup.create_dataset(name, data=matrix)
+                            # TODO: Assert pump nodes are OK
+                            1 
+            if len(generate) > 0: 
+                self.generate(generate, **vnm_setup) 
+         
 
-            if open_file is not None:
-                save_helper(open_file)
-            else:
-                with h5py.File(save_file_name, 'a') as f:
-                    save_helper(f)
-
-    def restore(self, save_file=None, sol_puff_dict=None):
+    def restore(self, save_file, restore_vars=None):
         """Restores existing telematrices from the provided save file, and calculates puffing input arrays if desired.
         Uses the current save file if none is provided.
-        - sol_puff_dict = {'point': __, 'current': __, 'region':__}
-         'region' is optional-- pass in a pkl save of a VacuumRegion or a previously loaded VacuumRegion
         """
         import h5py
         import warnings
         import numpy
         from uedge import com, bbb
 
-        if save_file == None:
+        if restore_vars is None:
+            restore_vars = self.uevars['inner'] + self.uevars['outer']
+        if save_file is None:
             save_file = self.info['savefile']
     
-        for var in self.uevars:
+        for var in restore_vars:
             val = self.hdf5search(save_file, var)
             if val is None:
                 raise Exception(f"Variable '{var}' not found in {save_file}!")
@@ -169,169 +205,167 @@ class VNM_interface:
 
 
 
-    def generate(self, sol=None, pfr=None, sol_savename=None, 
-                 sol_pump=None, pfr_pump=None, pfr_savename=False, plot_setup=False, pfr_nodes=None,
-                 sol_nodes=None, sol_hdf5location=None, pfr_hdf5location=None,
-                 overwrite=False, sol_puff=None, pfr_puff=None,
-                 vnm_sol=True, vnm_pfr=True, kwargs_sol={}):
+    def generate(self, regions, overwrite=False, maxlength=0.01, plot=False):
+        ''' 
+            region_setup,
+            overwrite = False,
+            maxlength = 0.01,
+                sol=False, 
+                sol_savename=None, 
+                sol_nodes=None, 
+                sol_hdf5location=None, 
+                sol_puff=None, 
+                sol_pump=None, 
+                vnm_sol=True, 
+                pfr=False, 
+                pfr_pump=None, 
+                pfr_savename=False, 
+                plot_setup=False, 
+                pfr_nodes=None,
+                pfr_hdf5location=None,
+                pfr_puff=None,
+                vnm_pfr=True, 
+                kwargs_sol={}):
+        '''
         """Generates telematrices for given VacuumRegions.
         
-        Keyword arguments:
-        - sol -- VacuumRegion save of the main SOL; can be a pkl file name (default None).
-         If none, a new VacuumRegion will be loaded. If a pkl file name is passed in, that pkl save VacuumRegion will be used.
-        - pfr -- VacuumRegion save of the private flux region; can be a pkl file (default None).
-         If none, a new VacuumRegion will be loaded. If a pkl file name is passed in, that pkl save VacuumRegion will be used.
-        - save_file -- save file used to generate the Case. Uses the current save file if none are provided (default None).
-        - sol_puff_dict -- {'point': __, 'current': __} (default None).
-         'point' is a coordinate that identifies the location of the gas puff.
-         'current' is a value that determines the strength of the gas puff.
-        - sol_pump_dict -- {'box_coords':__, 'albedo':__} (default None).
-         'box_coords' should be a list of four or more coordinates that create a box around the pumping portion.
-           Note: even if the full surfaces is not within the box, it will be counted as a pumping surface. Additionally, if not enough points are provided for a box (3 or less),
-           all wall surfaces in the region will be taken as pumping with the specified albedo.
-         'albedo' is a value between 0 and 1 that determines the strength of the pumping
-        - pfr_pump -- 
-         Same logic as sol_pump_dict.
-        - save -- if True, will save new pkl file with names 'SOL_Vacuum.pkl' and 'PFR_Vacuum.pkl' (default False).
-        - pump_plot -- if True, plots the pumping surfaces (default True).
-        - pfr_nodes -- set of user supplied points to define the private flux region (default None).
-                Tuple continaing a list of (x,y) pair nodes as the first entry and
-                the number of leading plasma surfaces as the second entry
-        - sol_nodes -- ditto for the SOL region
-        - overwrite -- decides whether or not to write generated matrices into save file (default False).
+                  Keyword arguments:
+        sol - dict/None/False (default = False)
+            Setup for main-SOL, definingt the main-SOL model. If False,
+            VNM is not used for SOL. If None, SOL VNM is generated from UEDGE
+            data. If dictionary, VNM is created based on the dictionary settings.
+            Dictionary keys available:
+                savefile - path to pickle/HDF5 file containing SOL VNM save
+                hdf5location - (default: vnm/sol) 
+                        string pointing to the location of the SOL VNM setup in 
+                        the HDF5 if savefile is an HDF5
+                picklename - name of file where VNM for SOL is pickled
+                pump_setup - nested setup dictionary for SOL pumping surface
+                    Pump setting keys:
+                    name - defines the pump key name, contains dict with follwoing keys:
+                        type - defines the pump setup type. Available options "region"
+                        region options:
+                        nodes (required) - nodes defining polygon of region: must define 
+                                open plygon shape, minimum 3 node (x,y) pairs
+                        recycling (required) - recycling coefficient for surfaces intersecting
+                                with pump region 
+                puff_setup - nested setup dictionary for puff setup type. Available options "point"
+                    Puff settings keys:
+                    name - defines the puff key name, contains the following keys
+                    type - defines the puff type. Available options: 'point'
+                        point options:
+                        location - (R, Z) coordinate of puff. Puff automatically assigned
+                            to the surface closest to location.
+                        current - puff strength in part/s
+                nodes - list of SOL nodes to replace the automatically generated ones
+                    from the UEDGE case
+                recycling - recycling coefficient for SOL (default = 1)
+        pfr - ditto for the PFR vacuum region
+        overwrite -- decides whether or not to write generated matrices into save file (default False).
         """
 
         import h5py
         from numpy import zeros, hstack, vstack, pad
         from uedge import com, bbb
         self.populate(verbose=False)
+        self.regions = []
+
 
         self.nx = self.getue('nx')
         self.ixpt1 = self.getue('ixpt1')[0]
         self.ixpt2 = self.getue('ixpt2')[0]
         self.ngsp = self.getue('ngsp')  
         self.nx = self.getue('nx')
-        (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
-        self.box_loop = True
-        self.vnm_sol = vnm_sol
-        self.vnm_pfr = vnm_pfr
-        if pfr_nodes is not None: ########
-            pf = pfr_nodes
-        if sol_nodes is not None:
-            main = sol_nodes
-
-        # TODO: Add controls for impurity/gas species VNM settings
-
+        (sol_nodes, pfr_nodes) = self.coupling.get_snull_vacuum_regions(maxlength=maxlength)
+        self.nodes = {'inner': pfr_nodes, 'outer': sol_nodes}
+        self.regions = {}
+        self.output = {}
         dimension = self.nx+2
-        self.cftelematrixw_full = zeros((dimension, dimension, 6))
-        self.cftelematrixpf_full = zeros((dimension, dimension, 6))
-        self.fngyso_full = zeros((dimension,self.ngsp))#, self.ngsp))
-        self.fngysi_full = zeros((dimension,self.ngsp))#, self.ngsp))
-
-        if not isinstance(sol, (type(None), str, VacuumRegion)):
-            raise TypeError("sol does not match any accepted type (None, str, VacuumRegion).") 
-        if not isinstance(pfr, (type(None), str, VacuumRegion)):
-            raise TypeError("pfr does not match any accepted type (None, str, VacuumRegion).")       
-
-        # Turn on VNM for the SOL
-        if self.vnm_sol:
-            if isinstance(sol, type(None)):
-                print("Generating new SOL vacuum region")
-                self.sol = VacuumRegion(main[0], P=main[1], pump_setup=sol_pump, puff_setup=sol_puff, **kwargs_sol)
-                if isinstance(sol_savename, str):
-                    self.sol.saveVacuumRegion(sol_savename)                
-            elif isinstance(sol, str):
-                print("Restoring SOL vacuum region from pickle/HDF5")
-                self.sol = VacuumRegion(sol, pump_setup=sol_pump, puff_setup=sol_puff, hdf5location=sol_hdf5location, **kwargs_sol)
-                # TODO: store and load more data from pickle 
-            else: 
-                print("Using VacuumRegion provided for SOL")
-                self.sol = sol
-            self.cftelematrixw = pad(self.sol.telematrix.transpose(), pad_width=1)
-            self.puff_vectorw = self.sol.puff_vector
-            # Pad SOL puffing array
-            self.fngyo_use = vstack([
-                zeros((1,6)),
-                self.puff_vectorw,
-                zeros((1,6)),
-            ])        
-            # Populate local cftelematrixw
-            for j in range(6):
-                self.cftelematrixw_full[ :, :, j] = self.cftelematrixw
-            # Populate UEDGE cftelematrixw array
-            self.set('cftelematrixw', self.cftelematrixw_full)
-            # Turn on the VNM model in UEDGE
-            self.getue('isvacuummodelw', cp=False)[0] = 1
-            self.set('cfteleoutw', 1.0)
-            # Populate the puffing array
-            self.set('fngyo_use', self.fngyo_use[:,:self.ngsp])
-
-        # Turn on the VNM for the PFR
-        if self.vnm_pfr:
-            if isinstance(pfr, type(None)):
-                print("Generating new PFR vacuum region")
-                self.pfr = VacuumRegion(pf[0], P=pf[1] - 1, pump_setup=pfr_pump, puff_setup=sol_puff)
-                if isinstance(pfr_savename, str):
-                    self.pfr.saveVacuumRegion(pfr_savename)                
-            elif isinstance(pfr, str):
-                print("Restoring PFR vacuum region from pickle/HDF5")
-                self.pfr = VacuumRegion(pfr, pump_setup=pfr_pump, puff_setup=pfr_puff, hdf5location=pfr_hdf5location)
+        # TODO: Add controls for impurity/gas species VNM settings
+        for region in regions:
+            if 'name' in region:
+                name = region.pop('name')
             else:
-                print("Using VacuumRegion provided for PFR")
-                self.pfr = pfr
-            self.cftelematrixpf = pad(self.pfr.telematrix.transpose(), pad_width=1)
-            self.puff_vectorpf = self.pfr.puff_vector
-
-            # Expand PF matrix  along core cut: get dimensions and mismatch
-            dimpf = len(self.cftelematrixpf)
-            dim_expand = dimension - dimpf
-            # Expand PF matrix along vertical axis
-            cftelematrixpf_full = vstack([
-                self.cftelematrixpf[:self.ixpt1+1],
-                zeros((dim_expand, dimpf)), 
-                self.cftelematrixpf[self.ixpt1+1:]   
-            ])
-            # Expand PF matrix along horizontal axis
-            cftelematrixpf_full = hstack([
-                cftelematrixpf_full[:, :self.ixpt1+1],
-                zeros((dimension, dim_expand)),
-                cftelematrixpf_full[:, self.ixpt1+1:],
-            ])
-            # Expand and pad PF puffing array
-            self.fngyi_use = vstack([
-                zeros((1,6)),
-                self.puff_vectorpf[:self.ixpt1],
-                zeros((dim_expand, 6)),
-                self.puff_vectorpf[self.ixpt1:],
-                zeros((1,6)),
-            ])        
-            # Populate local cftelematrixpf
-            for j in range(6):
-                self.cftelematrixpf_full[ :, :, j] = cftelematrixpf_full
+                name = len(regions)+1
+            # Perform inner/outer setup
+            location = region.pop('location').lower()
+            if location == 'inner':
+                P = self.ixpt1 + (self.nx - self.ixpt2)
+                savekey = ('pf', 'i')
+            else:
+                P = self.nx
+                savekey = ('w', 'o')
+            self.output[name] = {
+                'telematrix': zeros((dimension, dimension, 6)),
+                'puff': zeros((dimension, self.ngsp))
+            }
+            vnm = self.nodes[location]
+            if 'savefile' in region:
+                print(f"Restoring vacuum region '{name}' from pickle/HDF5")
+                vnm = region.pop('savefile')
+            elif 'nodes' in region:
+                print(f"Generating vacuum region '{name}' from user-defined nodes")
+                vnm = region.pop('nodes')
+            else:
+                print(f"Generating new vacuum region '{name}'")
+            self.regions[name] = VacuumRegion(vnm, P=P, **region)
+                 
+            if location == 'inner':
+                # Expand PF matrix  along core cut: get dimensions and mismatch
+                dim_expand = dimension - P - 2
+                tele = pad(self.regions[name].telematrix.transpose(), pad_width=1)
+                # Expand PF matrix along vertical axis
+                tele = vstack([
+                    tele[:self.ixpt1+1],
+                    zeros((dim_expand, P + 2)), 
+                    tele[self.ixpt1+1:]   
+                ])
+                # Expand PF matrix along horizontal axis
+                tele = hstack([
+                    tele[:, :self.ixpt1+1],
+                    zeros((dimension, dim_expand)),
+                    tele[:, self.ixpt1+1:],
+                ])
+                for j in range(6):
+                    self.output[name]['telematrix'][:,:,j] = tele
+                # Expand and pad PF puffing array
+                self.output[name]['puff'] = vstack([
+                    zeros((1,6)),
+                    self.regions[name].puff_vector[:self.ixpt1],
+                    zeros((dim_expand, 6)),
+                    self.regions[name].puff_vector[self.ixpt1:],
+                    zeros((1,6)),
+                ])        
+            else:
+                # Populate local pump
+                self.output[name]['puff'] = vstack([
+                        zeros((1,6)),
+                        self.regions[name].puff_vector,
+                        zeros((1,6)),
+                    ])  
+                for j in range(6):
+                    self.output[name]['telematrix'][:,:,j] = pad(
+                                    self.regions[name].telematrix.transpose(), 
+                                    pad_width=1
+                    )
+            # Populate UEDGE cftelematrixw array
+            self.set(f'cftelematrix{savekey[0]}', self.output[name]['telematrix'])
             # Turn on the VNM model in UEDGE
-            self.getue('isvacuummodelpf', cp=False)[0] = 1
-            self.set('cfteleoutpf', 1.0)
-            # Populate UEDGE cftelematrixpf array
-            self.set('cftelematrixpf', self.cftelematrixpf_full)
+            self.getue(f'isvacuummodel{savekey[0]}', cp=False)[0] = 1
+            self.set(f'cfteleout{savekey[0]}', 1.0)
             # Populate the puffing array
-            self.set('fngyi_use', self.fngyi_use[:,:self.ngsp])
+            self.set(f'fngy{savekey[1]}_use', self.output[name]['puff'][:,:self.ngsp])
 
         # Plot setup if requested
-        if plot_setup:
+        if plot:
             self.plot_grid(pf_test_surf=[], label=False)
 
-    def plot_grid(self, sol_plot=True, pfr_plot=True, sol_test_surf=[], pf_test_surf=[], label=False):
-        sol = self.sol
-        pfr = self.pfr
-        if sol_plot and pfr_plot:
-            m = sol.plotGeometry(labels=label, testsurf=sol_test_surf, showCircle=True)
-            p = pfr.plotGeometry(labels=label, ax=m.get_axes()[0], testsurf=pf_test_surf, showCircle=True)
-        elif sol_plot:
-            m = sol.plotGeometry(labels=label, testsurf=sol_test_surf, showCircle=True)
-        elif pfr_plot:
-            p = pfr.plotGeometry(labels=label, testsurf=pf_test_surf, showCircle=True)
+    def plot_grid(self, sol_plot=True, pfr_plot=True, sol_test_surf=[], pf_test_surf=[], label=False, **kwargs):
+        from matplotlib.pyplot import subplots
+        f, ax = subplots()
+        for regionname, region in self.regions.items():
+            region.plotGeometry(labels=label, ax=ax, **kwargs)
 
-        # input("Press 'Enter' to close plots.")   
 
     def save_hdf5(self, file, **kwargs):
         ''' Saves VNM data to HDF5 '''
@@ -358,7 +392,7 @@ class VNM_interface:
 
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump_setup=None, puff_setup=None, reflections=1e6, hdf5location=None, **kwargs):
+    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump=None, puff=None, reflections=1e6, hdf5location="vnm", savename=None, **kwargs):
         """
         nodeList - str, list of nodes, or HDF5 file name
                 HDF5 - populates data based on hdf5location pointing to the vnm setup in
@@ -421,20 +455,18 @@ class VacuumRegion:
                     vnm = f[hdf5location]
                     for var in ['nodeList', 'P', 'r_offset_material', 'r_offset_plasma', 'reflections']:
                         self.__setattr__(var, vnm[var][()])
-                    if 'puffs' in vnm:
-                        puff_setup = {}
+                    if 'puff' in vnm:
+                        setup = {}
                         for puffname in vnm['puffs'].keys():
-                            print("PUFFNAME", puffname)
-                            puff_setup[puffname] = {}
+                            puff[puffname] = {}
                             for var in vnm['puffs'][puffname].keys():
-                                print("VAR", var)
-                                puff_setup[puffname][var] = vnm['puffs'][puffname][var][()]
-                    if 'pumps' in vnm:
-                        pump_setup = {}
+                                puff[puffname][var] = vnm['puffs'][puffname][var][()]
+                    if 'pump' in vnm:
+                        pump = {}
                         for pumpname in vnm['pumps'].keys():
-                            pump_setup[pumpname] = {}
+                            pump[pumpname] = {}
                             for var in vnm['pumps'][pumpname].keys():
-                                pump_setup[pumpname][var] = vnm['pumps'][pumpname][var][()]
+                                pump[pumpname][var] = vnm['pumps'][pumpname][var][()]
 
         # TODO: add option to restore from HDF5 file
         starttime = time()
@@ -509,24 +541,28 @@ class VacuumRegion:
         self.R_array[self.P:] = self.material_recycling
 
         """ Loop through any pumping regions """
-        self.pumping_regions = {}
-        if pump_setup is not None:
-            self.pump_setup = pump_setup
-            for region_name, data in pump_setup.items():
-                self.pumping_regions[region_name] = self.create_pump_region(data, region_name)
+        self.pumping_regions = []
+        if pump is not None:
+            self.pump = pump
+            for _pump in pump:
+                self.pumping_regions.append(self.create_pump_region(_pump))
         
         """ Compile Transport Matrix Method matrices """
         self.matrices()
         self.createTeleMatrix()
 
         """ Loop through any puffs """
-        self.puffs = {}
+        self.puffs = []
         self.puff_vector = zeros((self.P,6))
-        if puff_setup is not None:
-            self.puff_setup = puff_setup
-            for puff_name, data in puff_setup.items():
-                self.puffs[puff_name] = self.create_puff(data, puff_name)
-                self.puff_vector[:,data['igsp']] += self.puffs[puff_name]['puff_vector'].flatten()
+        if puff is not None:
+            self.puff = puff
+            for _puff in puff:
+                self.puffs.append(self.create_puff(_puff))
+                self.puff_vector[:,_puff['igsp']] += self.puffs[-1]['puff_vector'].flatten()
+        
+        """ Save to pickle if requested """
+        if savename is not None:
+            self.save(savename)
 
         '''Print statements to use if surfaces are not conserving flux via line of sight.'''
         # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
@@ -606,18 +642,18 @@ class VacuumRegion:
             for j in range(self.P):
                 self.telematrix[j, i] = gammaFinal[j]
 
-    def create_puff(self, puff_setup, puff_name):
+    def create_puff(self, puff_setup):
         from shapely import Point
         from numpy import argsort, zeros
         if "type" not in puff_setup:
-            raise KeyError(f"Define a puff type for {puff_name}")
+            raise KeyError(f"Define a puff type")
         ret = {'type': puff_setup["type"]}
         
         if puff_setup['type'] == "point":
             for key in ['location', 'current', 'igsp']:
                 if key not in puff_setup:
                     raise KeyError("Required 'point' puff setup entry"+
-                        f" '{key}' not found for {puff_name}.")
+                        f" '{key}' not found.")
             try:
                 ret['point'] = Point(puff_setup['location'])
             except Exception:
@@ -633,21 +669,21 @@ class VacuumRegion:
             ret['puff_vector'] = (self.AB_power_A @ drive)[self.numSurfaces:][:self.P]
             
         else:
-            raise KeyError(f"Puff type '{pump_setup['type']}' not recognized for {puff_name}!" +
+            raise KeyError(f"Puff type '{pump_setup['type']}' not recognized!" +
                 "\nAvailable options are: 'point'")
         return ret
 
-    def create_pump_region(self, pump_setup, pump_name):
+    def create_pump_region(self, pump_setup):
         from shapely import Polygon, intersects, Point
         if "type" not in pump_setup:
-            raise KeyError(f"Define a pump type for {pump_name}")
+            raise KeyError(f"Define a pump type")
         ret = {"type": pump_setup['type']}
 
         if pump_setup['type'] == "region":
             for key in ['nodes', 'recycling']:
                 if key not in pump_setup:
                     raise KeyError("Required 'region' pump setup entry"+
-                        f" '{key}' not found for {pump_name}.")
+                        f" '{key}' not found.")
             if len(pump_setup['nodes'])<3:
                 raise AttributeError("Too few nodes provided: provide "+
                     "at least three nodes for Polygon!")
@@ -660,7 +696,7 @@ class VacuumRegion:
                     self.R_array[i] = ret["recycling"]
                     ret['pumped_segments'].append(i) 
         else:
-            raise KeyError(f"Pump type '{pump_setup['type']}' not recognized for {pump_name}!" +
+            raise KeyError(f"Pump type '{pump_setup['type']}' not recognized!" +
                 "\nAvailable options are: 'region'")
         return ret
 
@@ -798,11 +834,11 @@ class VacuumRegion:
         c = 0
         N_regions = len(self.pumping_regions) + len(self.puffs)
         colors = [plt.get_cmap("rainbow")(i/N_regions) for i in range(N_regions)]
-        for key, region in self.pumping_regions.items():
+        for region in self.pumping_regions:
             for i in region['pumped_segments']:
                 self.surfaces[i].plotSelf(color=colors[c], ax=ax, showCircle=False)
             c += 1
-        for key, puff in self.puffs.items():
+        for puff in self.puffs:
             ax.plot(puff['point'].xy[0][0], puff['point'].xy[1][0], 'o', color=colors[c])
             self.surfaces[puff['material_surface_index']].plotSelf(color=colors[c], ax=ax, showCircle=False)
             c += 1
@@ -811,7 +847,7 @@ class VacuumRegion:
 
 
         for line in ax.lines:
-            line.set_marker(".")
+            line.set_marker("")
 
         ax.set_aspect('equal')
         ax.grid(False)

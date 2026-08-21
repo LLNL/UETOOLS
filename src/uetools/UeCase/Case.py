@@ -292,6 +292,8 @@ class Case:
                 "fngyso",
             ]
         }
+        # Input groups to skip reloading - non-UEDGE variables
+        self.reload_omit = ['commands', 'vnm'] 
         # Assert input file exists before proceeding
         if filename is not None:
             if not exists(filename):
@@ -370,6 +372,7 @@ class Case:
             "use_mutex": None,
             "session_id": None,
             "exmain_evals": None,
+            "vnm": None,
         }
         # Link top-level classes to Case
         self.tools = Tools()
@@ -425,8 +428,6 @@ class Case:
         self.grid = Grid(self)
         self.about = AboutSetup(self)
         self.cherab = Cherab(self)
-        self.vnm = VNM_interface(self)
-        self.savefuncs.save_vnm = self.vnm.save_hdf5 # Monkey-patch
         self.input = Input(self)
         # Set up paths from config file
         self.config.case(verbose=False)
@@ -494,6 +495,11 @@ class Case:
             self.solver = Solver(self)
             self.continuation_solve = self.solver.continuation_solve
             self.converge = self.solver.converge
+            self.vnm = VNM_interface(self, self.info['vnm'])
+            try:
+                self.vnm = VNM_interface(self, self.info['vnm'])
+            except:
+                pass
             
         self.plot = Caseplot(self)
 
@@ -634,21 +640,21 @@ class Case:
 #                        print(key, value)
                         recursivereload(value, group + [key])
 
-        # Pop out any custom commands, as these cannot be reloaded (not vars)
-        try:
-            commands = self.variables["input"]["setup"].pop("commands")
-        except:
-            pass
+        # Pop out any custom grpups, as these cannot be reloaded (not uedge vars)
+        buffer = {}
+        for omitgroup in self.reload_omit:
+            try:
+                buffer[omitgroup] = self.variables["input"]["setup"].pop(omitgroup)
+            except:
+                pass
         # Reload the variables recurively
         if group is None:
             recursivereload(self.variables["input"])
         else:
             recursivereload(self.variables["input"][group], [group])
         # If there were any custom commands, put them back where they belong
-        try:
-            self.variables["input"]["setup"]["commands"] = commands
-        except:
-            pass
+        for omitgroup, data in buffer.items():
+            self.variables["input"]["setup"][omitgroup] = data
         # Update the dict containing the package containing each variable
         for variable in self.variables["stored"].keys():
             if variable not in self.variables["package"]:

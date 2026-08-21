@@ -260,10 +260,6 @@ class Save:
                 self.recursive(savefile, self.variables["input"])
             else:
                 self.recursive(savefile, self.variables["input"][group], [group])
-            self.save_vnm(savefile, **kwargs)
-
-        # check self . vnm exists
-        # if yes then save using with same way as in the vnm interface
 
     def dump(self, savefname, **kwargs):
         """Dumps all variables to savefname
