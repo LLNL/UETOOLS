@@ -108,9 +108,12 @@ class VNM_interface:
         self.getue = case.getue
         self.hdf5search = case.tools.hdf5search
         self.uevars = [
-            'isvacuummodel',
-            'cfteleout',
-            'cftelematrix',
+            'isvacuummodelw',
+            'cfteleoutw',
+            'cftelematrixw',
+            'isvacuummodelpf',
+            'cfteleoutpf',
+            'cftelematrixpf',
             'fngyi_use',
             'fngyo_use',
         ]
@@ -161,7 +164,7 @@ class VNM_interface:
                 raise Exception(f"Variable '{var}' not found in {save_file}!")
             self.set(var, val)
         self.populate()
-        print("Successfully restored VNM from {save_file}")
+        print(f"Successfully restored VNM from {save_file}")
         return
 
 
@@ -169,7 +172,8 @@ class VNM_interface:
     def generate(self, sol=None, pfr=None, sol_savename=None, 
                  sol_pump=None, pfr_pump=None, pfr_savename=False, plot_setup=False, pfr_nodes=None,
                  sol_nodes=None, sol_hdf5location=None, pfr_hdf5location=None,
-                 overwrite=False, sol_puff=None, pfr_puff=None):
+                 overwrite=False, sol_puff=None, pfr_puff=None,
+                 vnm_sol=True, vnm_pfr=True, kwargs_sol={}):
         """Generates telematrices for given VacuumRegions.
         
         Keyword arguments:
@@ -205,94 +209,113 @@ class VNM_interface:
         self.nx = self.getue('nx')
         self.ixpt1 = self.getue('ixpt1')[0]
         self.ixpt2 = self.getue('ixpt2')[0]
-        self.ngsp = self.getue('ngsp')
+        self.ngsp = self.getue('ngsp')  
+        self.nx = self.getue('nx')
         (main, pf) = self.coupling.get_snull_vacuum_regions(maxlength=0.0087)
         self.box_loop = True
+        self.vnm_sol = vnm_sol
+        self.vnm_pfr = vnm_pfr
         if pfr_nodes is not None: ########
             pf = pfr_nodes
         if sol_nodes is not None:
             main = sol_nodes
+
+        # TODO: Add controls for impurity/gas species VNM settings
+
+        dimension = self.nx+2
+        self.cftelematrixw_full = zeros((dimension, dimension, 6))
+        self.cftelematrixpf_full = zeros((dimension, dimension, 6))
+        self.fngyso_full = zeros((dimension,self.ngsp))#, self.ngsp))
+        self.fngysi_full = zeros((dimension,self.ngsp))#, self.ngsp))
 
         if not isinstance(sol, (type(None), str, VacuumRegion)):
             raise TypeError("sol does not match any accepted type (None, str, VacuumRegion).") 
         if not isinstance(pfr, (type(None), str, VacuumRegion)):
             raise TypeError("pfr does not match any accepted type (None, str, VacuumRegion).")       
 
-        if isinstance(sol, type(None)):
-            print("Generating new SOL vacuum region")
-            self.sol = VacuumRegion(main[0], P=main[1], pump_setup=sol_pump, puff_setup=sol_puff)
-            if isinstance(sol_savename, str):
-                self.sol.saveVacuumRegion(sol_savename)                
-        elif isinstance(sol, str):
-            print("Restoring SOL vacuum region from pickle/HDF5")
-            self.sol = VacuumRegion(sol, pump_setup=sol_pump, puff_setup=sol_puff, hdf5location=sol_hdf5location)
-            # TODO: store and load more data from pickle 
-        else: 
-            print("Using VacuumRegion provided for SOL")
-            self.sol = sol
+        # Turn on VNM for the SOL
+        if self.vnm_sol:
+            if isinstance(sol, type(None)):
+                print("Generating new SOL vacuum region")
+                self.sol = VacuumRegion(main[0], P=main[1], pump_setup=sol_pump, puff_setup=sol_puff, **kwargs_sol)
+                if isinstance(sol_savename, str):
+                    self.sol.saveVacuumRegion(sol_savename)                
+            elif isinstance(sol, str):
+                print("Restoring SOL vacuum region from pickle/HDF5")
+                self.sol = VacuumRegion(sol, pump_setup=sol_pump, puff_setup=sol_puff, hdf5location=sol_hdf5location, **kwargs_sol)
+                # TODO: store and load more data from pickle 
+            else: 
+                print("Using VacuumRegion provided for SOL")
+                self.sol = sol
+            self.cftelematrixw = pad(self.sol.telematrix.transpose(), pad_width=1)
+            self.puff_vectorw = self.sol.puff_vector
+            # Pad SOL puffing array
+            self.fngyo_use = vstack([
+                zeros((1,6)),
+                self.puff_vectorw,
+                zeros((1,6)),
+            ])        
+            # Populate local cftelematrixw
+            for j in range(6):
+                self.cftelematrixw_full[ :, :, j] = self.cftelematrixw
+            # Populate UEDGE cftelematrixw array
+            self.set('cftelematrixw', self.cftelematrixw_full)
+            # Turn on the VNM model in UEDGE
+            self.getue('isvacuummodelw', cp=False)[0] = 1
+            self.set('cfteleoutw', 1.0)
+            # Populate the puffing array
+            self.set('fngyo_use', self.fngyo_use[:,:self.ngsp])
 
-        if isinstance(pfr, type(None)):
-            print("Generating new PFR vacuum region")
-            self.pfr = VacuumRegion(pf[0], P=pf[1] - 1, pump_setup=pfr_pump, puff_setup=sol_puff)
-            if isinstance(pfr_savename, str):
-                self.pfr.saveVacuumRegion(pfr_savename)                
-        elif isinstance(pfr, str):
-            print("Restoring PFR vacuum region from pickle/HDF5")
-            self.pfr = VacuumRegion(pfr, pump_setup=pfr_pump, puff_setup=pfr_puff, hdf5location=pfr_hdf5location)
-        else:
-            print("Using VacuumRegion provided for PFR")
-            self.pfr = pfr
-        
-        self.cftelematrix = pad(self.sol.telematrix.transpose(), pad_width=1)
-        self.cftelematrix_pf = pad(self.pfr.telematrix.transpose(), pad_width=1)
-        self.puff_vector = self.sol.puff_vector
-        self.puff_vector_pf = self.pfr.puff_vector
-        # Expand PF matrix  along core cut: get dimensions and mismatch
-        dimension = len(self.cftelematrix)
-        dimpf = len(self.cftelematrix_pf)
-        dim_expand = dimension - dimpf
-        # Expand PF matrix along vertical axis
-        cftelematrix_pf_full = vstack([
-            self.cftelematrix_pf[:self.ixpt1+1],
-            zeros((dim_expand, dimpf)), 
-            self.cftelematrix_pf[self.ixpt1+1:]   
-        ])
-        # Expand PF matrix along horizontal axis
-        cftelematrix_pf_full = hstack([
-            cftelematrix_pf_full[:, :self.ixpt1+1],
-            zeros((dimension, dim_expand)),
-            cftelematrix_pf_full[:, self.ixpt1+1:],
-        ])
-        # Expand puffing arrays along horizontal axis
-        self.fngyi_use = vstack([
-            zeros((1,6)),
-            self.puff_vector_pf[:self.ixpt1],
-            zeros((dim_expand, 6)),
-            self.puff_vector_pf[self.ixpt1:],
-            zeros((1,6)),
-        ])        
-        self.fngyo_use = vstack([
-            zeros((1,6)),
-            self.puff_vector[:self.ixpt1],
-            self.puff_vector[self.ixpt1:],
-            zeros((1,6)),
-        ])        
-        # Populate local cftelematrix
-        self.cftelematrix_full = zeros((2, dimension, dimension, 6))
-        self.fngyso_full = zeros((dimension,self.ngsp, self.ngsp))
-        self.fngysi_full = zeros((dimension,self.ngsp, self.ngsp))
-        for j in range(6):
-            self.cftelematrix_full[1, :, :, j] = self.cftelematrix
-            self.cftelematrix_full[0, :, :, j] = cftelematrix_pf_full
+        # Turn on the VNM for the PFR
+        if self.vnm_pfr:
+            if isinstance(pfr, type(None)):
+                print("Generating new PFR vacuum region")
+                self.pfr = VacuumRegion(pf[0], P=pf[1] - 1, pump_setup=pfr_pump, puff_setup=sol_puff)
+                if isinstance(pfr_savename, str):
+                    self.pfr.saveVacuumRegion(pfr_savename)                
+            elif isinstance(pfr, str):
+                print("Restoring PFR vacuum region from pickle/HDF5")
+                self.pfr = VacuumRegion(pfr, pump_setup=pfr_pump, puff_setup=pfr_puff, hdf5location=pfr_hdf5location)
+            else:
+                print("Using VacuumRegion provided for PFR")
+                self.pfr = pfr
+            self.cftelematrixpf = pad(self.pfr.telematrix.transpose(), pad_width=1)
+            self.puff_vectorpf = self.pfr.puff_vector
 
-        # Turn on the VNM model in UEDGE
-        self.getue('isvacuummodel', cp=False)[0] = 1
-        self.set('cfteleout', 1.0)
-        # Populate UEDGE cftelematrix array
-        self.set('cftelematrix', self.cftelematrix_full)
-        # Populate the puffing arrays
-        self.set('fngyi_use', self.fngyi_use[:,:self.ngsp])
-        self.set('fngyo_use', self.fngyo_use[:,:self.ngsp])
+            # Expand PF matrix  along core cut: get dimensions and mismatch
+            dimpf = len(self.cftelematrixpf)
+            dim_expand = dimension - dimpf
+            # Expand PF matrix along vertical axis
+            cftelematrixpf_full = vstack([
+                self.cftelematrixpf[:self.ixpt1+1],
+                zeros((dim_expand, dimpf)), 
+                self.cftelematrixpf[self.ixpt1+1:]   
+            ])
+            # Expand PF matrix along horizontal axis
+            cftelematrixpf_full = hstack([
+                cftelematrixpf_full[:, :self.ixpt1+1],
+                zeros((dimension, dim_expand)),
+                cftelematrixpf_full[:, self.ixpt1+1:],
+            ])
+            # Expand and pad PF puffing array
+            self.fngyi_use = vstack([
+                zeros((1,6)),
+                self.puff_vectorpf[:self.ixpt1],
+                zeros((dim_expand, 6)),
+                self.puff_vectorpf[self.ixpt1:],
+                zeros((1,6)),
+            ])        
+            # Populate local cftelematrixpf
+            for j in range(6):
+                self.cftelematrixpf_full[ :, :, j] = cftelematrixpf_full
+            # Turn on the VNM model in UEDGE
+            self.getue('isvacuummodelpf', cp=False)[0] = 1
+            self.set('cfteleoutpf', 1.0)
+            # Populate UEDGE cftelematrixpf array
+            self.set('cftelematrixpf', self.cftelematrixpf_full)
+            # Populate the puffing array
+            self.set('fngyi_use', self.fngyi_use[:,:self.ngsp])
+
         # Plot setup if requested
         if plot_setup:
             self.plot_grid(pf_test_surf=[], label=False)
@@ -335,7 +358,7 @@ class VNM_interface:
 
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump_setup=None, puff_setup=None, reflections=1e6, hdf5location=None):
+    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump_setup=None, puff_setup=None, reflections=1e6, hdf5location=None, **kwargs):
         """
         nodeList - str, list of nodes, or HDF5 file name
                 HDF5 - populates data based on hdf5location pointing to the vnm setup in

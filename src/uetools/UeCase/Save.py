@@ -41,10 +41,6 @@ class Save:
         self.variables = case.variables
         self.record_changes = case.tracker.record_changes
         self.getpackobj = Lookup().getpackobj
-        try:
-            self.vnm = case.vnm
-        except:
-            pass
 
     def var(self, savefile, groups, variable, data, **kwargs):
         """Saves variable and metadata to HDF5 group and dataset
@@ -264,6 +260,7 @@ class Save:
                 self.recursive(savefile, self.variables["input"])
             else:
                 self.recursive(savefile, self.variables["input"][group], [group])
+            self.save_vnm(savefile, **kwargs)
 
         # check self . vnm exists
         # if yes then save using with same way as in the vnm interface

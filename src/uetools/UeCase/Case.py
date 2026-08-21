@@ -426,6 +426,7 @@ class Case:
         self.about = AboutSetup(self)
         self.cherab = Cherab(self)
         self.vnm = VNM_interface(self)
+        self.savefuncs.save_vnm = self.vnm.save_hdf5 # Monkey-patch
         self.input = Input(self)
         # Set up paths from config file
         self.config.case(verbose=False)
