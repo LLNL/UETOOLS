@@ -187,7 +187,10 @@ class Save:
             elif uetools:
                 if not isinstance(saveobj, (list, dict)):
                     variable = group.pop(-1)
-                    self.var(savefile, group, variable, saveobj) 
+                    try:
+                        self.var(savefile, group, variable, saveobj) 
+                    except:
+                        self.var(savefile, group, str(variable), saveobj) 
                 elif isinstance(saveobj, list):
                     if  (group[-1] in ['puff', 'pump', 'regions']):
                         i = 1 
@@ -218,13 +221,13 @@ class Save:
                     saveobj = self.recursive(savefile, value, group + [key], uetools=True)
             else:
                 for key, value in saveobj.items():
-                    if isinstance(key, int):
+                    if uetools:
+                        saveobj = self.recursive(savefile, value, group + [key], uetools=True)
+                    elif isinstance(key, int):
                         # Save the full array once only
                         variable = group.pop(-1)
                         self.var(savefile, group, variable, self.getue(variable))
                         return
-                    elif uetools:
-                        saveobj = self.recursive(savefile, value, group + [key], uetools=True)
                     else:
                         saveobj = self.recursive(savefile, value, group + [key])
             return saveobj

@@ -184,6 +184,7 @@ class VNM_interface:
         if len(generate) > 0: 
             self.generate(generate, **vnm_setup)
         vnm_setup['regions'] = regions
+        self.populate()
 
     def restore(self, save_file, restore_vars=None):
         """Restores existing telematrices from the provided save file, and calculates puffing input arrays if desired.
@@ -357,7 +358,15 @@ class VNM_interface:
             # Populate UEDGE cftelematrixw array
             self.set(f'cftelematrix{savekey[0]}', self.output[name]['telematrix'])
             # Turn on the VNM model in UEDGE
-            self.set(f'isvacuummodel{savekey[0]}', isvacuummodel)
+            if isinstance(isvacuummodel, dict):
+                for key, value in isvacuummodel.items():
+                    if isinstance(value, int):
+                        self.getue(f'isvacuummodel{savekey[0]}', cp=False)[key] = value
+                    elif isinstance(value, list):
+                        listlen = len(value)
+                        self.getue(f'isvacuummodel{savekey[0]}', cp=False)[key:key+listlen] = value
+            else:
+                self.set(f'isvacuummodel{savekey[0]}', isvacuummodel)
             self.set(f'cfteleout{savekey[0]}', 1.0)
             # Populate the puffing array
             self.set(f'fngy{savekey[1]}_use', self.output[name]['puff'][:,:self.ngsp])

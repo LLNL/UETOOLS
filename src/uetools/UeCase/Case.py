@@ -495,7 +495,7 @@ class Case:
             self.solver = Solver(self)
             self.continuation_solve = self.solver.continuation_solve
             self.converge = self.solver.converge
-            if self.info['vnm'] is not None:
+            if (self.info['vnm'] is not None) and (self.info['restored_from_hdf5'] is False):
                 self.vnm = VNM_interface(self, self.info['vnm'])
                 if 'vnm' in [x.lower() for x in self.variables['input']['setup']]:
                     self.variables['input']['setup']['vnm'] = self.info['vnm']
