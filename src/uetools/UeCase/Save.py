@@ -128,7 +128,7 @@ class Save:
         """Saves diffusivities to savename using Save.group"""
         self.group(savename, "diffusivities")
 
-    def recursive(self, savefile, saveobj, group=[], **kwargs):
+    def recursive(self, savefile, saveobj, group=[], uetools=False, **kwargs):
         """Recursively writes data to File object savefile
 
 
@@ -151,7 +151,7 @@ class Save:
         if not isinstance(saveobj, dict): #) and (group[-1].lower() not in ['vnm']):
             # Special setup for saving setup parameters to store
             # actual set values of any setup parameters defined in input
-            if group[0] == "setup":
+            if (group[0] == "setup") and (not uetools):
                 variable = group.pop(-1)
                 # Custom UETOOLS decks
                 if variable.lower() in [
@@ -160,7 +160,6 @@ class Save:
                     "casename",
                     "commands",
                     "savefile",
-                    "vnm"
                 ]:
                     value = saveobj
                 # Exception for saving objects spawned without any input files
@@ -168,6 +167,10 @@ class Save:
                 #                    for var in saveobj:
                 #                        self.var(savefile, group, var, self.getue(var))
                 #                    return
+                # Custom UETOOLS groups
+                elif variable.lower() in ['vnm']:
+                    for key, value in saveobj.items():
+                        return self.recursive(savefile, value, group)
                 else:
                     if variable in self.variables['omit']:
                         return
@@ -180,26 +183,50 @@ class Save:
                                     self.var(savefile, group, var, self.getue(var))
                                 return
                 self.var(savefile, group, variable, value)
-            # Store requested data
+            # Handle UETOOLS special blocks
+            elif uetools:
+                if not isinstance(saveobj, (list, dict)):
+                    variable = group.pop(-1)
+                    self.var(savefile, group, variable, saveobj) 
+                elif isinstance(saveobj, list):
+                    if  (group[-1] in ['puff', 'pump', 'regions']):
+                        i = 1 
+                        for entry in saveobj:
+                            if 'name' in entry:
+                                self.recursive(savefile, entry, group + 
+                                        [entry['name']], uetools=uetools)
+                            else:
+                                group[-1] = group[-1] + f"_{i}"
+                                self.recursive(savefile, entry, group, uetools=uetools)
+                            i += 1
+                    else:
+                        variable = group.pop(-1)
+                        self.var(savefile, group, variable, saveobj)
+           # Store requested data
             elif isinstance(saveobj, list):
                 for variable in saveobj:
                     self.var(savefile, group, variable, self.getue(variable))
         # Recursively go deeper in structure
         else:
-            for key, value in saveobj.items():
-                try:
-                    currentgroup = group[-1]
-                except:
-                    currentgroup = None
-                # Setup Custom UETOOLS group saves
-                if currentgroup in ['vnm']:
-                    return
-                elif isinstance(key, int):
-                    # Save the full array once only
-                    variable = group.pop(-1)
-                    self.var(savefile, group, variable, self.getue(variable))
-                    return
-                saveobj = self.recursive(savefile, value, group + [key])
+            try:
+                currentgroup = group[-1]
+            except:
+                currentgroup = None
+            # Setup Custom UETOOLS group saves
+            if currentgroup in ['vnm']:
+                for key, value in saveobj.items():
+                    saveobj = self.recursive(savefile, value, group + [key], uetools=True)
+            else:
+                for key, value in saveobj.items():
+                    if isinstance(key, int):
+                        # Save the full array once only
+                        variable = group.pop(-1)
+                        self.var(savefile, group, variable, self.getue(variable))
+                        return
+                    elif uetools:
+                        saveobj = self.recursive(savefile, value, group + [key], uetools=True)
+                    else:
+                        saveobj = self.recursive(savefile, value, group + [key])
             return saveobj
 
     def metadata(self, savefile, **kwargs):
@@ -269,6 +296,7 @@ class Save:
                 self.recursive(savefile, self.variables["input"])
             else:
                 self.recursive(savefile, self.variables["input"][group], [group])
+            # TODO: Add save for VNM here
 
     def dump(self, savefname, **kwargs):
         """Dumps all variables to savefname

@@ -495,12 +495,10 @@ class Case:
             self.solver = Solver(self)
             self.continuation_solve = self.solver.continuation_solve
             self.converge = self.solver.converge
-            self.vnm = VNM_interface(self, self.info['vnm'])
-            try:
+            if self.info['vnm'] is not None:
                 self.vnm = VNM_interface(self, self.info['vnm'])
-            except:
-                pass
-            
+                if 'vnm' in [x.lower() for x in self.variables['input']['setup']]:
+                    self.variables['input']['setup']['vnm'] = self.info['vnm']
         self.plot = Caseplot(self)
 
     # NOTE: Update class data, or try reading from forthon first??

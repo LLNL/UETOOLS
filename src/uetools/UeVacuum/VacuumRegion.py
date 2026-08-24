@@ -179,9 +179,11 @@ class VNM_interface:
                         else:
                             # TODO: Assert pump nodes are OK
                             1 
-            if len(generate) > 0: 
-                self.generate(generate, **vnm_setup) 
-         
+    
+        regions = [x.copy() for x in generate] + [x.copy() for x in restore]
+        if len(generate) > 0: 
+            self.generate(generate, **vnm_setup)
+        vnm_setup['regions'] = regions
 
     def restore(self, save_file, restore_vars=None):
         """Restores existing telematrices from the provided save file, and calculates puffing input arrays if desired.
