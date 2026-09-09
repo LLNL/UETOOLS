@@ -1,3 +1,244 @@
+"""
+Vacuum Neutral Model (VNM) for UEDGE.
+
+This module implements a vacuum neutral model for UEDGE simulations using the
+Transport Matrix Method (TMM) to calculate particle transport between surfaces
+in vacuum regions. The model handles neutral particle recycling, pumping, and
+puffing in both main scrape-off layer (SOL) and private flux region (PFR) geometries.
+
+Classes
+-------
+VacuumTests
+    Test and visualization functions for vacuum region geometry.
+VNM_interface
+    Interface between UEDGE and vacuum region models.
+VacuumRegion
+    Core vacuum region implementation using TMM.
+Surface
+    Individual surface element in a vacuum region.
+
+VNM Input Block (YAML Configuration)
+-------------------------------------
+The VNM setup is configured through the 'vnm' block in UEDGE YAML input files.
+
+Structure:
+    vnm:
+        plot: bool, optional
+            Generate geometry plots during setup (default: False).
+        maxlength: float, optional
+            Maximum surface segment length in meters (default: 0.01).
+        regions: list of dict
+            List of vacuum regions to configure. Each region has:
+
+Region Configuration
+~~~~~~~~~~~~~~~~~~~~
+Each region in the 'regions' list must contain:
+
+Required fields:
+    name: str
+        Unique identifier for the region.
+    location: str
+        Region location, either 'inner' (PFR) or 'outer' (SOL).
+    isvacuummodel: int or dict
+        Species indices to apply VNM. Can be:
+        - int: Single species index
+        - dict: {species_index: 1/0} to enable/disable per species
+
+Mode-specific fields:
+    mode: str, optional
+        Operating mode (default: 'generate'):
+        - 'generate': Create new vacuum region from UEDGE geometry or custom nodes
+        - 'restore_surfaces': Load pre-computed surfaces from pickle, then compute
+          transport matrices (allows adding pump/puff to existing geometry)
+        - 'restore_boundary': Load complete pre-computed boundary conditions from
+          HDF5 (no new calculations, fastest option)
+
+    For mode='generate':
+        nodes: str or array, optional
+            Custom boundary nodes. Can be:
+            - str: Path to .npy file or text file with (R,Z) coordinates
+            - array: NumPy array of (R,Z) node pairs
+            If not provided, automatically extracted from UEDGE geometry.
+        material_recycling: float, optional
+            Default recycling coefficient for material surfaces (default: 1.0).
+        r_offset_plasma: float, optional
+            Distribution offset for plasma surfaces (0=uniform, 1=cosine, default: 1).
+        r_offset_material: float, optional
+            Distribution offset for material surfaces (default: 1).
+        reflections: int, optional
+            Number of particle reflections to consider (default: 1e6).
+        multiprocess: bool, optional
+            Use multiprocessing for surface calculations (default: True).
+        ncores: int, optional
+            Number of CPU cores for multiprocessing (default: all available).
+        write: bool, optional
+            Save surfaces to pickle file after creation (default: False).
+        savename: str, optional
+            Filename for pickle output if write=True (required when write=True).
+
+    For mode='restore_surfaces':
+        surface_file: str, required
+            Path to pickle (.pkl) or HDF5 (.hdf5) file containing pre-computed
+            VacuumRegion surfaces and geometry.
+
+        All parameters from 'generate' mode can also be used:
+        material_recycling, r_offset_plasma, r_offset_material, reflections,
+        multiprocess, ncores, write, savename
+
+        Note: Restoring surfaces skips the expensive surface coupling calculation
+        but still computes transport matrices. Use this to add pump/puff sources
+        to existing geometry without recalculating view factors.
+
+    For mode='restore_boundary':
+        boundary_file: str, optional
+            Path to HDF5 file containing saved boundary conditions (telematrices,
+            puff arrays, VNM flags). If not provided, uses current UEDGE save file.
+
+        Note: This mode performs no calculations - only loads pre-computed data.
+        pump and puff configurations are ignored in this mode.
+
+Pumping Configuration
+~~~~~~~~~~~~~~~~~~~~~
+    pump: list of dict, optional
+        Pumping regions that reduce recycling. Each pump entry contains:
+        - type: str, required
+            Pump type. Currently supported: 'region'
+        - nodes: str or array, required
+            Polygon nodes defining pump region:
+            - str: Path to .npy file or text file with (R,Z) coordinates
+            - array: NumPy array of (R,Z) node pairs (minimum 3 nodes)
+        - recycling: float, required
+            Recycling coefficient for surfaces intersecting pump region
+            (0 = perfect pump, 1 = no pumping).
+
+        Available for: mode='generate', mode='restore_surfaces'
+        Not available for: mode='restore_boundary'
+
+Puffing Configuration
+~~~~~~~~~~~~~~~~~~~~~
+    puff: list of dict, optional
+        Gas puffing sources. Each puff entry contains:
+        - type: str, required
+            Puff type. Currently supported: 'point'
+        - location: tuple, required
+            (R, Z) coordinates of puff location [meters].
+            Puff automatically assigned to nearest material surface.
+        - current: float, required
+            Puff rate in particles/second.
+        - igsp: int, required
+            Gas species index (0-based) to puff.
+
+        Available for: mode='generate', mode='restore_surfaces'
+        Not available for: mode='restore_boundary'
+
+Example Configurations
+~~~~~~~~~~~~~~~~~~~~~~
+1. Generate new SOL region with puffing:
+    vnm:
+        maxlength: 0.01
+        regions:
+            - name: 'sol'
+              mode: 'generate'
+              location: 'outer'
+              isvacuummodel: {0: 1}
+              material_recycling: 1.0
+              puff:
+                - type: "point"
+                  location: [2.0, 2.7]
+                  current: 1.e20
+                  igsp: 0
+
+2. Restore surfaces and add pumping (efficient for geometry reuse):
+    vnm:
+        regions:
+            - name: 'pfr'
+              mode: 'restore_surfaces'
+              surface_file: 'pfr_vacuum.pkl'  # Pre-computed surfaces
+              location: 'inner'
+              isvacuummodel: {0: 1}
+              pump:
+                - type: 'region'
+                  nodes: 'pump_geometry.npy'
+                  recycling: 0.0  # New pump added to restored geometry
+
+3. Restore from previous simulation:
+    vnm:
+        regions:
+            - name: 'sol'
+              mode: 'restore_boundary'
+              boundary_file: 'previous_run.hdf5'
+              location: 'outer'
+              isvacuummodel: {0: 1}
+
+4. Multi-species with custom nodes:
+    vnm:
+        maxlength: 0.005
+        plot: True
+        regions:
+            - name: 'pfr'
+              mode: 'generate'
+              location: 'inner'
+              nodes: 'custom_boundary.npy'
+              isvacuummodel: {0: 1, 1: 1}  # Apply to species 0 and 1
+              material_recycling: 0.95
+              write: True
+              savename: 'pfr_surfaces.pkl'  # Save for future reuse
+              pump:
+                - type: 'region'
+                  nodes: [[1.4, 0.2], [1.5, 0.2], [1.5, 0.3], [1.4, 0.3]]
+                  recycling: 0.1
+
+5. Restore surfaces with modified pump/puff (saves computation time):
+    vnm:
+        regions:
+            - name: 'sol'
+              mode: 'restore_surfaces'
+              surface_file: 'sol_surfaces.pkl'  # Reuse geometry
+              location: 'outer'
+              isvacuummodel: {0: 1}
+              material_recycling: 0.98  # Changed from original
+              reflections: 1e7  # Higher accuracy
+              puff:
+                - type: 'point'
+                  location: [2.1, 2.8]  # Different puff location
+                  current: 5.e19
+                  igsp: 0
+              pump:
+                - type: 'region'
+                  nodes: 'new_pump.npy'  # Add new pump
+                  recycling: 0.05
+
+Notes
+-----
+**Geometry and Implementation:**
+- The VNM model is only implemented for single-null ('snull') and double-null
+  ('dnull') geometries.
+- The 'inner' location corresponds to the private flux region (PFR) and 'outer'
+  to the scrape-off layer (SOL).
+- Vacuum regions are automatically saved to HDF5 files when UEDGE cases are saved.
+
+**Performance and Reusability:**
+- mode='generate': Slowest, full computation (~seconds to minutes for complex geometry)
+- mode='restore_surfaces': Medium, skips view factor calculation but computes
+  transport matrices (~fraction of generate time). Allows adding/modifying pump/puff.
+- mode='restore_boundary': Fastest, no computation (<1 second). Cannot modify
+  pump/puff but useful for exact restart.
+- Surface files (.pkl) can be reused across runs with the same geometry.
+- Use write=True with mode='generate' to create reusable surface files.
+
+**Pump and Puff Configuration:**
+- Multiple pump and puff sources can be specified per region.
+- When multiple pumps overlap, later pumps in the list take precedence.
+- pump/puff available for mode='generate' and mode='restore_surfaces'.
+- pump/puff are ignored for mode='restore_boundary' (uses saved values).
+
+See Also
+--------
+VacuumRegion : Core vacuum region implementation
+VNM_interface : Interface for UEDGE integration
+"""
+
+
 class VacuumTests:
  
     def twoSurfacePlot(self):
@@ -97,6 +338,82 @@ class VacuumTests:
 
 
 class VNM_interface:
+    """Interface between UEDGE Case and Vacuum Neutral Model.
+
+    This class manages vacuum region setup, restoration, and integration with UEDGE.
+    It handles multiple vacuum regions (SOL and PFR), supports various input formats,
+    and coordinates between UEDGE variables and vacuum model outputs.
+
+    Parameters
+    ----------
+    case : uetools.Case
+        UEDGE case object with active simulation.
+    vnm_setup : dict
+        Configuration dictionary for vacuum regions. See module docstring for
+        detailed structure. Must contain at least:
+        - 'regions': list of region configurations
+
+    Attributes
+    ----------
+    coupling : uetools.UeCase.UeCoupling
+        Grid coupling utilities from UEDGE case.
+    regions : dict
+        Dictionary of VacuumRegion objects, keyed by region name.
+    nodes : dict
+        Boundary node arrays for 'inner' (PFR) and 'outer' (SOL) regions.
+    output : dict
+        Telematrices and puff vectors for each region:
+        - 'telematrix': (nx+2, nx+2, 6) transport matrix array
+        - 'puff': (nx+2, ngsp) puffing input array
+    uevars : dict
+        UEDGE variable names for 'inner' and 'outer' regions:
+        - 'isvacuummodelpf'/'isvacuummodelw': VNM enable flags
+        - 'cftelematrixpf'/'cftelematrixw': Transport matrices
+        - 'cfteleoutpf'/'cfteleoutw': Output scaling factors
+        - 'fngyi_use'/'fngyo_use': Puffing arrays
+
+    Methods
+    -------
+    generate(regions, restore_surfaces=False, maxlength=0.01, plot=False)
+        Generate or restore vacuum regions from geometry or files.
+    restore(save_file, restore_vars=None, location='')
+        Restore telematrices and boundary conditions from HDF5 file.
+    plot_grid(sol_plot=True, pfr_plot=True, **kwargs)
+        Plot vacuum region geometries.
+    save_hdf5(file, **kwargs)
+        Save vacuum setup to HDF5 file.
+
+    Raises
+    ------
+    Exception
+        If geometry is not 'snull' or 'dnull'.
+    TypeError
+        If vnm_setup is not a dictionary.
+    KeyError
+        If required configuration keys are missing.
+
+    Examples
+    --------
+    >>> from uetools import Case
+    >>> vnm_config = {
+    ...     'regions': [{
+    ...         'name': 'sol',
+    ...         'location': 'outer',
+    ...         'mode': 'generate',
+    ...         'isvacuummodel': {0: 1}
+    ...     }]
+    ... }
+    >>> case = Case('input.yaml')
+    >>> vnm = VNM_interface(case, vnm_config)
+
+    Notes
+    -----
+    - Automatically populates UEDGE variables after setup
+    - Supports three modes: 'generate', 'restore_surfaces', 'restore_boundary'
+    - Can handle multiple regions simultaneously
+    - Telematrices are automatically expanded/padded for PFR geometry
+    """
+
     def __init__(self, case, vnm_setup):
         from numpy import load, array
         from collections import defaultdict
@@ -206,8 +523,44 @@ class VNM_interface:
         self.populate()
 
     def restore(self, save_file, restore_vars=None, location=''):
-        """Restores existing telematrices from the provided save file, and calculates puffing input arrays if desired.
-        Uses the current save file if none is provided.
+        """Restore telematrices and boundary conditions from HDF5 save file.
+
+        Loads pre-computed vacuum region data (telematrices, puff arrays, VNM flags)
+        from an HDF5 file and populates UEDGE variables. Useful for restarting
+        simulations with existing VNM setup.
+
+        Parameters
+        ----------
+        save_file : str or None
+            Path to HDF5 file containing VNM data. If None, uses current case
+            save file (self.info['savefile']).
+        restore_vars : list of str, optional
+            UEDGE variable names to restore. If None, restores all standard
+            VNM variables for both inner and outer regions:
+            - isvacuummodelpf, isvacuummodelw
+            - cftelematrixpf, cftelematrixw
+            - cfteleoutpf, cfteleoutw
+            - fngyi_use, fngyo_use
+        location : str, optional
+            Region identifier string for print message (default: '').
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        - Variables not found in save file are skipped (assumes defaults)
+        - Automatically calls self.populate() after restoration
+        - Does not restore Surface objects or pump/puff configurations
+        - Only restores boundary condition data needed for UEDGE execution
+
+        Examples
+        --------
+        >>> vnm.restore('previous_run.hdf5', location='SOL')
+        Successfully restored SOL VNM from previous_run.hdf5
+
+        >>> vnm.restore(None)  # Use current save file
         """
         import h5py
         import warnings
@@ -234,62 +587,115 @@ class VNM_interface:
 
 
     def generate(self, regions, restore_surfaces=False, maxlength=0.01, plot=False):
-        ''' 
-            region_setup,
-            write = False,
-            maxlength = 0.01,
-                sol=False, 
-                sol_savename=None, 
-                sol_nodes=None, 
-                sol_hdf5location=None, 
-                sol_puff=None, 
-                sol_pump=None, 
-                vnm_sol=True, 
-                pfr=False, 
-                pfr_pump=None, 
-                pfr_savename=False, 
-                plot_setup=False, 
-                pfr_nodes=None,
-                pfr_hdf5location=None,
-                pfr_puff=None,
-                vnm_pfr=True, 
-                kwargs_sol={}):
-        '''
-        """Generates telematrices for given VacuumRegions.
-        
-                  Keyword arguments:
-        sol - dict/None/False (default = False)
-            Setup for main-SOL, definingt the main-SOL model. If False,
-            VNM is not used for SOL. If None, SOL VNM is generated from UEDGE
-            data. If dictionary, VNM is created based on the dictionary settings.
-            Dictionary keys available:
-                savefile - path to pickle/HDF5 file containing SOL VNM save
-                hdf5location - (default: vnm/sol) 
-                        string pointing to the location of the SOL VNM setup in 
-                        the HDF5 if savefile is an HDF5
-                picklename - name of file where VNM for SOL is pickled
-                pump_setup - nested setup dictionary for SOL pumping surface
-                    Pump setting keys:
-                    name - defines the pump key name, contains dict with follwoing keys:
-                        type - defines the pump setup type. Available options "region"
-                        region options:
-                        nodes (required) - nodes defining polygon of region: must define 
-                                open plygon shape, minimum 3 node (x,y) pairs
-                        recycling (required) - recycling coefficient for surfaces intersecting
-                                with pump region 
-                puff_setup - nested setup dictionary for puff setup type. Available options "point"
-                    Puff settings keys:
-                    name - defines the puff key name, contains the following keys
-                    type - defines the puff type. Available options: 'point'
-                        point options:
-                        location - (R, Z) coordinate of puff. Puff automatically assigned
-                            to the surface closest to location.
-                        current - puff strength in part/s
-                nodes - list of SOL nodes to replace the automatically generated ones
-                    from the UEDGE case
-                recycling - recycling coefficient for SOL (default = 1)
-        pfr - ditto for the PFR vacuum region
-        write -- decides whether or not to write generated matrices into save file (default False).
+        """Generate vacuum regions and populate UEDGE transport matrices.
+
+        Creates VacuumRegion objects from UEDGE geometry or user-provided nodes,
+        computes transport matrices via TMM, and populates UEDGE boundary condition
+        arrays. Handles automatic grid extraction, matrix padding for PFR geometry,
+        and configuration of multiple regions simultaneously.
+
+        Parameters
+        ----------
+        regions : list of dict
+            Region configurations. Each dict must contain:
+            - 'name': Region identifier
+            - 'location': 'inner' (PFR) or 'outer' (SOL)
+            - 'isvacuummodel': Species control (int or dict)
+            - 'nodes': (optional) Custom boundary nodes
+            - 'pump': (optional) List of pump configurations
+            - 'puff': (optional) List of puff configurations
+            - 'material_recycling': (optional) Default recycling coefficient
+            - 'surface_file': (required if restore_surfaces=True) Path to pickle
+            Additional VacuumRegion parameters can be included.
+        restore_surfaces : bool, optional
+            If True, restore VacuumRegion from 'surface_file' instead of
+            generating from scratch (default: False).
+        maxlength : float, optional
+            Maximum surface segment length [meters] for automatic grid
+            discretization (default: 0.01). Smaller values increase accuracy
+            but raise computational cost.
+        plot : bool, optional
+            Generate geometry plots after setup (default: False).
+
+        Returns
+        -------
+        None
+
+        Side Effects
+        ------------
+        - Creates self.regions dict with VacuumRegion objects
+        - Populates self.output dict with telematrices and puff vectors
+        - Sets UEDGE variables:
+          * cftelematrix{pf,w}: Transport matrices (nx+2, nx+2, 6)
+          * isvacuummodel{pf,w}: VNM enable flags
+          * cfteleout{pf,w}: Output scaling (set to 1.0)
+          * fngy{i,o}_use: Puffing arrays (nx+2, ngsp)
+        - Calls self.populate() to update UEDGE state
+
+        Notes
+        -----
+        **Automatic Grid Extraction:**
+        - For 'outer' (SOL): Extracts outer wall and plate surfaces
+        - For 'inner' (PFR): Extracts inner wall and plate surfaces
+        - Uses self.coupling.get_snull_vacuum_regions(maxlength)
+        - Can be overridden with custom 'nodes' in region config
+
+        **PFR Matrix Padding:**
+        Inner regions require special handling because PFR surfaces are
+        non-contiguous in UEDGE's poloidal indexing (broken by core).
+        Telematrix is expanded and zero-padded to match full (nx+2, nx+2)
+        grid structure.
+
+        **Species Control:**
+        isvacuummodel can be:
+        - int: Apply to all species
+        - dict: {species_index: 1/0} for per-species control
+        - list: Applied to sequential indices
+
+        **Multiple Regions:**
+        All regions are generated in a single call. Regions are independent
+        except for shared UEDGE grid parameters (nx, ixpt1, ixpt2, ngsp).
+
+        Examples
+        --------
+        Generate two regions with custom settings:
+        >>> regions = [
+        ...     {
+        ...         'name': 'sol',
+        ...         'location': 'outer',
+        ...         'isvacuummodel': {0: 1},
+        ...         'material_recycling': 1.0,
+        ...         'puff': [{'type': 'point', 'location': (2, 2.7),
+        ...                   'current': 1e20, 'igsp': 0}]
+        ...     },
+        ...     {
+        ...         'name': 'pfr',
+        ...         'location': 'inner',
+        ...         'isvacuummodel': {0: 1},
+        ...         'pump': [{'type': 'region', 'nodes': pump_nodes,
+        ...                   'recycling': 0.1}]
+        ...     }
+        ... ]
+        >>> vnm.generate(regions, maxlength=0.005, plot=True)
+
+        Restore from pre-computed surfaces:
+        >>> regions = [{
+        ...     'name': 'sol',
+        ...     'location': 'outer',
+        ...     'surface_file': 'sol_surfaces.pkl',
+        ...     'isvacuummodel': {0: 1}
+        ... }]
+        >>> vnm.generate(regions, restore_surfaces=True)
+
+        Raises
+        ------
+        KeyError
+            If required configuration keys are missing from region dict.
+
+        See Also
+        --------
+        VacuumRegion : Core vacuum region implementation
+        restore : Restore from complete HDF5 boundary conditions
         """
 
         import h5py
@@ -428,42 +834,185 @@ class VNM_interface:
 
 
 class VacuumRegion:
+    """Vacuum region implementation using Transport Matrix Method (TMM).
+
+    Represents a closed vacuum region composed of plasma-facing and material surfaces.
+    Calculates particle transport between surfaces using view factors, reflection
+    coefficients, and iterative transport matrices to model neutral particle behavior.
+
+    The Transport Matrix Method computes the probability that a particle leaving
+    surface i will eventually reach surface j after multiple reflections. This is
+    encoded in the telematrix T[i,j], which gives the fraction of particles emitted
+    from surface i that are absorbed by surface j.
+
+    Parameters
+    ----------
+    nodeList : str, array-like, or None
+        Boundary geometry specification:
+        - str ending in '.hdf5': Restore from HDF5 file using hdf5location
+        - str ending in '.pkl': Restore from pickle file
+        - str (other): Path to text file with (R,Z) coordinates
+        - array-like: List/array of (R,Z) node coordinate tuples
+        - None: Not allowed, raises TypeError
+    P : int, optional
+        Number of plasma-facing surfaces (default: 0). These surfaces appear
+        first in the node list and use plasma distribution settings.
+    r_offset_plasma : float, optional
+        Distribution offset for plasma surfaces (default: 1):
+        - 0: Uniform angular distribution
+        - 1: Cosine (Knudsen) distribution
+        - (0,1): Intermediate distribution
+    r_offset_material : float, optional
+        Distribution offset for material surfaces (default: 1).
+    multiprocess : bool, optional
+        Use multiprocessing for surface coupling calculations (default: True).
+        Significantly speeds up setup for large geometries.
+    ncores : int, optional
+        Number of CPU cores for multiprocessing (default: all available).
+    verbose : bool, optional
+        Print progress messages during setup (default: True).
+    material_recycling : float, optional
+        Default recycling coefficient for material surfaces (default: 1.0).
+        Fraction of incident particles that are re-emitted.
+    pump : list of dict, optional
+        Pumping region configurations (default: None). Each entry must have:
+        - 'type': 'region' (only supported type)
+        - 'nodes': Array of (R,Z) coordinates defining pump polygon (≥3 nodes)
+        - 'recycling': Recycling coefficient for surfaces in pump region
+        Later pumps override earlier ones for overlapping surfaces.
+    puff : list of dict, optional
+        Gas puffing source configurations (default: None). Each entry must have:
+        - 'type': 'point' (only supported type)
+        - 'location': (R, Z) tuple for puff location
+        - 'current': Particle injection rate [particles/s]
+        - 'igsp': Gas species index (0-based)
+        Puff assigned to nearest material surface automatically.
+    reflections : int, optional
+        Number of particle reflections to compute (default: 1e6).
+        Higher values more accurately capture transport in high-recycling regions
+        but increase computation time as (AB)^reflections.
+    hdf5location : str, optional
+        Path within HDF5 file for restore (default: "vnm").
+    savename : str, optional
+        Filename for pickle output if write=True (default: None).
+    isvacuummodel : int or dict, optional
+        UEDGE species control (deprecated, handled by VNM_interface).
+    write : bool, optional
+        Save region to pickle file after creation (default: False).
+        Requires savename to be specified.
+    **kwargs
+        Additional keyword arguments (currently unused).
+
+    Attributes
+    ----------
+    surfaces : dict
+        Dictionary of Surface objects, keyed by surface index.
+    geometry : shapely.Polygon
+        Polygon representation of vacuum region boundary.
+    telematrix : ndarray, shape (P, P)
+        Transport matrix T[i,j] giving fraction of particles from plasma
+        surface i that reach plasma surface j after all reflections.
+    puff_vector : ndarray, shape (P, 6)
+        Puffing input array for each plasma surface and gas species.
+    R_array : ndarray, shape (numSurfaces,)
+        Recycling coefficient for each surface.
+    C_array : ndarray, shape (numSurfaces, numSurfaces)
+        View factor matrix C[i,j]: fraction of particles from i seeing j
+        on first flight (no reflections).
+    R_matrix : scipy.sparse.csr_array
+        Sparse diagonal matrix of recycling coefficients.
+    C_matrix : scipy.sparse.csr_array
+        Sparse view factor matrix.
+    A_matrix, B_matrix, AB_matrix : scipy.sparse.csr_array
+        TMM intermediate matrices for transport calculation.
+    AB_power_A : scipy.sparse.csr_array
+        (AB)^reflections @ A, the final transport operator.
+    pumping_regions : list of dict
+        Created pump region information.
+    puffs : list of dict
+        Created puff source information with computed puff vectors.
+    time : float
+        Wall-clock time [seconds] for surface coupling calculation.
+    numSurfaces : int
+        Total number of surfaces (plasma + material).
+
+    Methods
+    -------
+    matrices()
+        Construct TMM matrices (R, C, A, B, AB).
+    createTeleMatrix()
+        Compute final transport matrix from (AB)^M @ A.
+    create_pump_region(pump_setup)
+        Create pumping region from configuration dict.
+    create_puff(puff_setup)
+        Create puff source from configuration dict.
+    saveVacuumRegion(savename)
+        Save region to pickle file.
+    writeVacuumSetup(obj, write_matrices=True)
+        Write region to HDF5 file or group.
+    checkContinuity(verbose=True)
+        Verify flux conservation (sum of view factors ≈ 1).
+    plotGeometry(ax=None, labels=False, testsurf=[], **kwargs)
+        Plot vacuum region geometry with surfaces and sources.
+    heatmapPlot()
+        Generate heatmap visualizations of transport matrices.
+    matrixPower(matrix, power)
+        Compute sparse matrix to integer power.
+
+    Raises
+    ------
+    TypeError
+        If nodeList is None or has invalid type.
+    ValueError
+        If write=True but savename not specified.
+    KeyError
+        If required pump/puff configuration keys missing.
+    AttributeError
+        If pump region has fewer than 3 nodes.
+
+    Examples
+    --------
+    Create simple vacuum region:
+    >>> nodes = [(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]
+    >>> region = VacuumRegion(nodes, P=2, material_recycling=0.95)
+
+    Create region with pumping:
+    >>> pump_cfg = [{
+    ...     'type': 'region',
+    ...     'nodes': [(1.8, 0.1), (1.9, 0.1), (1.9, 0.2), (1.8, 0.2)],
+    ...     'recycling': 0.0
+    ... }]
+    >>> region = VacuumRegion(nodes, P=2, pump=pump_cfg)
+
+    Create region with gas puff:
+    >>> puff_cfg = [{
+    ...     'type': 'point',
+    ...     'location': (1.5, 0.5),
+    ...     'current': 1e20,
+    ...     'igsp': 0
+    ... }]
+    >>> region = VacuumRegion(nodes, P=2, puff=puff_cfg)
+
+    Restore from file:
+    >>> region = VacuumRegion('saved_region.pkl')
+
+    Notes
+    -----
+    - Plasma surfaces must appear first in node list (indices 0 to P-1)
+    - Material surfaces follow (indices P to numSurfaces-1)
+    - Transport matrix is only computed for plasma surfaces
+    - View factors include geometric visibility and distribution shape
+    - Multiprocessing dramatically speeds up large geometries (>50 surfaces)
+    - Flux conservation should be verified with checkContinuity()
+    - Higher reflections increase accuracy but scale as O(reflections)
+
+    See Also
+    --------
+    Surface : Individual surface element implementation
+    VNM_interface : UEDGE integration interface
+    """
+
     def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump=None, puff=None, reflections=1e6, hdf5location="vnm", savename=None, isvacuummodel=None, write=False, **kwargs):
-        """
-        nodeList - str, list of nodes, or HDF5 file name
-                HDF5 - populates data based on hdf5location pointing to the vnm setup in
-                    the HDF5 file
-                list of nodes - generates from scratch based on input
-                str - reads from pickle and populates based on setup 
-        P - number of plasma surfaces in region: leads arrays/matrices
-        r_offset_plasma - offset of distribution circle relative to circle radius. 
-            1 - cosine
-            0 - uniform
-        r_offset_material - ditto, for material surfaces
-        multiprocess - Multiprocessing when constructing objects
-        ncores - multiprocessing cores
-        verbose - False supresses output
-        material_recycling - recycling coefficient on material surfaces
-        pump_setup - dictionary defining pumping setup
-            Nested dict of pumping regions. Region name and properties. Sorted by
-            order of appearance, later regions overwrite earlier ones.
-            The required structure is:
-            pump_setup[region_name] = {
-                'type': "region",
-                'recycling': recycling_coefficient,
-                'nodes': nodelist
-            }
-            The required "data" entry is determined by the available types, 
-            listed below:
-                "region" - A closed polygon is created based on the supplied
-                    nodes. All polygons intersecting with the polygon are
-                    assigned a reccyling coefficient as defined by 'recycling'.
-                "recycling" - recycling coefficient to be applied to intersecting
-                    surfaces
-                "nodes" - nested list of (X,Y) nodes that define the pumping surface
-        puff_setup - dictionary defining puffing surfaces 
-        reflections - the number of reflections to be considered: the exponent of the TMM 
-        """
         from shapely import Point, Polygon
         from tqdm import tqdm
         from pickle import load
@@ -635,8 +1184,42 @@ class VacuumRegion:
 
 
     def matrices(self):
-        '''Creates R (self.R_matrix), C (self.C_matrix), A (self.A_matrix), 
-            B (self.B_matrix), and AB (self.AB_matrix) matrices.'''
+        """Construct Transport Matrix Method (TMM) matrices.
+
+        Builds sparse matrices for iterative particle transport calculation:
+        - R: Diagonal recycling coefficient matrix
+        - C: View factor (first-flight coupling) matrix
+        - A, B: TMM propagation matrices
+        - AB: Combined transport operator
+        - (AB)^M @ A: Final transport operator with M reflections
+
+        The TMM formulation tracks particle populations on surfaces:
+        γ_out[n+1] = (AB)^n @ A @ γ_in[0]
+
+        where γ_in/γ_out are incident/emitted particle flux vectors.
+
+        Side Effects
+        ------------
+        Creates and stores sparse matrices:
+        - self.R_matrix : Diagonal recycling coefficients
+        - self.C_matrix : View factors (transposed from C_array)
+        - self.A_matrix : [C, 0; 0, I] block matrix
+        - self.B_matrix : [R, 0; I-R, I] block matrix
+        - self.AB_matrix : A @ B
+        - self.AB_power_A : (AB)^reflections @ A
+
+        Notes
+        -----
+        - All matrices are scipy.sparse.csr_array for memory efficiency
+        - Size is 2*numSurfaces (separate incident/emitted populations)
+        - Matrix power uses sparse linear algebra for efficiency
+        - self.C_array is transposed before creating C_matrix
+
+        See Also
+        --------
+        createTeleMatrix : Extract plasma-to-plasma transport from full TMM result
+        matrixPower : Compute sparse matrix power
+        """
         import numpy
         from numpy import zeros, identity, percentile, log, diag
         from scipy.sparse import csr_array, block_array
@@ -665,6 +1248,40 @@ class VacuumRegion:
         self.AB_power_A = self.matrixPower(self.AB_matrix, self.reflections) @ self.A_matrix 
 
     def createTeleMatrix(self):
+        """Extract plasma-to-plasma transport matrix from full TMM calculation.
+
+        Computes the telematrix T[i,j] giving the fraction of particles emitted
+        from plasma surface i that ultimately reach plasma surface j after all
+        reflections off material surfaces.
+
+        This is the core output used by UEDGE's vacuum model to couple plasma
+        surfaces through neutral transport.
+
+        Side Effects
+        ------------
+        Creates self.telematrix : ndarray, shape (P, P)
+            Transport probability matrix where T[i,j] is the fraction of
+            particles leaving plasma surface i that reach plasma surface j.
+
+        Algorithm
+        ---------
+        For each plasma surface i:
+        1. Set γ_in[i] = 1, all other γ_in = 0
+        2. Compute γ_out = (AB)^M @ A @ γ_in
+        3. Extract T[:, i] = γ_out[P:2P] (emitted from plasma surfaces)
+
+        Notes
+        -----
+        - Only plasma surfaces (0 to P-1) are included in telematrix
+        - Material surfaces (P to numSurfaces-1) are not in output
+        - Rows sum to ≤1 (particle loss to material surfaces)
+        - Used directly as UEDGE's cftelematrix{pf,w} array
+
+        See Also
+        --------
+        matrices : Construct TMM matrices including AB_power_A
+        """
+
         from numpy import zeros, transpose
 
         # Final transport matrix
@@ -681,6 +1298,50 @@ class VacuumRegion:
                 self.telematrix[j, i] = gammaFinal[j]
 
     def create_puff(self, puff_setup):
+        """Create gas puffing source from configuration dictionary.
+
+        Processes puff configuration, locates nearest material surface, and
+        computes puff vector (contribution to each plasma surface after transport).
+
+        Parameters
+        ----------
+        puff_setup : dict
+            Puff configuration with required keys:
+            - 'type': 'point' (only supported type)
+            - 'location': (R, Z) tuple of puff coordinates [meters]
+            - 'current': Injection rate [particles/s]
+            - 'igsp': Gas species index (0-based)
+
+        Returns
+        -------
+        dict
+            Puff information with computed transport:
+            - 'type': Puff type ('point')
+            - 'point': shapely.Point of puff location
+            - 'material_surface_index': Index of injection surface
+            - 'current': Injection rate [particles/s]
+            - 'igsp': Species index
+            - 'location': Original (R, Z) tuple
+            - 'puff_vector': (P, 1) array of contributions to plasma surfaces
+
+        Raises
+        ------
+        KeyError
+            If required configuration keys missing or invalid puff type.
+
+        Notes
+        -----
+        - Puff automatically assigned to nearest material surface
+        - Uses (AB)^M @ A to propagate injection to plasma surfaces
+        - Multiple puffs are additive (summed into puff_vector)
+        - Only material surfaces (P ≤ index < numSurfaces) can receive puffs
+        - 'point' is currently the only supported puff type
+
+        See Also
+        --------
+        create_pump_region : Create pumping region
+        """
+
         from shapely import Point
         from numpy import argsort, zeros
         if "type" not in puff_setup:
@@ -712,6 +1373,63 @@ class VacuumRegion:
         return ret
 
     def create_pump_region(self, pump_setup):
+        """Create pumping region from configuration dictionary.
+
+        Processes pump configuration, identifies intersecting surfaces, and
+        modifies their recycling coefficients. Later pumps override earlier
+        ones for overlapping surfaces.
+
+        Parameters
+        ----------
+        pump_setup : dict
+            Pump configuration with required keys:
+            - 'type': 'region' (only supported type)
+            - 'nodes': Array-like of (R, Z) node tuples defining pump polygon
+            - 'recycling': Recycling coefficient for surfaces in pump region
+
+        Returns
+        -------
+        dict
+            Pump information:
+            - 'type': Pump type ('region')
+            - 'polygon': shapely.Polygon of pump region
+            - 'nodes': Node array as provided
+            - 'pumped_segments': List of surface indices with modified recycling
+            - 'recycling': Applied recycling coefficient
+
+        Raises
+        ------
+        KeyError
+            If required configuration keys missing or invalid pump type.
+        AttributeError
+            If fewer than 3 nodes provided (cannot form polygon).
+
+        Notes
+        -----
+        - Only material surfaces (P ≤ index < numSurfaces) can be pumped
+        - Recycling modified in self.R_array for intersecting surfaces
+        - Multiple pumps: later in list take precedence for overlapping regions
+        - Recycling coefficient ∈ [0, 1]:
+          * 0: Perfect pump (no particle return)
+          * 1: No pumping (full recycling)
+        - 'region' is currently the only supported pump type
+        - Geometric intersection tested between surface segments and pump polygon
+
+        Examples
+        --------
+        >>> pump_cfg = {
+        ...     'type': 'region',
+        ...     'nodes': [(1.8, 0.1), (1.9, 0.1), (1.9, 0.2), (1.8, 0.2)],
+        ...     'recycling': 0.0
+        ... }
+        >>> pump_info = region.create_pump_region(pump_cfg)
+        >>> print(f"Pumping {len(pump_info['pumped_segments'])} surfaces")
+
+        See Also
+        --------
+        create_puff : Create gas puffing source
+        """
+
         from shapely import Polygon, intersects, Point
         if "type" not in pump_setup:
             raise KeyError(f"Define a pump type")
@@ -942,18 +1660,140 @@ class VacuumRegion:
 
    
 class Surface:
+    """Individual surface element for vacuum region modeling.
+
+    Represents a line segment surface in 2D (R,Z) space with associated geometric
+    properties for particle emission and view factor calculations. Implements
+    angular distribution modeling (uniform or cosine) via a distribution circle
+    positioned relative to the surface.
+
+    The distribution circle determines the angular probability distribution for
+    particles leaving the surface:
+    - r_offset=1 (cosine): Circle tangent to surface → cosine distribution (physical)
+    - r_offset=0 (uniform): Circle center on surface → uniform distribution
+    - 0<r_offset<1: Intermediate distribution
+
+    View factors to neighboring surfaces are computed via geometric overlap between
+    the distribution circle and flux triangles formed by line-of-sight connections.
+
+    Parameters
+    ----------
+    start : tuple
+        (R, Z) coordinates of surface start point [meters].
+    end : tuple
+        (R, Z) coordinates of surface end point [meters].
+    ID : int
+        Unique surface identifier within vacuum region.
+    material : int, optional
+        Material type (currently unused, default: 1).
+    emitting : int, optional
+        Emission flag (currently unused, default: 0).
+    absorbing : int, optional
+        Absorption flag (currently unused, default: 0).
+    r_offset : float, optional
+        Distribution circle offset (default: 1):
+        - 0: Uniform distribution
+        - 1: Cosine (Knudsen) distribution
+        - (0,1): Intermediate distribution
+
+    Attributes
+    ----------
+    start, end : shapely.Point
+        Surface endpoint coordinates.
+    segment : shapely.LineString
+        Line segment representation of surface.
+    ID : int
+        Surface identifier.
+    surfaceLength : float
+        Euclidean length of surface [meters].
+    midpoint : shapely.Point
+        Surface center point.
+    normalStart, normalEnd : shapely.Point
+        Start and end points of outward normal vector.
+    normal : shapely.LineString
+        Outward normal vector from surface midpoint.
+    dx, dy : float
+        Surface direction components (end - start).
+    circle : shapely.Polygon
+        Distribution circle for view factor calculations.
+    dCircleCenter : shapely.Point
+        Center of distribution circle.
+    r_offset : float
+        Applied distribution offset.
+    distType : str
+        Distribution description ("Uniform Distribution", "Cosine Distribution", etc.).
+    neighbors : dict
+        View factors to neighboring surfaces:
+        {neighbor_ID: {'flux': float, 'los': shapely.Polygon}}
+        where 'flux' is the view factor and 'los' is the line-of-sight triangle.
+    totflux : float
+        Sum of all view factors (should be ≈1 for flux conservation).
+    epsilon : float
+        Numerical tolerance for geometric operations (default: 1e-5).
+
+    Methods
+    -------
+    distributionCircle(r_offset)
+        Create distribution circle for given offset.
+    intersectionArea(s2)
+        Compute view factor to another surface s2.
+    getNeighbors(surfaces, geometry)
+        Find all visible neighbors and compute view factors.
+    getSmallestIntersectAngle(neighbor, geometry, polygon)
+        Adjust flux triangle for line-of-sight obstructions.
+    drawOuterCircle()
+        Create outer comparison circle for analytical validation.
+    printReport()
+        Print view factors to all neighbors.
+    plotSelf(ax=None, color='k', label=False, showCircle=True)
+        Plot surface and distribution circle.
+    plotConnections(ax=None, linewidth=2, **kwargs)
+        Plot view factor triangles to all neighbors.
+    showTwoSurfacePlot(s2, r_offset=0)
+        Interactive plot showing two-surface geometry and flux triangle.
+    showOuterCirclePlot(r_offset=1)
+        Plot surface with outer circle for analytical comparison.
+    showAnalyticPlot(ax, comparison=True, r_offset=1, showBothDist=False)
+        Plot view factor vs angle and compare to analytical distribution.
+    analyticUniform(ax)
+        Plot analytical uniform distribution for comparison.
+    normalHelper(dx, dy, endX, endY, init)
+        Compute outward normal direction from surface orientation.
+    vectorHelper(start, end)
+        Create numpy vector from two points.
+    dotProductAngle(v1, v2)
+        Compute signed angle between two vectors using dot product.
+
+    Examples
+    --------
+    Create surface and compute properties:
+    >>> s1 = Surface((1.0, 0.0), (2.0, 0.0), ID=0, r_offset=1)
+    >>> print(f"Length: {s1.surfaceLength:.3f} m")
+    >>> print(f"Midpoint: ({s1.midpoint.x:.3f}, {s1.midpoint.y:.3f})")
+
+    Compute view factor to another surface:
+    >>> s2 = Surface((1.5, 0.5), (2.5, 0.5), ID=1, r_offset=1)
+    >>> flux, triangle = s1.intersectionArea(s2)
+    >>> print(f"View factor: {flux:.4f}")
+
+    Notes
+    -----
+    - Distribution circle radius is surfaceLength/84 (empirically chosen)
+    - View factors include both geometric visibility and angular distribution
+    - Line-of-sight obstructions are handled by geometric intersection tests
+    - For physical thermal emission, use r_offset=1 (cosine distribution)
+    - Total view factors should sum to 1.0 for flux conservation
+    - The epsilon parameter prevents numerical issues in geometric calculations
+
+    See Also
+    --------
+    VacuumRegion : Container for multiple surfaces
+    """
 
     def __init__(self, start, end, ID, material=1, emitting=0, absorbing=0, r_offset=1):
         from shapely import Point, LineString, plotting
         from matplotlib.pyplot import subplots
         import math
-
-        '''Reference Variables/Important:
-            self.start (Point), self.end (Point), self.ID, self.segment (LineString), 
-            self.surfaceLength, self.midpoint (Point), self.normalStart (Point), 
-            self.normalEnd (Point), self.normal (LineString).'''
-
-        '''Start and end passed into the constructor are tuples (x, y)'''
 
         # Start and end points of the surface and a segment representation of the surface 
         self.start = Point(start[0], start[1])
@@ -1007,14 +1847,52 @@ class Surface:
 
         return
 
-    def distributionCircle(self, r_offset): # creates the distribution circle
+    def distributionCircle(self, r_offset):
+        """Create angular distribution circle for view factor calculations.
+
+        Constructs a circle whose geometric overlap with flux triangles determines
+        the angular probability distribution for particles emitted from this surface.
+
+        Parameters
+        ----------
+        r_offset : float
+            Distribution circle offset relative to radius:
+            - 0: Circle center on surface → uniform angular distribution
+            - 1: Circle tangent to surface → cosine (Knudsen) distribution
+            - (0, 1): Intermediate distribution
+
+        Side Effects
+        ------------
+        Sets attributes:
+        - self.circle : shapely.Polygon of distribution circle (500 points)
+        - self.dCircleCenter : shapely.Point at circle center
+        - self.r_offset : Stored offset value
+        - self.distType : Human-readable distribution name string
+
+        Notes
+        -----
+        - Circle radius is surfaceLength / 84 (empirically chosen)
+        - Circle center is offset along outward normal by r_offset * radius
+        - 500 points used to approximate circle (high precision)
+        - For cosine distribution (r_offset=1), midpoint added explicitly
+        - Circle winding order matches surface direction (clockwise/counterclockwise)
+        - Physical thermal emission uses r_offset=1 (cosine law)
+
+        Algorithm
+        ---------
+        1. Compute circle center: midpoint + r_offset * radius * normal_direction
+        2. Generate 500 points around circle at angles 0 to 2π
+        3. Special case: If cosine (r_offset=1), insert surface midpoint
+        4. Create shapely.Polygon from circle points
+
+        See Also
+        --------
+        intersectionArea : Use distribution circle to compute view factor
+        """
+
         from shapely import Point, LineString, plotting, LinearRing, Polygon
         from matplotlib.pyplot import subplots
         import math
-
-        """Reference Variables/Important:
-        self.dCircleCenter (Point), self.circle (Polygon), self.r_offset
-        """
 
         # Finding radius and center of circle
         self.r_offset = r_offset 
@@ -1066,14 +1944,74 @@ class Surface:
             print("    -> {}: {}".format(f"{neighid}".rjust(4), neighbor['flux']))
 
     def intersectionArea(self, s2):
+        """Compute view factor from this surface to another surface.
+
+        Calculates the fraction of particles emitted from this surface (self)
+        that directly reach another surface (s2) without intermediate reflections.
+        View factor is determined by geometric overlap between the distribution
+        circle and the flux triangle connecting the two surfaces.
+
+        Parameters
+        ----------
+        s2 : Surface
+            Target surface to compute view factor toward.
+
+        Returns
+        -------
+        fractionalArea : float
+            View factor (0 to 1): fraction of emitted particles reaching s2.
+        triangle : shapely.Polygon
+            Flux triangle connecting surfaces (for visualization/debugging).
+
+        Side Effects
+        ------------
+        Sets temporary attributes (overwritten in subsequent calls):
+        - self.triangle : Flux triangle from self.midpoint to s2 endpoints
+        - self.leg1, self.leg2 : LineStrings forming triangle sides
+        - self.overlapShape : Intersection of triangle and distribution circle
+        - self.vLeg1, self.vLeg2 : Vector representations of triangle legs
+        - self.totalAreaCircle : Relevant hemisphere of distribution circle
+
+        Raises
+        ------
+        None
+            Prints warning if distribution circle not created.
+
+        Algorithm
+        ---------
+        1. Form flux triangle: self.midpoint → s2.start → s2.end → self.midpoint
+        2. Compute intersection: overlapShape = triangle ∩ distribution_circle
+        3. For offset distributions (0 < r_offset < 1):
+           - Split circle at self.segment
+           - Use only hemisphere facing s2
+        4. fractionalArea = overlapShape.area / relevant_circle_area
+
+        Notes
+        -----
+        - Requires self.distributionCircle() called first
+        - Does not account for line-of-sight obstructions (see getNeighbors)
+        - View factor depends on:
+          * Distance between surfaces
+          * Relative orientation (normal directions)
+          * Angular distribution (via r_offset)
+        - For conservation: Σ fractionalArea over all s2 should equal 1.0
+        - Epsilon buffering handles numerical precision in circle splitting
+
+        Examples
+        --------
+        >>> s1 = Surface((1, 0), (2, 0), ID=0, r_offset=1)
+        >>> s2 = Surface((1.5, 0.5), (2.5, 0.5), ID=1)
+        >>> flux, triangle = s1.intersectionArea(s2)
+        >>> print(f"View factor from s1 to s2: {flux:.4f}")
+
+        See Also
+        --------
+        distributionCircle : Create distribution circle for view factors
+        getNeighbors : Account for line-of-sight obstructions
+        """
+
         from shapely import Point, LineString, plotting, Polygon, is_closed
         import math
-
-        '''Finds the overlapping area (flux) between two surfaces, given that self has a distribution circle generated.
-            Creates/draws the relevant shapes for finding the flux (fractional area) and other reference.'''
-
-        '''Reference Variables/Important:
-        self.triangle, self.leg1, self.leg2, self.overlapShape, overlapArea, fractionalArea'''
 
         if self.circle == None:
             print("Call distributionCircle on Surface before finding intersection area!")
@@ -1112,6 +2050,55 @@ class Surface:
         return fractionalArea, self.triangle 
 
     def getNeighbors(self, surfaces, geometry):
+        """Find visible neighbor surfaces and compute view factors with line-of-sight.
+
+        Iterates through all surfaces to identify which are visible from this surface,
+        accounting for geometric obstructions. Computes view factors and stores them
+        in self.neighbors dictionary. This is the core geometry calculation for TMM.
+
+        Parameters
+        ----------
+        surfaces : dict
+            Dictionary of all Surface objects in vacuum region, keyed by surface ID.
+        geometry : shapely.Polygon
+            Closed polygon defining vacuum region boundary for obstruction tests.
+
+        Side Effects
+        ------------
+        Updates attributes:
+        - self.neighbors : dict
+            {neighbor_ID: {'flux': float, 'los': shapely.Polygon}}
+            View factors and line-of-sight triangles for visible neighbors.
+        - self.totflux : float
+            Sum of all view factors (should be ≈1.0 for conservation).
+
+        Algorithm
+        ---------
+        For each potential neighbor surface:
+        1. Compute initial view factor via intersectionArea()
+        2. Check flux triangle intersects neighbor's outward normal (front side)
+        3. Check flux triangle intersects this surface's outward normal
+        4. Find geometric obstructions (triangle intersections with exterior)
+        5. Adjust triangle legs to avoid obstructions (getSmallestIntersectAngle)
+        6. Recompute view factor with adjusted geometry
+        7. Store in self.neighbors if flux > 0
+
+        Notes
+        -----
+        - Self-coupling (i == j) is skipped
+        - Back-side coupling is rejected (triangle doesn't intersect normal)
+        - Line-of-sight obstructions reduce view factors
+        - Flux conservation requires Σ flux ≈ 1.0 (check with totflux)
+        - Handles complex geometries with MultiPolygon obstructions
+        - Uses epsilon buffering for numerical robustness
+
+        See Also
+        --------
+        intersectionArea : Compute raw geometric view factor
+        getSmallestIntersectAngle : Adjust for line-of-sight obstructions
+        checkContinuity : Verify flux conservation
+        """
+
         from shapely import intersects, difference, crosses, buffer, contains, intersection
 
         #  Fractional Area Calculations
