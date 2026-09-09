@@ -316,26 +316,6 @@ class VacuumTests:
         f = test.plotGeometry(labels=True, testsurf=6, showCircle=True)
         return test
 
-    # def tokamakPlot(self, savefile): # Functionality transferred over to VNM_interface.couple
-    #     from uetools import Case
-    #     from numpy import zeros
-    #     '''Plots the full tokamak geometry.'''
-    #     c = Case(savefile, inplace=True)
-    #     (main, pf) = c.coupling.get_snull_vacuum_regions(maxlength = 0.0087)
-    #     # nobug = zeros((main[0].shape[0]-1, main[0].shape[1]))
-    #     # test = VacuumRegion(main[0], P=main[1]) # main geometry
-    #     test = VacuumRegion(pf[0], P=pf[1] - 1) # private flux region
-    #     '''To plot surfaces that aren't meeting unity:'''
-    #     # for i in test.errors:
-    #     #     if (i > 50) and (i<90):
-    #     #         f = test.plotGeometry(labels=False, testsurf=i, markers='.')
-    #     #         f.get_axes()[0].set_title(f"Surface {i}")
-    #     f = test.plotGeometry(labels=False, testsurf=27, showCircle=True)
-    #     m = test.heatmapPlot() # TO PLOT MATRIX HEATMAPS
-    #     # f = test.plotGeometry(labels=False, testsurf=150, showCircle=True)
-    #     # f = test.plotGeometry(labels=False, testsurf=4)
-    #     return test
-
 
 class VNM_interface:
     """Interface between UEDGE Case and Vacuum Neutral Model.
@@ -418,7 +398,7 @@ class VNM_interface:
         from numpy import load, array
         from collections import defaultdict
         if case.get('geometry')[0].strip().decode('UTF-8') not in ['snull', 'dnull']:
-            raise Exception("VNM model only implemented for singe nulls geometries!")
+            raise Exception("VNM model only implemented for single-null and double-null geometries!")
         self.coupling = case.coupling
         self.set = case.setue
         self.populate = case.populate
@@ -487,9 +467,6 @@ class VNM_interface:
                     region['boundary_file'] = self.info['savefile']
                 # Restore regions from save file as requested
                 self.restore(region['boundary_file'], self.uevars[region['location']], region['name'])
-#            # Split into generated/restored regions
-#            restore = [region for region in regions if region.get('restore')]
-#            generate = [region for region in regions if not region.get('restore')]
             # Check generated regions satisfy conditions
             for region in generate + restore_surfaces:
                 if 'nodes' in region:
@@ -507,10 +484,7 @@ class VNM_interface:
                             try:
                                 pump['nodes'] = load(pump['nodes'])
                             except:
-                                pump['nodes'] = array(read_txt(pump['nodes']))
-                        else:
-                            # TODO: Assert pump nodes are OK
-                            1 
+                                pump['nodes'] = array(read_txt(pump['nodes'])) 
     
         regions =   [x.copy() for x in generate] + \
                     [x.copy() for x in restore_boundary] + \
@@ -575,8 +549,7 @@ class VNM_interface:
         for var in restore_vars:
             val = self.hdf5search(save_file, var)
             if val is None:
-#                raise Exception(f"Variable '{var}' not found in {save_file}!")
-                # Assume defaults used and not thus written to save
+                # Assume defaults used and not written to save
                 pass
             else:
                 self.set(var, val)
@@ -1151,11 +1124,6 @@ class VacuumRegion:
         if write:
             self.saveVacuumRegion(savename)
 
-        '''Print statements to use if surfaces are not conserving flux via line of sight.'''
-        # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
-        #     print("Warning! Continuity violated for surfaces:", self.errors)
-        #     print(f"Fluxes: {[(s, self.surfaces[s].totflux) for s in self.errors]}")
-
     @staticmethod
     def subprocess_execute(output, conn, surflist, surfaces, geometry, verbose=True):
         from os import getpid
@@ -1498,7 +1466,6 @@ class VacuumRegion:
             "AB_matrix",
             "AB_power_A",
         ]
-        # TODO: Storing CSR matrices?
 
         if isinstance(obj, str):
             f = File(obj, 'a')
@@ -1524,7 +1491,6 @@ class VacuumRegion:
         pumpid = 1
         for setup in self.pumping_regions:
             pumpname = f"pump_{pumpid}"
-#        for pumpname, setup in self.pumping_regions.items():
             pump = pumps.require_group(pumpname)
             for var, data in setup.items():
                 if var not in ["polygon"]:
@@ -1532,7 +1498,7 @@ class VacuumRegion:
                         del pump[var]
                     pump.create_dataset(var, data=data)
             pumpid += 1
-        # Stor puff setups
+        # Store puff setups
         if len(self.puffs) > 0:
             puffs = vnm.require_group("puffs")
         puffid = 1
@@ -1556,10 +1522,10 @@ class VacuumRegion:
                 if verbose:
                     surface.printReport()
                 self.errors.append(surfid)
-        return len(self.errors)==0
+        return len(self.errors) == 0
 
-    def plotGeometry(self, ax=None, labels=False, testsurf=[], 
-        showCircle=False, markers=None, connectionLineWidth=0.5,**kwargs):
+    def plotGeometry(self, ax=None, labels=False, testsurf=[],
+                     showCircle=False, markers=None, connectionLineWidth=0.5, **kwargs):
         from matplotlib.pyplot import subplots, Figure, Axes, ioff
         import matplotlib.pyplot as plt
 
@@ -2030,13 +1996,15 @@ class Surface:
         # Vector representations of triangle legs
         self.vLeg1 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.start.x, s2.start.y))
         self.vLeg2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2.end.x, s2.end.y))
-        
-        # Getting the correct area of the distribution circle on one side of the normal line 
+
+        # Getting the correct area of the distribution circle on one side of the normal line
         overlapArea = self.overlapShape.area
-        if (0 <= self.r_offset and self.r_offset < 1) and self.circle.intersects(self.segment): # A circle shifted between uniform and cosine
+        if (0 <= self.r_offset and self.r_offset < 1) and self.circle.intersects(self.segment):
+            # Circle shifted between uniform and cosine
             buffLine = self.segment.buffer(self.epsilon * 1e-7)
-            splitdCircle = self.circle.difference(buffLine) # Split the distribution circle and the surface line
-            if splitdCircle.geoms[0].intersects(self.normal): 
+            # Split the distribution circle and the surface line
+            splitdCircle = self.circle.difference(buffLine)
+            if splitdCircle.geoms[0].intersects(self.normal):
                 self.totalAreaCircle = splitdCircle.geoms[0]
             else:
                 self.totalAreaCircle = splitdCircle.geoms[1]
@@ -2299,17 +2267,17 @@ class Surface:
             raise Exception('ax not a valid Figure or Axes object')
         ax.set_aspect('equal')
 
-        plotting.plot_line(self.segment, ax, color=color, linewidth=2) # plots surface
+        plotting.plot_line(self.segment, ax, color=color, linewidth=2)
         if label:
             ax.text(self.midpoint.x, self.midpoint.y, f"Surface {self.ID}", fontsize=8, color='black')
 
         if showCircle:
-            plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
+            plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
             
         return ax
 
-    def plotConnections(self,  ax=None, linewidth=2, 
-            colorseed=1, **kwargs):
+    def plotConnections(self, ax=None, linewidth=2,
+                        colorseed=1, **kwargs):
         from matplotlib.pyplot import subplots, ioff, Figure, Axes, get_cmap
         from shapely import plotting
         import random
@@ -2330,11 +2298,11 @@ class Surface:
         colors = iter(cmap(cols))
         for neighid, neighbor in self.neighbors.items():
             plotting.plot_polygon(
-                    neighbor['los'], 
-                    add_points=False,
-                    color=next(colors), 
-                    linewidth=linewidth,
-                    **kwargs
+                neighbor['los'],
+                add_points=False,
+                color=next(colors),
+                linewidth=linewidth,
+                **kwargs
             )
 
     def showAnalyticPlot(self, ax, comparison=True, r_offset=1, showBothDist=False): 
@@ -2375,11 +2343,11 @@ class Surface:
             s2End = s2Points[i]
             s2Surface = Surface((s2Start[0], s2Start[1]), (s2End[0], s2End[1]), i)
 
-            # Removes some outlier points 
-            if (s2Surface.segment.length >= (self.surfaceLength - 1)) and (s2Surface.segment.length <= (self.surfaceLength + 1)): 
+            # Removes some outlier points
+            if (s2Surface.segment.length >= (self.surfaceLength - 1)) and (s2Surface.segment.length <= (self.surfaceLength + 1)):
                 s2Start = s2End
                 continue
-            
+
             # Edge case outliers (mainly for uniform distribution)
             startTuple = (s2Start[0], s2Start[1])
             endTuple = (s2End[0], s2End[1])
@@ -2392,9 +2360,8 @@ class Surface:
             vS2 = self.vectorHelper((self.midpoint.x, self.midpoint.y), (s2Surface.midpoint.x, s2Surface.midpoint.y))
 
             # Call helper function that uses dot product to calculate angle between vectors
-            angle = self.dotProductAngle(vNormal, vS2) # Plot on x-axis
-
-            areaValue, _ = self.intersectionArea(s2Surface) # Plot on y-axis
+            angle = self.dotProductAngle(vNormal, vS2)
+            areaValue, _ = self.intersectionArea(s2Surface)
 
             dTheta = self.dotProductAngle(self.vLeg1, self.vLeg2)
             pdfArea += areaValue * dTheta
@@ -2429,15 +2396,6 @@ class Surface:
 
             for cosPoint in cosPoints:
                 plot_points(cosPoint, ax, color='red', marker='1')
-        
-
-        '''Print statements for sanity check of total fractional area and the PDF Area.'''
-        # total = 0
-        # for point in plotPoints:
-        #     total += point.y 
-
-        # print("Total Fractional Area: ", total)
-        # print("PDF Area: ", pdfArea)
 
         # Generate the plot
         if self.r_offset == 0:
@@ -2508,15 +2466,6 @@ class Surface:
         
         for adjPoint in adjustedPlotPoints:
             plot_points(adjPoint, ax, color='green')
-        
-
-        '''Print statements for sanity check of total fractional area and the PDF Area.''' # # #'''
-        # total = 0
-        # for point in plotPoints:
-        #     total += point.y 
-
-        # print("Total Fractional Area: ", total)
-        # print("PDF Area: ", pdfArea)
 
         # Generate the plot
         plt.show(block=False)
@@ -2535,22 +2484,22 @@ class Surface:
         self.distributionCircle(r_offset)
         self.intersectionArea(s2)
 
-        plotting.plot_line(self.segment, ax, color='red', linewidth=2) # plots surface
+        plotting.plot_line(self.segment, ax, color='red', linewidth=2)
         ax.text(self.start.x, self.start.y, "Surface 1", color='red')
 
-        plotting.plot_line(self.normal, ax, color='blue', linewidth=2) # plots normal line to surface
+        plotting.plot_line(self.normal, ax, color='blue', linewidth=2)
         ax.text(self.normalEnd.x, self.normalEnd.y, "Normal (S1)", color='blue')
 
-        plotting.plot_line(self.dCircleCenter, ax, color='green') # plots point at center of distribution circle
-        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
+        plotting.plot_line(self.dCircleCenter, ax, color='green')
+        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
         ax.text(self.dCircleCenter.x, self.dCircleCenter.y, self.distType, color='green')
 
-        plotting.plot_polygon(self.triangle, ax, color='orange', linewidth=2) # plots the triangle connecting to another surface
+        plotting.plot_polygon(self.triangle, ax, color='orange', linewidth=2)
 
-        plotting.plot_line(s2.segment, ax, color='black', linewidth=2) # plot surface2
+        plotting.plot_line(s2.segment, ax, color='black', linewidth=2)
         ax.text(s2.midpoint.x, s2.midpoint.y, "Surface 2", color='orange')
 
-        plotting.plot_polygon(self.overlapShape, ax, add_points=False, color='black', linewidth=2) # displays the overlapping area
+        plotting.plot_polygon(self.overlapShape, ax, add_points=False, color='black', linewidth=2)
         ax.text(self.overlapShape.centroid.x, self.overlapShape.centroid.y, "Overlap Area", color='black')
 
         plt.show(block=False)
@@ -2569,17 +2518,17 @@ class Surface:
         self.distributionCircle(r_offset)
         self.drawOuterCircle()
 
-        plotting.plot_line(self.segment, ax, color='red', linewidth=2) # plots surface
+        plotting.plot_line(self.segment, ax, color='red', linewidth=2)
         ax.text(self.start.x, self.start.y, "Surface 1", color='red')
 
-        plotting.plot_line(self.normal, ax, color='blue', linewidth=2) # plots normal line to surface
+        plotting.plot_line(self.normal, ax, color='blue', linewidth=2)
         ax.text(self.normalEnd.x, self.normalEnd.y, "Normal (S1)", color='blue')
 
-        plotting.plot_line(self.dCircleCenter, ax, color='green') # plots point at center of distribution circle
-        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1) # plots the distribution circle
+        plotting.plot_line(self.dCircleCenter, ax, color='green')
+        plotting.plot_polygon(self.circle, ax, add_points=False, color='green', linewidth=1)
         ax.text(self.dCircleCenter.x, self.dCircleCenter.y, self.distType, color='green')
 
-        plotting.plot_polygon(self.outerCircle, ax, add_points=True, color='gray') # displays the "outerCircle"
+        plotting.plot_polygon(self.outerCircle, ax, add_points=True, color='gray')
 
         plt.show(block=False)
 
