@@ -99,6 +99,7 @@ class VacuumTests:
 class VNM_interface:
     def __init__(self, case, vnm_setup):
         from numpy import load, array
+        from collections import defaultdict
         if case.get('geometry')[0].strip().decode('UTF-8') not in ['snull', 'dnull']:
             raise Exception("VNM model only implemented for singe nulls geometries!")
         self.coupling = case.coupling
@@ -123,8 +124,7 @@ class VNM_interface:
             ]
         }
     
-        # TODO: Test saves, restores, write-to-files, etc.
-        # TODO: Add switches for 
+        # TODO: Test HDF5 restore with UETOOLS HDF5 saves
 
         def read_txt(file):
             nodes = []
@@ -152,14 +152,29 @@ class VNM_interface:
                 if 'isvacuummodel' not in region:
                     raise Exception("Specify VNM model for species using isvacuummodel")
             regions = vnm_setup.pop('regions')
-            # Split into generated/restored regions
-            restore = [region for region in regions if region.get('restore')]
-            generate = [region for region in regions if not region.get('restore')]
-            # Restore regions from save file as requested
-            for region in restore:
-                self.restore(region['savefile'], self.uevars[region['location']])
+            # Detect whether to generate, restore surfaces, or restore BCs
+            groups = defaultdict(list)
+            for region in regions:
+                mode = region.get("mode", "generate")
+                groups[mode].append(region)
+            generate = groups["generate"]
+            restore_surfaces = groups["restore_surfaces"]
+            restore_boundary = groups["restore_boundary"]
+            for region in restore_surfaces:
+                if 'surface_file' not in region:
+                    raise KeyError(f"'surface_file' to restore not specified for region {region['name']}")
+            for region in restore_boundary:
+                if 'boundary_file' not in region:
+                    
+                    print(f"'boundary_file' to restore not specified for region {region['name']}, using save file '{self.info['savefile']}'")
+                    region['boundary_file'] = self.info['savefile']
+                # Restore regions from save file as requested
+                self.restore(region['boundary_file'], self.uevars[region['location']], region['name'])
+#            # Split into generated/restored regions
+#            restore = [region for region in regions if region.get('restore')]
+#            generate = [region for region in regions if not region.get('restore')]
             # Check generated regions satisfy conditions
-            for region in generate:
+            for region in generate + restore_surfaces:
                 if 'nodes' in region:
                     if "savefile" in region:
                         raise Exception("Either specify save file or node list" +
@@ -180,13 +195,17 @@ class VNM_interface:
                             # TODO: Assert pump nodes are OK
                             1 
     
-        regions = [x.copy() for x in generate] + [x.copy() for x in restore]
+        regions =   [x.copy() for x in generate] + \
+                    [x.copy() for x in restore_boundary] + \
+                    [x.copy() for x in restore_surfaces]
         if len(generate) > 0: 
             self.generate(generate, **vnm_setup)
+        if len(restore_surfaces) > 0: 
+            self.generate(restore_surfaces, restore_surfaces=True, **vnm_setup)
         vnm_setup['regions'] = regions
         self.populate()
 
-    def restore(self, save_file, restore_vars=None):
+    def restore(self, save_file, restore_vars=None, location=''):
         """Restores existing telematrices from the provided save file, and calculates puffing input arrays if desired.
         Uses the current save file if none is provided.
         """
@@ -203,18 +222,21 @@ class VNM_interface:
         for var in restore_vars:
             val = self.hdf5search(save_file, var)
             if val is None:
-                raise Exception(f"Variable '{var}' not found in {save_file}!")
-            self.set(var, val)
+#                raise Exception(f"Variable '{var}' not found in {save_file}!")
+                # Assume defaults used and not thus written to save
+                pass
+            else:
+                self.set(var, val)
         self.populate()
-        print(f"Successfully restored VNM from {save_file}")
+        print(f"Successfully restored {location} VNM from {save_file}")
         return
 
 
 
-    def generate(self, regions, overwrite=False, maxlength=0.01, plot=False):
+    def generate(self, regions, restore_surfaces=False, maxlength=0.01, plot=False):
         ''' 
             region_setup,
-            overwrite = False,
+            write = False,
             maxlength = 0.01,
                 sol=False, 
                 sol_savename=None, 
@@ -267,7 +289,7 @@ class VNM_interface:
                     from the UEDGE case
                 recycling - recycling coefficient for SOL (default = 1)
         pfr - ditto for the PFR vacuum region
-        overwrite -- decides whether or not to write generated matrices into save file (default False).
+        write -- decides whether or not to write generated matrices into save file (default False).
         """
 
         import h5py
@@ -287,7 +309,6 @@ class VNM_interface:
         self.regions = {}
         self.output = {}
         dimension = self.nx+2
-        # TODO: Add controls for impurity/gas species VNM settings
         for region in regions:
             if 'name' in region:
                 name = region.pop('name')
@@ -296,6 +317,7 @@ class VNM_interface:
             isvacuummodel = region.pop('isvacuummodel')
             # Perform inner/outer setup
             location = region.pop('location').lower()
+            (vnm, P) = self.nodes[location]
             if location == 'inner':
                 P = self.ixpt1 + (self.nx - self.ixpt2)
                 savekey = ('pf', 'i')
@@ -306,10 +328,9 @@ class VNM_interface:
                 'telematrix': zeros((dimension, dimension, 6)),
                 'puff': zeros((dimension, self.ngsp))
             }
-            vnm = self.nodes[location]
-            if 'savefile' in region:
+            if restore_surfaces:
                 print(f"Restoring vacuum region '{name}' from pickle/HDF5")
-                vnm = region.pop('savefile')
+                vnm = region.pop('surface_file')
             elif 'nodes' in region:
                 print(f"Generating vacuum region '{name}' from user-defined nodes")
                 vnm = region.pop('nodes')
@@ -407,7 +428,7 @@ class VNM_interface:
 
 
 class VacuumRegion:
-    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump=None, puff=None, reflections=1e6, hdf5location="vnm", savename=None, isvacuummodel=None, **kwargs):
+    def __init__(self, nodeList, P=0, r_offset_plasma=1, r_offset_material=1, multiprocess=True, ncores=None, verbose=True, material_recycling=1, pump=None, puff=None, reflections=1e6, hdf5location="vnm", savename=None, isvacuummodel=None, write=False, **kwargs):
         """
         nodeList - str, list of nodes, or HDF5 file name
                 HDF5 - populates data based on hdf5location pointing to the vnm setup in
@@ -461,6 +482,9 @@ class VacuumRegion:
         self.r_offset_plasma = r_offset_plasma
         self.r_offset_material = r_offset_material
 
+        if write:
+            if savename is None:
+                raise ValueError("'savename' must be specified when write is True")
         if isinstance(nodeList, type(None)):
             raise TypeError("nodeList cannot be None!")
     
@@ -483,7 +507,6 @@ class VacuumRegion:
                             for var in vnm['pumps'][pumpname].keys():
                                 pump[pumpname][var] = vnm['pumps'][pumpname][var][()]
 
-        # TODO: add option to restore from HDF5 file
         starttime = time()
                 
         if isinstance(self.nodeList, str): 
@@ -576,8 +599,8 @@ class VacuumRegion:
                 self.puff_vector[:,_puff['igsp']] += self.puffs[-1]['puff_vector'].flatten()
         
         """ Save to pickle if requested """
-        if savename is not None:
-            self.save(savename)
+        if write:
+            self.saveVacuumRegion(savename)
 
         '''Print statements to use if surfaces are not conserving flux via line of sight.'''
         # if not self.checkContinuity(False): # BRING BACK AFTER TESTING
@@ -729,7 +752,7 @@ class VacuumRegion:
         with open(savename, 'wb') as f:
             dump(save, f)
 
-    def writeVacuumSetup(self, obj, write_matrices=False):
+    def writeVacuumSetup(self, obj, write_matrices=True):
         from h5py import File, Group
 
         def save_csr(group, mat):
@@ -780,17 +803,23 @@ class VacuumRegion:
         # Store pump setups
         if len(self.pumping_regions) > 0:
             pumps = vnm.require_group("pumps")
-        for pumpname, setup in self.pumping_regions.items():
+        pumpid = 1
+        for setup in self.pumping_regions:
+            pumpname = f"pump_{pumpid}"
+#        for pumpname, setup in self.pumping_regions.items():
             pump = pumps.require_group(pumpname)
             for var, data in setup.items():
                 if var not in ["polygon"]:
                     if var in pump:
                         del pump[var]
                     pump.create_dataset(var, data=data)
+            pumpid += 1
         # Stor puff setups
         if len(self.puffs) > 0:
             puffs = vnm.require_group("puffs")
-        for puffname, setup in self.puffs.items():
+        puffid = 1
+        for setup in self.puffs:
+            puffname = f"puff_{puffid}"
             puff = puffs.require_group(puffname)
             for var, data in setup.items():
                 if var not in ['point']:

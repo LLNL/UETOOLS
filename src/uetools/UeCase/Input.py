@@ -177,7 +177,7 @@ class Input:
             if "detected" == entry.lower():
                 detected = setup.pop(entry)
             if "vnm" == entry.lower():
-                vnm = setup.pop(entry)
+                vnm = self.strip_types(setup.pop(entry))
                 self.info["vnm"] = vnm
 
         # TODO: Add mist.dat as an optional parameter/etc to allow changing
@@ -555,3 +555,26 @@ class Input:
     #        ('nisp' in str(self.variables['dims'][var])):
     #        raise NotImplementedError("")
     #        print('Shaped')
+
+    def strip_types(self, setup={}, ret=None):
+        """ Returns dictionry with bytes/numpy types stripped """
+        import numpy as np
+        if ret is None:
+            ret = setup.copy()
+        for key, item in setup.items():
+            if isinstance(item, dict):
+                setup[key] = self.strip_types(item, ret[key])
+            else:
+                if isinstance(item, np.int64):
+                    ret[key] = int(item)
+                elif isinstance(item, np.float64):
+                    ret[key] = float(item)
+                elif isinstance(item, np.bool):
+                    ret[key] = bool(item)
+                elif isinstance(item, bytes):
+                    ret[key] = item.decode('UTF-8')
+                elif isinstance(item, (np.ndarray, int, float, bool, list)):
+                    pass
+                else:
+                    print(f"Unknown type '{type(item)}' for {key}")
+        return ret
