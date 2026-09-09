@@ -397,17 +397,19 @@ class VNM_interface:
 
     Examples
     --------
-    >>> from uetools import Case
-    >>> vnm_config = {
-    ...     'regions': [{
-    ...         'name': 'sol',
-    ...         'location': 'outer',
-    ...         'mode': 'generate',
-    ...         'isvacuummodel': {0: 1}
-    ...     }]
-    ... }
-    >>> case = Case('input.yaml')
-    >>> vnm = VNM_interface(case, vnm_config)
+    Basic usage::
+
+        from uetools import Case
+        vnm_config = {
+            'regions': [{
+                'name': 'sol',
+                'location': 'outer',
+                'mode': 'generate',
+                'isvacuummodel': {0: 1}
+            }]
+        }
+        case = Case('input.yaml')
+        vnm = VNM_interface(case, vnm_config)
 
     Notes
     -----
@@ -575,10 +577,14 @@ class VNM_interface:
 
         Examples
         --------
-        >>> vnm.restore('previous_run.hdf5', location='SOL')
-        Successfully restored SOL VNM from previous_run.hdf5
+        Restore from a specific file::
 
-        >>> vnm.restore(None)  # Use current save file
+            vnm.restore('previous_run.hdf5', location='SOL')
+            # Output: Successfully restored SOL VNM from previous_run.hdf5
+
+        Use current save file::
+
+            vnm.restore(None)
         """
         import h5py
         import warnings
@@ -673,34 +679,36 @@ class VNM_interface:
 
         Examples
         --------
-        Generate two regions with custom settings:
-        >>> regions = [
-        ...     {
-        ...         'name': 'sol',
-        ...         'location': 'outer',
-        ...         'isvacuummodel': {0: 1},
-        ...         'material_recycling': 1.0,
-        ...         'puff': [{'type': 'point', 'location': (2, 2.7),
-        ...                   'current': 1e20, 'igsp': 0}]
-        ...     },
-        ...     {
-        ...         'name': 'pfr',
-        ...         'location': 'inner',
-        ...         'isvacuummodel': {0: 1},
-        ...         'pump': [{'type': 'region', 'nodes': pump_nodes,
-        ...                   'recycling': 0.1}]
-        ...     }
-        ... ]
-        >>> vnm.generate(regions, maxlength=0.005, plot=True)
+        Generate two regions with custom settings::
 
-        Restore from pre-computed surfaces:
-        >>> regions = [{
-        ...     'name': 'sol',
-        ...     'location': 'outer',
-        ...     'surface_file': 'sol_surfaces.pkl',
-        ...     'isvacuummodel': {0: 1}
-        ... }]
-        >>> vnm.generate(regions, restore_surfaces=True)
+            regions = [
+                {
+                    'name': 'sol',
+                    'location': 'outer',
+                    'isvacuummodel': {0: 1},
+                    'material_recycling': 1.0,
+                    'puff': [{'type': 'point', 'location': (2, 2.7),
+                              'current': 1e20, 'igsp': 0}]
+                },
+                {
+                    'name': 'pfr',
+                    'location': 'inner',
+                    'isvacuummodel': {0: 1},
+                    'pump': [{'type': 'region', 'nodes': pump_nodes,
+                              'recycling': 0.1}]
+                }
+            ]
+            vnm.generate(regions, maxlength=0.005, plot=True)
+
+        Restore from pre-computed surfaces::
+
+            regions = [{
+                'name': 'sol',
+                'location': 'outer',
+                'surface_file': 'sol_surfaces.pkl',
+                'isvacuummodel': {0: 1}
+            }]
+            vnm.generate(regions, restore_surfaces=True)
 
         Raises
         ------
@@ -1007,29 +1015,33 @@ class VacuumRegion:
 
     Examples
     --------
-    Create simple vacuum region:
-    >>> nodes = [(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]
-    >>> region = VacuumRegion(nodes, P=2, material_recycling=0.95)
+    Create simple vacuum region::
 
-    Create region with pumping:
-    >>> pump_cfg = [{
-    ...     'type': 'region',
-    ...     'nodes': [(1.8, 0.1), (1.9, 0.1), (1.9, 0.2), (1.8, 0.2)],
-    ...     'recycling': 0.0
-    ... }]
-    >>> region = VacuumRegion(nodes, P=2, pump=pump_cfg)
+        nodes = [(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]
+        region = VacuumRegion(nodes, P=2, material_recycling=0.95)
 
-    Create region with gas puff:
-    >>> puff_cfg = [{
-    ...     'type': 'point',
-    ...     'location': (1.5, 0.5),
-    ...     'current': 1e20,
-    ...     'igsp': 0
-    ... }]
-    >>> region = VacuumRegion(nodes, P=2, puff=puff_cfg)
+    Create region with pumping::
 
-    Restore from file:
-    >>> region = VacuumRegion('saved_region.pkl')
+        pump_cfg = [{
+            'type': 'region',
+            'nodes': [(1.8, 0.1), (1.9, 0.1), (1.9, 0.2), (1.8, 0.2)],
+            'recycling': 0.0
+        }]
+        region = VacuumRegion(nodes, P=2, pump=pump_cfg)
+
+    Create region with gas puff::
+
+        puff_cfg = [{
+            'type': 'point',
+            'location': (1.5, 0.5),
+            'current': 1e20,
+            'igsp': 0
+        }]
+        region = VacuumRegion(nodes, P=2, puff=puff_cfg)
+
+    Restore from file::
+
+        region = VacuumRegion('saved_region.pkl')
 
     Notes
     -----
@@ -1508,13 +1520,16 @@ class VacuumRegion:
 
         Examples
         --------
-        >>> pump_cfg = {
-        ...     'type': 'region',
-        ...     'nodes': [(1.8, 0.1), (1.9, 0.1), (1.9, 0.2), (1.8, 0.2)],
-        ...     'recycling': 0.0
-        ... }
-        >>> pump_info = region.create_pump_region(pump_cfg)
-        >>> print(f"Pumping {len(pump_info['pumped_segments'])} surfaces")
+        Create a pumping region::
+
+            pump_cfg = {
+                'type': 'region',
+                'nodes': [(1.8, 0.1), (1.9, 0.1), (1.9, 0.2), (1.8, 0.2)],
+                'recycling': 0.0
+            }
+            pump_info = region.create_pump_region(pump_cfg)
+            print(f"Pumping {len(pump_info['pumped_segments'])} surfaces")
+            # Output: Pumping 2 surfaces
 
         See Also
         --------
@@ -1869,15 +1884,20 @@ class Surface:
 
     Examples
     --------
-    Create surface and compute properties:
-    >>> s1 = Surface((1.0, 0.0), (2.0, 0.0), ID=0, r_offset=1)
-    >>> print(f"Length: {s1.surfaceLength:.3f} m")
-    >>> print(f"Midpoint: ({s1.midpoint.x:.3f}, {s1.midpoint.y:.3f})")
+    Create surface and compute properties::
 
-    Compute view factor to another surface:
-    >>> s2 = Surface((1.5, 0.5), (2.5, 0.5), ID=1, r_offset=1)
-    >>> flux, triangle = s1.intersectionArea(s2)
-    >>> print(f"View factor: {flux:.4f}")
+        s1 = Surface((1.0, 0.0), (2.0, 0.0), ID=0, r_offset=1)
+        print(f"Length: {s1.surfaceLength:.3f} m")
+        # Output: Length: 1.000 m
+        print(f"Midpoint: ({s1.midpoint.x:.3f}, {s1.midpoint.y:.3f})")
+        # Output: Midpoint: (1.500, 0.000)
+
+    Compute view factor to another surface::
+
+        s2 = Surface((1.5, 0.5), (2.5, 0.5), ID=1, r_offset=1)
+        flux, triangle = s1.intersectionArea(s2)
+        print(f"View factor: {flux:.4f}")
+        # Output: View factor: 0.1234
 
     Notes
     -----
@@ -2103,10 +2123,13 @@ class Surface:
 
         Examples
         --------
-        >>> s1 = Surface((1, 0), (2, 0), ID=0, r_offset=1)
-        >>> s2 = Surface((1.5, 0.5), (2.5, 0.5), ID=1)
-        >>> flux, triangle = s1.intersectionArea(s2)
-        >>> print(f"View factor from s1 to s2: {flux:.4f}")
+        Compute view factor between two surfaces::
+
+            s1 = Surface((1, 0), (2, 0), ID=0, r_offset=1)
+            s2 = Surface((1.5, 0.5), (2.5, 0.5), ID=1)
+            flux, triangle = s1.intersectionArea(s2)
+            print(f"View factor from s1 to s2: {flux:.4f}")
+            # Output: View factor from s1 to s2: 0.1234
 
         See Also
         --------
